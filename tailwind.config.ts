@@ -7,10 +7,14 @@ const config: Config = {
   ],
   theme: {
     extend: {
+      fontFamily: {
+        sans: ['var(--font-inter)', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+      },
       colors: {
         brand: {
           DEFAULT: '#4f46e5',
           dark: '#4338ca',
+          light: '#eef2ff',
         },
       },
     },
