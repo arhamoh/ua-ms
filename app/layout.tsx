@@ -1,7 +1,6 @@
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
-import Sidebar from '@/components/Sidebar';
-import Topbar from '@/components/Topbar';
+import AppShell from '@/components/AppShell';
 import './globals.css';
 
 const inter = Inter({
@@ -23,11 +22,7 @@ export default function RootLayout({
   return (
     <html lang="en" className={inter.variable}>
       <body className="min-h-screen bg-slate-50 font-sans text-slate-900 antialiased">
-        <Sidebar />
-        <div className="pl-60">
-          <Topbar />
-          <main className="mx-auto max-w-6xl px-6 py-8">{children}</main>
-        </div>
+        <AppShell>{children}</AppShell>
       </body>
     </html>
   );

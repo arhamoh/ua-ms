@@ -1,0 +1,178 @@
+'use client';
+
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+import { useEffect, useState } from 'react';
+import {
+  LayoutDashboard,
+  Users,
+  Briefcase,
+  UserPlus,
+  Settings,
+  Search,
+  Bell,
+  Menu,
+  X,
+  type LucideIcon,
+} from 'lucide-react';
+
+type NavItem = { href: string; label: string; icon: LucideIcon };
+
+const nav: NavItem[] = [
+  { href: '/', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/clients', label: 'Clients', icon: Briefcase },
+  { href: '/team', label: 'Team', icon: Users },
+];
+
+function NavContent({ onNavigate }: { onNavigate?: () => void }) {
+  const pathname = usePathname();
+  const isActive = (href: string) =>
+    href === '/' ? pathname === '/' : pathname.startsWith(href);
+
+  return (
+    <>
+      <div className="flex h-16 items-center gap-2.5 border-b border-slate-100 px-5">
+        <span className="grid h-8 w-8 place-items-center rounded-lg bg-brand text-sm font-bold text-white">
+          UA
+        </span>
+        <div className="leading-tight">
+          <div className="text-sm font-semibold">Agency Platform</div>
+          <div className="text-[11px] text-slate-400">Project management</div>
+        </div>
+      </div>
+
+      <nav className="flex-1 space-y-1 px-3 py-4">
+        <p className="px-3 pb-2 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+          Menu
+        </p>
+        {nav.map(({ href, label, icon: Icon }) => {
+          const active = isActive(href);
+          return (
+            <Link
+              key={href}
+              href={href}
+              onClick={onNavigate}
+              className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition ${
+                active
+                  ? 'bg-brand-light text-brand'
+                  : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+              }`}
+            >
+              <Icon size={18} className={active ? 'text-brand' : 'text-slate-400'} />
+              {label}
+            </Link>
+          );
+        })}
+
+        <div className="px-3 pt-4">
+          <Link
+            href="/onboard"
+            onClick={onNavigate}
+            className="flex items-center justify-center gap-2 rounded-lg bg-brand px-3 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-brand-dark"
+          >
+            <UserPlus size={16} />
+            Onboard Client
+          </Link>
+        </div>
+      </nav>
+
+      <div className="border-t border-slate-100 p-3">
+        <div className="flex items-center gap-3 rounded-lg px-3 py-2 hover:bg-slate-50">
+          <span className="grid h-8 w-8 place-items-center rounded-full bg-slate-200 text-xs font-semibold text-slate-600">
+            UA
+          </span>
+          <div className="min-w-0 flex-1 leading-tight">
+            <div className="truncate text-sm font-medium">UA Agency</div>
+            <div className="truncate text-[11px] text-slate-400">Signed out</div>
+          </div>
+          <Settings size={16} className="text-slate-400" />
+        </div>
+      </div>
+    </>
+  );
+}
+
+export default function AppShell({ children }: { children: React.ReactNode }) {
+  const [open, setOpen] = useState(false);
+  const pathname = usePathname();
+
+  // Close the mobile drawer whenever the route changes.
+  useEffect(() => {
+    setOpen(false);
+  }, [pathname]);
+
+  return (
+    <>
+      {/* Desktop sidebar */}
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r border-slate-200 bg-white lg:flex">
+        <NavContent />
+      </aside>
+
+      {/* Mobile drawer */}
+      <div
+        className={`fixed inset-0 z-40 lg:hidden ${open ? '' : 'pointer-events-none'}`}
+        aria-hidden={!open}
+      >
+        <div
+          onClick={() => setOpen(false)}
+          className={`absolute inset-0 bg-slate-900/40 transition-opacity ${
+            open ? 'opacity-100' : 'opacity-0'
+          }`}
+        />
+        <aside
+          className={`absolute inset-y-0 left-0 flex w-64 flex-col bg-white shadow-xl transition-transform duration-200 ${
+            open ? 'translate-x-0' : '-translate-x-full'
+          }`}
+        >
+          <button
+            onClick={() => setOpen(false)}
+            aria-label="Close menu"
+            className="absolute right-3 top-4 grid h-8 w-8 place-items-center rounded-md text-slate-400 hover:bg-slate-100"
+          >
+            <X size={18} />
+          </button>
+          <NavContent onNavigate={() => setOpen(false)} />
+        </aside>
+      </div>
+
+      {/* Main column */}
+      <div className="lg:pl-60">
+        <header className="sticky top-0 z-20 flex h-16 items-center gap-3 border-b border-slate-200 bg-white/80 px-4 backdrop-blur sm:px-6">
+          <button
+            onClick={() => setOpen(true)}
+            aria-label="Open menu"
+            className="grid h-9 w-9 place-items-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 lg:hidden"
+          >
+            <Menu size={18} />
+          </button>
+
+          <div className="relative hidden w-full max-w-sm sm:block">
+            <Search
+              size={16}
+              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+            />
+            <input
+              type="text"
+              placeholder="Search clients, projects…"
+              className="w-full rounded-lg border border-slate-200 bg-slate-50 py-2 pl-9 pr-3 text-sm placeholder:text-slate-400 focus:border-brand focus:bg-white focus:outline-none"
+            />
+          </div>
+
+          <div className="ml-auto flex items-center gap-2 sm:gap-3">
+            <button
+              className="grid h-9 w-9 place-items-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50"
+              aria-label="Notifications"
+            >
+              <Bell size={18} />
+            </button>
+            <span className="grid h-9 w-9 place-items-center rounded-full bg-brand text-xs font-semibold text-white">
+              UA
+            </span>
+          </div>
+        </header>
+
+        <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-8">{children}</main>
+      </div>
+    </>
+  );
+}
