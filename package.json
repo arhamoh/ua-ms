@@ -1,7 +1,7 @@
 {
   "name": "ua-digital-checkin",
   "version": "2.0.0",
-  "description": "Agency project management platform (web-first, Slack integration)",
+  "description": "Agency project management platform (web-first)",
   "private": true,
   "scripts": {
     "dev": "next dev",

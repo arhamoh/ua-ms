@@ -35,7 +35,6 @@ model User {
   email        String   @unique
   passwordHash String?
   role         Role     @default(MEMBER)
-  slackUserId  String?  @unique
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 

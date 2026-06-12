@@ -14,7 +14,6 @@ CREATE TABLE "User" (
     "email" TEXT NOT NULL,
     "passwordHash" TEXT,
     "role" "Role" NOT NULL DEFAULT 'MEMBER',
-    "slackUserId" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -80,9 +79,6 @@ CREATE TABLE "TimeEntry" (
 
 -- CreateIndex
 CREATE UNIQUE INDEX "User_email_key" ON "User"("email");
-
--- CreateIndex
-CREATE UNIQUE INDEX "User_slackUserId_key" ON "User"("slackUserId");
 
 -- CreateIndex
 CREATE INDEX "User_email_idx" ON "User"("email");
