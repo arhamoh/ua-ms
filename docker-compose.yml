@@ -1,0 +1,16 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: ua_platform_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ua
+      POSTGRES_PASSWORD: ua_local_dev
+      POSTGRES_DB: ua_platform
+    ports:
+      - '5432:5432'
+    volumes:
+      - ua_pgdata:/var/lib/postgresql/data
+
+volumes:
+  ua_pgdata:
