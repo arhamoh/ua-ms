@@ -1,0 +1,128 @@
+'use server';
+
+import { prisma } from '@/lib/prisma';
+import { revalidatePath } from 'next/cache';
+import { redirect } from 'next/navigation';
+import {
+  ROLES,
+  CLIENT_SOURCES,
+  PROJECT_TYPES,
+  BUDGET_TYPES,
+  PRIORITIES,
+} from '@/lib/enums';
+
+function str(v: FormDataEntryValue | null): string | null {
+  const s = (v ?? '').toString().trim();
+  return s.length ? s : null;
+}
+
+// ─── Team members ────────────────────────────────────────────────────────────
+
+export async function createTeamMember(formData: FormData) {
+  const name = str(formData.get('name'));
+  const email = str(formData.get('email'));
+  const roles = formData
+    .getAll('roles')
+    .map((r) => r.toString())
+    .filter((r) => ROLES.includes(r)) as any[];
+
+  if (!name || !email) {
+    throw new Error('Name and email are required.');
+  }
+
+  await prisma.user.create({
+    data: { name, email, roles },
+  });
+
+  revalidatePath('/team');
+  revalidatePath('/onboard');
+  redirect('/team');
+}
+
+// ─── Client + Project onboarding ─────────────────────────────────────────────
+
+export async function onboardClient(formData: FormData) {
+  // --- Client ---
+  const clientName = str(formData.get('clientName'));
+  const projectName = str(formData.get('projectName'));
+  const rawType = str(formData.get('projectType'));
+
+  if (!clientName) throw new Error('Client name is required.');
+  if (!projectName) throw new Error('Project name is required.');
+  const projectType = PROJECT_TYPES.includes(rawType ?? '') ? rawType! : 'DESIGN';
+
+  const rawSource = str(formData.get('source'));
+  const source = CLIENT_SOURCES.includes(rawSource ?? '')
+    ? (rawSource as any)
+    : null;
+
+  const rawBudgetType = str(formData.get('budgetType'));
+  const budgetType = BUDGET_TYPES.includes(rawBudgetType ?? '')
+    ? (rawBudgetType as any)
+    : null;
+
+  const rawPriority = str(formData.get('priority'));
+  const priority = PRIORITIES.includes(rawPriority ?? '')
+    ? (rawPriority as any)
+    : 'MEDIUM';
+
+  const budgetRaw = str(formData.get('budgetAmount'));
+  const budgetAmount = budgetRaw ? Number(budgetRaw) : null;
+
+  const startRaw = str(formData.get('startDate'));
+  const deadlineRaw = str(formData.get('deadline'));
+
+  // Assignments (multiple per role)
+  const pmIds = formData.getAll('pmIds').map((v) => v.toString());
+  const devIds = formData.getAll('devIds').map((v) => v.toString());
+  const designerIds = formData.getAll('designerIds').map((v) => v.toString());
+
+  const members: { userId: string; role: any }[] = [
+    ...pmIds.map((userId) => ({ userId, role: 'PROJECT_MANAGER' })),
+    ...devIds.map((userId) => ({ userId, role: 'DEVELOPER' })),
+    ...designerIds.map((userId) => ({ userId, role: 'DESIGNER' })),
+  ];
+
+  const client = await prisma.client.create({
+    data: {
+      name: clientName,
+      contactName: str(formData.get('contactName')),
+      email: str(formData.get('clientEmail')),
+      phone: str(formData.get('clientPhone')),
+      source,
+      sourceOther: str(formData.get('sourceOther')),
+      industry: str(formData.get('industry')),
+      location: str(formData.get('location')),
+      website: str(formData.get('website')),
+      socialLinks: str(formData.get('socialLinks')),
+      projects: {
+        create: {
+          name: projectName,
+          type: projectType as any,
+          description: str(formData.get('description')),
+          targetAudience: str(formData.get('targetAudience')),
+          referenceLinks: str(formData.get('referenceLinks')),
+          budgetAmount: budgetAmount !== null && !Number.isNaN(budgetAmount) ? budgetAmount : null,
+          budgetCurrency: str(formData.get('budgetCurrency')) ?? 'USD',
+          budgetType,
+          startDate: startRaw ? new Date(startRaw) : null,
+          deadline: deadlineRaw ? new Date(deadlineRaw) : null,
+          priority,
+          figmaLink: str(formData.get('figmaLink')),
+          fileLinks: str(formData.get('fileLinks')),
+          brandAssetsLink: str(formData.get('brandAssetsLink')),
+          domainAccess: str(formData.get('domainAccess')),
+          internalNotes: str(formData.get('internalNotes')),
+          members: members.length
+            ? { create: members.map((m) => ({ userId: m.userId, role: m.role })) }
+            : undefined,
+        },
+      },
+    },
+    include: { projects: true },
+  });
+
+  revalidatePath('/clients');
+  revalidatePath('/');
+  redirect(`/projects/${client.projects[0].id}`);
+}

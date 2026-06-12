@@ -10,13 +10,50 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// ─── Enums ───────────────────────────────────────────────────────────────────
+
 enum Role {
-  ADMIN
-  MEMBER
+  SUPER_ADMIN
+  MANAGER
+  PROJECT_MANAGER
+  DEVELOPER
+  DESIGNER
+}
+
+// Which discipline a user serves in on a specific project.
+enum ProjectRole {
+  PROJECT_MANAGER
+  DEVELOPER
+  DESIGNER
+}
+
+enum ClientSource {
+  UPWORK
+  AGENCY
+  REFERRAL
+  OTHER
+}
+
+enum ProjectType {
+  DESIGN
+  DEVELOPMENT
+  SOFTWARE
+}
+
+enum BudgetType {
+  FIXED
+  HOURLY
+  RETAINER
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
 }
 
 enum ProjectStatus {
-  PLANNED
+  ONBOARDING
   ACTIVE
   ON_HOLD
   COMPLETED
@@ -29,50 +66,99 @@ enum TaskStatus {
   DONE
 }
 
+// ─── Models ──────────────────────────────────────────────────────────────────
+
 model User {
   id           String   @id @default(cuid())
   name         String
   email        String   @unique
   passwordHash String?
-  role         Role     @default(MEMBER)
+  roles        Role[]   @default([])
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  assignedTasks Task[]      @relation("TaskAssignee")
-  timeEntries   TimeEntry[]
+  assignedTasks    Task[]          @relation("TaskAssignee")
+  timeEntries      TimeEntry[]
+  projectMembers   ProjectMember[]
 
   @@index([email])
 }
 
 model Client {
-  id           String   @id @default(cuid())
-  name         String
-  contactEmail String?
+  id           String        @id @default(cuid())
+  // Contact
+  name         String        // business / client name
+  contactName  String?       // primary contact person
+  email        String?
+  phone        String?
+  source       ClientSource?
+  sourceOther  String?       // when source = OTHER
+  industry     String?
+  location     String?       // optional geographic location
+  website      String?       // current website
+  socialLinks  String?       // free text / links
   notes        String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
 
   projects Project[]
 }
 
 model Project {
-  id          String        @id @default(cuid())
-  name        String
-  description String?
-  status      ProjectStatus @default(PLANNED)
-  startDate   DateTime?
-  dueDate     DateTime?
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
+  id              String        @id @default(cuid())
+  name            String
+  type            ProjectType
+  description     String?
+  targetAudience  String?
+  referenceLinks  String?
+
+  // Budget
+  budgetAmount    Float?
+  budgetCurrency  String?       @default("USD")
+  budgetType      BudgetType?
+
+  // Timeline
+  startDate       DateTime?
+  deadline        DateTime?
+  priority        Priority      @default(MEDIUM)
+
+  // Assets & links (v1 = links only)
+  figmaLink       String?
+  fileLinks       String?       // pasted URLs, one per line
+  brandAssetsLink String?
+  domainAccess    String?       // notes / access for dev projects
+
+  status          ProjectStatus @default(ONBOARDING)
+  internalNotes   String?
+
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
 
   clientId String
   client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
 
+  members     ProjectMember[]
   tasks       Task[]
   timeEntries TimeEntry[]
 
   @@index([clientId])
   @@index([status])
+}
+
+// Join: a user assigned to a project in a particular discipline.
+// Multiple people per role, and a person could hold multiple roles on a project.
+model ProjectMember {
+  id        String      @id @default(cuid())
+  projectId String
+  project   Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      ProjectRole
+  createdAt DateTime    @default(now())
+
+  @@unique([projectId, userId, role])
+  @@index([projectId])
+  @@index([userId])
 }
 
 model Task {
