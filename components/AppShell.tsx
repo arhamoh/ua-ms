@@ -15,6 +15,11 @@ import {
   X,
   type LucideIcon,
 } from 'lucide-react';
+import CommandPalette from '@/components/CommandPalette';
+
+function openSearch() {
+  window.dispatchEvent(new Event('open-command-palette'));
+}
 
 type NavItem = { href: string; label: string; icon: LucideIcon };
 
@@ -146,21 +151,27 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             <Menu size={18} />
           </button>
 
-          <div className="relative hidden w-full max-w-sm sm:block">
-            <Search
-              size={16}
-              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
-            />
-            <input
-              type="text"
-              placeholder="Search clients, projects…"
-              className="w-full rounded-lg border border-slate-200 bg-slate-50 py-2 pl-9 pr-3 text-sm placeholder:text-slate-400 focus:border-brand focus:bg-white focus:outline-none"
-            />
-          </div>
+          <button
+            onClick={openSearch}
+            className="hidden w-full max-w-sm items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-400 transition hover:bg-white sm:flex"
+          >
+            <Search size={16} />
+            <span>Search…</span>
+            <kbd className="ml-auto rounded-md border border-slate-200 bg-white px-1.5 py-0.5 text-[10px] font-medium text-slate-400">
+              ⌘K
+            </kbd>
+          </button>
 
           <div className="ml-auto flex items-center gap-2 sm:gap-3">
             <button
-              className="grid h-9 w-9 place-items-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50"
+              onClick={openSearch}
+              className="grid h-9 w-9 place-items-center rounded-xl border border-slate-200 text-slate-500 hover:bg-slate-50 sm:hidden"
+              aria-label="Search"
+            >
+              <Search size={18} />
+            </button>
+            <button
+              className="grid h-9 w-9 place-items-center rounded-xl border border-slate-200 text-slate-500 hover:bg-slate-50"
               aria-label="Notifications"
             >
               <Bell size={18} />
@@ -173,6 +184,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
         <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-8">{children}</main>
       </div>
+
+      <CommandPalette />
     </>
   );
 }

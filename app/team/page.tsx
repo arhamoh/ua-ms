@@ -19,7 +19,7 @@ export default async function TeamPage() {
         <div className="lg:col-span-1">
           <form
             action={createTeamMember}
-            className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm"
+            className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
           >
             <h2 className="mb-4 text-sm font-semibold">Add team member</h2>
 
@@ -28,7 +28,7 @@ export default async function TeamPage() {
               <input
                 name="name"
                 required
-                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-brand focus:outline-none"
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand focus:outline-none"
                 placeholder="Jane Doe"
               />
             </label>
@@ -39,7 +39,7 @@ export default async function TeamPage() {
                 name="email"
                 type="email"
                 required
-                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-brand focus:outline-none"
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand focus:outline-none"
                 placeholder="jane@agency.com"
               />
             </label>
@@ -56,7 +56,7 @@ export default async function TeamPage() {
 
             <button
               type="submit"
-              className="w-full rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-dark"
+              className="w-full rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-dark"
             >
               Add member
             </button>
@@ -66,11 +66,11 @@ export default async function TeamPage() {
         {/* Member list */}
         <div className="lg:col-span-2">
           {members.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-slate-300 bg-white p-10 text-center text-slate-500">
-              No team members yet. Add your first one →
+            <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center text-slate-500">
+              No team members yet. Add your first one using the form.
             </div>
           ) : (
-            <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
+            <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
               <table className="w-full min-w-[480px] text-sm">
                 <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
                   <tr>

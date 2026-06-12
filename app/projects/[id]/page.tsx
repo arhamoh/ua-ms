@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { ArrowLeft } from 'lucide-react';
 import { prisma } from '@/lib/prisma';
 import {
   PROJECT_STATUS_LABELS,
@@ -55,8 +56,11 @@ export default async function ProjectDetailPage({
   return (
     <div>
       <div className="mb-6">
-        <Link href="/clients" className="text-sm text-slate-500 hover:underline">
-          ← Clients
+        <Link
+          href="/clients"
+          className="inline-flex items-center gap-1 text-sm text-slate-500 transition hover:text-slate-700"
+        >
+          <ArrowLeft size={14} /> Clients
         </Link>
         <div className="mt-2 flex items-center gap-3">
           <h1 className="text-2xl font-bold tracking-tight">{project.name}</h1>
@@ -71,7 +75,7 @@ export default async function ProjectDetailPage({
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">Project</h2>
           <dl className="divide-y divide-slate-100">
             <Row label="Description" value={project.description} />
@@ -84,7 +88,7 @@ export default async function ProjectDetailPage({
           </dl>
         </section>
 
-        <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">Client</h2>
           <dl className="divide-y divide-slate-100">
             <Row label="Business" value={c.name} />
@@ -98,7 +102,7 @@ export default async function ProjectDetailPage({
           </dl>
         </section>
 
-        <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">Assets & Links</h2>
           <dl className="divide-y divide-slate-100">
             <Row label="Figma" value={project.figmaLink} />
@@ -108,7 +112,7 @@ export default async function ProjectDetailPage({
           </dl>
         </section>
 
-        <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">Team & Notes</h2>
           <dl className="divide-y divide-slate-100">
             <Row label={PROJECT_ROLE_LABELS.PROJECT_MANAGER} value={byRole('PROJECT_MANAGER').join(', ')} />

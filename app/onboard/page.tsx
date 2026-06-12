@@ -16,7 +16,7 @@ import {
 export const dynamic = 'force-dynamic';
 
 const inputCls =
-  'w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-brand focus:outline-none';
+  'w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/10';
 
 function Field({
   label,
@@ -42,7 +42,7 @@ function Field({
 
 function SectionCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+    <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
       <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-slate-500">{title}</h2>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">{children}</div>
     </section>
@@ -243,12 +243,12 @@ export default async function OnboardPage() {
         </SectionCard>
 
         <div className="flex items-center justify-end gap-3">
-          <Link href="/" className="rounded-md px-4 py-2 text-sm text-slate-600 hover:bg-slate-100">
+          <Link href="/" className="rounded-xl px-4 py-2.5 text-sm text-slate-600 hover:bg-slate-100">
             Cancel
           </Link>
           <button
             type="submit"
-            className="rounded-md bg-brand px-5 py-2 text-sm font-medium text-white hover:bg-brand-dark"
+            className="rounded-xl bg-brand px-5 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-brand-dark"
           >
             Onboard client
           </button>

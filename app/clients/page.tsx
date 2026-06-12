@@ -19,18 +19,18 @@ export default async function ClientsPage() {
         </div>
         <Link
           href="/onboard"
-          className="rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-dark"
+          className="rounded-xl bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-dark"
         >
           + Onboard Client
         </Link>
       </div>
 
       {clients.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-slate-300 bg-white p-10 text-center">
+        <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center">
           <p className="text-slate-500">No clients yet.</p>
           <Link
             href="/onboard"
-            className="mt-3 inline-block rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-dark"
+            className="mt-3 inline-block rounded-xl bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-dark"
           >
             Onboard your first client
           </Link>
@@ -38,7 +38,7 @@ export default async function ClientsPage() {
       ) : (
         <div className="space-y-4">
           {clients.map((c) => (
-            <div key={c.id} className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div key={c.id} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <div className="flex items-start justify-between">
                 <div>
                   <h2 className="font-semibold">{c.name}</h2>
