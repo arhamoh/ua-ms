@@ -1,5 +1,8 @@
 import { prisma } from '@/lib/prisma';
 
+// Read live data per-request; don't prerender (and hit the DB) at build time.
+export const dynamic = 'force-dynamic';
+
 export default async function DashboardPage() {
   // Smoke-test the DB connection. These return 0 until we add data in later phases.
   const [clients, projects, tasks, users] = await Promise.all([
