@@ -15,9 +15,11 @@
     "postinstall": "prisma generate"
   },
   "dependencies": {
+    "@googleapis/drive": "^20.2.0",
     "@prisma/client": "^6.3.0",
     "bcryptjs": "^3.0.3",
     "geist": "^1.7.2",
+    "google-auth-library": "^10.7.0",
     "jose": "^6.2.3",
     "lucide-react": "^1.17.0",
     "motion": "^12.40.0",

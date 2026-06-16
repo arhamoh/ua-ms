@@ -14,10 +14,14 @@ import {
   LEAD_TYPES,
   EXPENSE_CATEGORIES,
   PAYMENT_METHOD_LABELS,
+  FILE_CATEGORIES,
+  FILE_CATEGORY_LABELS,
 } from '@/lib/enums';
 import { getRatesToCad, toCad } from '@/lib/fx';
 import { sendEmail } from '@/lib/email';
 import { invoiceHtml, receiptHtml } from '@/lib/documents';
+import { getSession } from '@/lib/auth';
+import { driveConfigured, uploadToDrive } from '@/lib/drive';
 
 function str(v: FormDataEntryValue | null): string | null {
   const s = (v ?? '').toString().trim();
@@ -494,4 +498,80 @@ export async function emailReceipt(formData: FormData) {
     redirect(`/receipts/${id}?error=${encodeURIComponent(result.error ?? 'Send failed')}`);
   }
   redirect(`/receipts/${id}?sent=1`);
+}
+
+// ─── Project files (Google Drive) ────────────────────────────────────────────
+
+export async function uploadProjectFile(formData: FormData) {
+  const projectId = str(formData.get('projectId'));
+  if (!projectId) throw new Error('Missing project.');
+  const filesTab = `/projects/${projectId}?tab=files`;
+
+  const file = formData.get('file');
+  if (!(file instanceof File) || file.size === 0) {
+    redirect(`${filesTab}&error=${encodeURIComponent('Choose a file to upload.')}`);
+  }
+  if (!driveConfigured()) {
+    redirect(`${filesTab}&error=${encodeURIComponent('Google Drive is not configured yet.')}`);
+  }
+
+  const f = file as File;
+  const rawCat = str(formData.get('category'));
+  const category = FILE_CATEGORIES.includes(rawCat ?? '') ? (rawCat as any) : 'OTHER';
+
+  const project = await prisma.project.findUnique({ where: { id: projectId }, include: { client: true } });
+  if (!project) redirect('/clients');
+
+  const session = await getSession();
+  const buffer = Buffer.from(await f.arrayBuffer());
+
+  try {
+    const { fileId, webViewLink } = await uploadToDrive({
+      clientName: project!.client.name,
+      projectName: project!.name,
+      categoryLabel: FILE_CATEGORY_LABELS[category],
+      fileName: f.name,
+      mimeType: f.type || 'application/octet-stream',
+      buffer,
+    });
+
+    await prisma.fileAsset.create({
+      data: {
+        projectId,
+        name: f.name,
+        category,
+        driveFileId: fileId,
+        webViewLink,
+        mimeType: f.type || null,
+        size: f.size,
+        uploadedById: session?.id ?? null,
+      },
+    });
+  } catch (e: any) {
+    redirect(`${filesTab}&error=${encodeURIComponent('Upload failed: ' + (e?.message ?? 'unknown error'))}`);
+  }
+
+  revalidatePath(`/projects/${projectId}`);
+  redirect(filesTab);
+}
+
+export async function addFileComment(formData: FormData) {
+  const fileId = str(formData.get('fileId'));
+  const projectId = str(formData.get('projectId'));
+  const body = str(formData.get('body'));
+  if (!fileId || !body) return;
+  const session = await getSession();
+  await prisma.fileComment.create({ data: { fileId, body, authorId: session?.id ?? null } });
+  revalidatePath(`/projects/${projectId}`);
+  redirect(`/projects/${projectId}?tab=files`);
+}
+
+export async function deleteFileAsset(formData: FormData) {
+  const fileId = str(formData.get('fileId'));
+  const projectId = str(formData.get('projectId'));
+  if (!fileId) return;
+  // Removes the index entry only; the file stays in the Shared Drive.
+  await prisma.fileAsset.delete({ where: { id: fileId } });
+  revalidatePath(`/projects/${projectId}`);
+  redirect(`/projects/${projectId}?tab=files`);
 }

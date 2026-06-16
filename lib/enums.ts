@@ -112,6 +112,16 @@ export const INVOICE_STATUS_BADGE: Record<string, string> = {
   VOID: 'bg-rose-100 text-rose-700',
 };
 
+export const FILE_CATEGORY_LABELS: Record<string, string> = {
+  LOGO: 'Logos',
+  DESIGN: 'Designs',
+  DOCUMENT: 'Documents',
+  CONTRACT: 'Contracts',
+  ASSET: 'Assets',
+  OTHER: 'Other',
+};
+export const FILE_CATEGORIES = Object.keys(FILE_CATEGORY_LABELS);
+
 export const CURRENCIES = ['USD', 'CAD', 'EUR', 'GBP', 'AUD', 'PKR'];
 
 export const PAYMENT_METHOD_LABELS: Record<string, string> = {

@@ -12,6 +12,8 @@ import {
   PROJECT_ROLE_LABELS,
 } from '@/lib/enums';
 import TaskBoard from '@/components/TaskBoard';
+import ProjectFiles from '@/components/ProjectFiles';
+import { driveConfigured } from '@/lib/drive';
 
 export const dynamic = 'force-dynamic';
 
@@ -47,6 +49,10 @@ export default async function ProjectDetailPage({
         include: { assignee: true, tags: true },
         orderBy: [{ priority: 'desc' }, { createdAt: 'asc' }],
       },
+      files: {
+        include: { uploadedBy: true, comments: { include: { author: true }, orderBy: { createdAt: 'asc' } } },
+        orderBy: { createdAt: 'desc' },
+      },
     },
   });
 
@@ -63,7 +69,7 @@ export default async function ProjectDetailPage({
       : '—';
 
   const c = project.client;
-  const activeTab = tab === 'tasks' ? 'tasks' : 'overview';
+  const activeTab = tab === 'tasks' ? 'tasks' : tab === 'files' ? 'files' : 'overview';
 
   // Unique members for the assignee picker.
   const memberMap = new Map<string, { id: string; name: string }>();
@@ -117,10 +123,15 @@ export default async function ProjectDetailPage({
         <Link href={`/projects/${project.id}?tab=tasks`} className={tabCls(activeTab === 'tasks')}>
           Tasks{project.tasks.length > 0 && <span className="ml-1 text-xs text-slate-400">{project.tasks.length}</span>}
         </Link>
+        <Link href={`/projects/${project.id}?tab=files`} className={tabCls(activeTab === 'files')}>
+          Files{project.files.length > 0 && <span className="ml-1 text-xs text-slate-400">{project.files.length}</span>}
+        </Link>
       </div>
 
       {activeTab === 'tasks' ? (
         <TaskBoard projectId={project.id} initialTasks={boardTasks} members={members} />
+      ) : activeTab === 'files' ? (
+        <ProjectFiles projectId={project.id} files={project.files} driveOk={driveConfigured()} />
       ) : (
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
