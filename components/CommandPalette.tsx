@@ -14,11 +14,11 @@ import {
   Coins,
   PiggyBank,
   FileText,
-  Sparkles,
   Settings,
   Clock,
   type LucideIcon,
 } from 'lucide-react';
+import AssistantIcon from '@/components/AssistantIcon';
 
 type Item = {
   id: string;
@@ -36,7 +36,7 @@ const PAGES: Item[] = [
   { id: 'p-commissions', label: 'Commissions', href: '/commissions', group: 'Pages', icon: Coins },
   { id: 'p-finance', label: 'Finance', href: '/finance', group: 'Pages', icon: PiggyBank },
   { id: 'p-invoices', label: 'Invoices', href: '/invoices', group: 'Pages', icon: FileText },
-  { id: 'p-assistant', label: 'Analytics Assistant', href: '/assistant', group: 'Pages', icon: Sparkles },
+  { id: 'p-assistant', label: 'Analytics Assistant', href: '/assistant', group: 'Pages', icon: AssistantIcon as unknown as LucideIcon },
   { id: 'p-time', label: 'Time & attendance', href: '/time', group: 'Pages', icon: Clock },
   { id: 'p-team', label: 'Team', href: '/team', group: 'Pages', icon: Users },
   { id: 'p-settings', label: 'Settings', href: '/settings', group: 'Pages', icon: Settings },

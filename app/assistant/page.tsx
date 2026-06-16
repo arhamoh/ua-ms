@@ -1,11 +1,14 @@
 import AssistantChat from '@/components/AssistantChat';
+import AssistantIcon from '@/components/AssistantIcon';
 
 export const dynamic = 'force-dynamic';
 
 export default function AssistantPage() {
   return (
     <div>
-      <h1 className="text-2xl font-bold tracking-tight">Analytics Assistant</h1>
+      <h1 className="flex items-center gap-2.5 text-2xl font-bold tracking-tight">
+        <AssistantIcon size={24} className="text-brand" /> Analytics Assistant
+      </h1>
       <p className="mt-1 text-sm text-slate-500">
         Ask about clients, projects, payments, commissions, and this month’s finances.
       </p>
