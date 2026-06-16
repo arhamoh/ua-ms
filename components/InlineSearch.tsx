@@ -23,6 +23,7 @@ type Item = { id: string; label: string; sub?: string; href: string; group: stri
 const PAGES: Item[] = [
   { id: 'p-dash', label: 'Dashboard', href: '/', group: 'Pages', icon: LayoutDashboard },
   { id: 'p-clients', label: 'Clients', href: '/clients', group: 'Pages', icon: Briefcase },
+  { id: 'p-projects', label: 'Projects', href: '/projects', group: 'Pages', icon: FolderKanban },
   { id: 'p-commissions', label: 'Commissions', href: '/commissions', group: 'Pages', icon: Coins },
   { id: 'p-finance', label: 'Finance', href: '/finance', group: 'Pages', icon: PiggyBank },
   { id: 'p-invoices', label: 'Invoices', href: '/invoices', group: 'Pages', icon: FileText },

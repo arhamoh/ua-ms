@@ -108,7 +108,7 @@ export default async function DashboardPage() {
 
   const stats = [
     { label: 'Clients', value: String(clientCount), icon: Briefcase, tint: 'bg-rose-50 text-rose-600', href: '/clients' },
-    { label: 'Active projects', value: String(activeCount), icon: Activity, tint: 'bg-emerald-50 text-emerald-600', href: '/clients' },
+    { label: 'Active projects', value: String(activeCount), icon: Activity, tint: 'bg-emerald-50 text-emerald-600', href: '/projects' },
     { label: 'Outstanding', value: formatMoney(outstanding, 'CAD'), icon: Scale, tint: outstanding > 0 ? 'bg-amber-50 text-amber-600' : 'bg-slate-100 text-slate-500', href: '/finance' },
     { label: 'Net this month', value: formatMoney(netThisMonth, 'CAD'), icon: TrendingUp, tint: netThisMonth >= 0 ? 'bg-sky-50 text-sky-600' : 'bg-rose-50 text-rose-600', href: '/finance' },
   ];
@@ -245,7 +245,7 @@ export default async function DashboardPage() {
           <div className="flex h-full flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
             <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
               <h2 className="text-sm font-semibold">Recent projects</h2>
-              <Link href="/clients" className="flex items-center gap-1 text-xs font-medium text-brand hover:underline">
+              <Link href="/projects" className="flex items-center gap-1 text-xs font-medium text-brand hover:underline">
                 View all <ArrowRight size={13} />
               </Link>
             </div>

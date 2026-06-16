@@ -7,6 +7,7 @@ import {
   LayoutDashboard,
   Users,
   Briefcase,
+  FolderKanban,
   UserPlus,
   Search,
   Bell,
@@ -52,6 +53,7 @@ type NavItem = { href: string; label: string; icon: LucideIcon };
 const nav: NavItem[] = [
   { href: '/', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/clients', label: 'Clients', icon: Briefcase },
+  { href: '/projects', label: 'Projects', icon: FolderKanban },
   { href: '/commissions', label: 'Commissions', icon: Coins },
   { href: '/finance', label: 'Finance', icon: PiggyBank },
   { href: '/invoices', label: 'Invoices', icon: FileText },
