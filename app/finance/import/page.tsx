@@ -1,11 +1,12 @@
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
-import { getOptions } from '@/lib/options';
+import { getOptions, ensureExpenseCategories } from '@/lib/options';
 import StatementImport from '@/components/StatementImport';
 
 export const dynamic = 'force-dynamic';
 
 export default async function ImportStatementPage() {
+  await ensureExpenseCategories();
   const [currencies, categories] = await Promise.all([
     getOptions('currency'),
     getOptions('expenseCategory'),

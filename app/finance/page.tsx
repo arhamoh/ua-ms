@@ -13,7 +13,7 @@ import {
   deleteLoan,
 } from '@/app/actions';
 import { EXPENSE_CATEGORY_LABELS, EXPENSE_CATEGORY_BADGE, formatMoney } from '@/lib/enums';
-import { getOptions } from '@/lib/options';
+import { getOptions, ensureExpenseCategories } from '@/lib/options';
 import { getRatesToCad, toCad } from '@/lib/fx';
 import FadeIn from '@/components/FadeIn';
 import RowActions from '@/components/RowActions';
@@ -44,6 +44,7 @@ export default async function FinancePage({
   const monthLabel = start.toLocaleString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' });
   const today = now.toISOString().split('T')[0];
 
+  await ensureExpenseCategories();
   const [rates, payments, expenses, salaryPays, commPays, users, expenseCats, currencies, loans, owedExpenses] =
     await Promise.all([
       getRatesToCad(),

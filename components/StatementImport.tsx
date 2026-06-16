@@ -74,19 +74,40 @@ function normalizeDate(s: string, order: 'MDY' | 'DMY'): string {
   return Number.isNaN(d.getTime()) ? '' : d.toISOString().slice(0, 10);
 }
 
+// Description keyword → expense category. First match wins, so order matters
+// (interest is checked first because it also renames the line).
 const CAT_RULES: [RegExp, string][] = [
   [/interest/i, 'FEES'],
-  [/\b(fee|charge|nsf|overdraft|service charge)\b/i, 'FEES'],
-  [/(aws|amazon web|google ?cloud|gcp|openai|anthropic|adobe|figma|notion|slack|microsoft|github|jetbrains|cursor|zoom|canva)/i, 'SOFTWARE'],
-  [/(vercel|netlify|railway|heroku|digitalocean|cloudflare|hosting|domain|namecheap|godaddy)/i, 'HOSTING'],
-  [/(facebook|meta|google ads|adwords|linkedin|tiktok|marketing|mailchimp|hubspot)/i, 'MARKETING'],
-  [/(staples|office|wework|rent)/i, 'OFFICE'],
-  [/(upwork|fiverr|contractor|payroll|deel)/i, 'CONTRACTOR'],
-  [/(apple store|best buy|equipment|hardware|laptop|monitor)/i, 'EQUIPMENT'],
+  [/\b(fee|charge|nsf|overdraft|service charge|atm|annual fee|late fee|finance charge)\b/i, 'FEES'],
+  [/(\bgst\b|\bhst\b|\bqst\b|\bpst\b|\bvat\b|\btax\b|cra|revenue agency|irs)/i, 'TAXES'],
+  [/(netflix|spotify|youtube|prime|disney|patreon|substack|subscription|membership|icloud|dropbox|1password|google one)/i, 'SUBSCRIPTION'],
+  [/(aws|amazon web|google ?cloud|gcp|openai|anthropic|adobe|figma|notion|slack|microsoft|office ?365|github|gitlab|jetbrains|cursor|zoom|canva|airtable|zapier|atlassian|jira)/i, 'SOFTWARE'],
+  [/(vercel|netlify|railway|heroku|digitalocean|cloudflare|hosting|domain|namecheap|godaddy|porkbun|squarespace|wix|wordpress|hostgator|bluehost)/i, 'HOSTING'],
+  [/(hydro|electric|gas bill|water|internet|broadband|fibre|fiber|telus|bell|rogers|verizon|at&t|comcast|phone bill|mobile|wireless|utility|utilities)/i, 'UTILITIES'],
+  [/(facebook|meta|google ads|adwords|linkedin|tiktok|twitter|\bads\b|marketing|mailchimp|hubspot|sendgrid|klaviyo|seo)/i, 'MARKETING'],
+  [/(uber|lyft|taxi|airline|air canada|westjet|delta|united|flight|hotel|airbnb|expedia|booking\.com|rental car|train|via rail|parking|gas station|petro|shell|esso)/i, 'TRAVEL'],
+  [/(restaurant|cafe|coffee|starbucks|tim hortons|mcdonald|uber eats|doordash|skip the dishes|grubhub|dining|bar &|catering|lunch|dinner)/i, 'MEALS'],
+  [/(staples|office|wework|regus|rent|supplies|stationery)/i, 'OFFICE'],
+  [/(upwork|fiverr|contractor|payroll|deel|gusto|freelanc|consult)/i, 'CONTRACTOR'],
+  [/(apple store|best buy|equipment|hardware|laptop|monitor|keyboard|dell|lenovo|printer)/i, 'EQUIPMENT'],
 ];
 function guessCategory(desc: string): string {
   for (const [re, cat] of CAT_RULES) if (re.test(desc)) return cat;
   return 'OTHER';
+}
+
+// Some bank CSVs prepend account/title rows before the real header. Find the
+// first row that looks like a column header so detection lines up.
+function detectHeaderIndex(rows: string[][]): number {
+  const limit = Math.min(rows.length, 15);
+  for (let i = 0; i < limit; i++) {
+    const cells = rows[i].map((c) => c.toLowerCase());
+    const hasDate = cells.some((c) => /date|posted/.test(c));
+    const hasMoney = cells.some((c) => /amount|debit|credit|withdraw|deposit|value/.test(c));
+    const hasDesc = cells.some((c) => /desc|narrat|detail|memo|payee|name|merchant|particular|transaction/.test(c));
+    if (hasDate && (hasMoney || hasDesc)) return i;
+  }
+  return 0;
 }
 
 type Mapping = {
@@ -144,11 +165,14 @@ export default function StatementImport({ currencies, categories }: { currencies
     const f = e.target.files?.[0];
     if (!f) return;
     const text = await f.text();
-    const rows = parseCsv(text);
+    const all = parseCsv(text);
+    const headerIdx = detectHeaderIndex(all);
+    const rows = headerIdx > 0 ? all.slice(headerIdx) : all;
     setFileName(f.name);
     setRawRows(rows);
     setOverrides({});
     setResult(null);
+    setHasHeader(true);
     setMapping(detectMapping(rows[0] ?? []));
   };
 

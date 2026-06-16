@@ -91,12 +91,17 @@ export const PRIORITY_DOT: Record<string, string> = {
 
 export const EXPENSE_CATEGORY_LABELS: Record<string, string> = {
   SOFTWARE: 'Software',
+  SUBSCRIPTION: 'Subscriptions',
   HOSTING: 'Hosting',
+  UTILITIES: 'Utilities',
   MARKETING: 'Marketing',
   OFFICE: 'Office',
+  TRAVEL: 'Travel',
+  MEALS: 'Meals',
   CONTRACTOR: 'Contractor',
   EQUIPMENT: 'Equipment',
   FEES: 'Fees',
+  TAXES: 'Taxes',
   OTHER: 'Other',
 };
 export const EXPENSE_CATEGORIES = Object.keys(EXPENSE_CATEGORY_LABELS);
@@ -180,11 +185,16 @@ export const PROJECT_TYPE_BADGE: Record<string, string> = {
 
 export const EXPENSE_CATEGORY_BADGE: Record<string, string> = {
   SOFTWARE: 'bg-indigo-100 text-indigo-700',
+  SUBSCRIPTION: 'bg-violet-100 text-violet-700',
   HOSTING: 'bg-sky-100 text-sky-700',
+  UTILITIES: 'bg-cyan-100 text-cyan-700',
   MARKETING: 'bg-pink-100 text-pink-700',
   OFFICE: 'bg-slate-100 text-slate-600',
+  TRAVEL: 'bg-orange-100 text-orange-700',
+  MEALS: 'bg-lime-100 text-lime-700',
   CONTRACTOR: 'bg-amber-100 text-amber-700',
   EQUIPMENT: 'bg-teal-100 text-teal-700',
   FEES: 'bg-rose-100 text-rose-700',
+  TAXES: 'bg-red-100 text-red-700',
   OTHER: 'bg-slate-100 text-slate-500',
 };

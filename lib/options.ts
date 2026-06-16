@@ -28,12 +28,17 @@ export const DEFAULT_OPTIONS: Record<string, Opt[]> = {
   ],
   expenseCategory: [
     { value: 'SOFTWARE', label: 'Software' },
+    { value: 'SUBSCRIPTION', label: 'Subscriptions' },
     { value: 'HOSTING', label: 'Hosting' },
+    { value: 'UTILITIES', label: 'Utilities' },
     { value: 'MARKETING', label: 'Marketing' },
     { value: 'OFFICE', label: 'Office' },
+    { value: 'TRAVEL', label: 'Travel' },
+    { value: 'MEALS', label: 'Meals' },
     { value: 'CONTRACTOR', label: 'Contractor' },
     { value: 'EQUIPMENT', label: 'Equipment' },
     { value: 'FEES', label: 'Fees' },
+    { value: 'TAXES', label: 'Taxes' },
     { value: 'OTHER', label: 'Other' },
   ],
   fileCategory: [
@@ -84,6 +89,29 @@ export async function ensureOptionsSeeded() {
     })),
   );
   if (data.length) await prisma.optionItem.createMany({ data, skipDuplicates: true });
+}
+
+// Add any built-in expense categories that are missing from a DB that has
+// already been seeded (so new defaults like Utilities / Subscriptions show up).
+// Only runs when the kind is DB-backed; an empty table uses DEFAULT_OPTIONS.
+export async function ensureExpenseCategories() {
+  const existing = await prisma.optionItem.findMany({
+    where: { kind: 'expenseCategory' },
+    select: { value: true },
+  });
+  if (!existing.length) return; // empty DB → defaults are served directly
+  const have = new Set(existing.map((e) => e.value));
+  const missing = (DEFAULT_OPTIONS.expenseCategory ?? []).filter((o) => !have.has(o.value));
+  if (!missing.length) return;
+  await prisma.optionItem.createMany({
+    data: missing.map((o, i) => ({
+      kind: 'expenseCategory',
+      value: o.value,
+      label: o.label,
+      order: existing.length + i,
+    })),
+    skipDuplicates: true,
+  });
 }
 
 export async function getLeadTypeRates(): Promise<Record<string, number>> {
