@@ -174,10 +174,10 @@ export default async function FinancePage({
       )}
 
       {tab === 'expenses' && (
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-          <FadeIn delay={0.05} className="lg:col-span-2">
+        <div className="space-y-6">
+          <FadeIn delay={0.05}>
             <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-              <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-5 py-4">
                 <h2 className="text-sm font-semibold">Expenses — {monthLabel}</h2>
                 <div className="flex items-center gap-2">
                   <Link href="/finance/bill" className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50 hover:text-brand">
@@ -250,7 +250,7 @@ export default async function FinancePage({
           <FadeIn delay={0.1}>
             <form action={addExpense} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <h2 className="mb-4 flex items-center gap-2 text-sm font-semibold"><Plus size={16} className="text-brand" /> Add expense</h2>
-              <div className="space-y-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 <label className="block"><span className="mb-1 block text-xs font-medium text-slate-600">Title *</span><input name="title" required className={inputCls} placeholder="Adobe CC" /></label>
                 <label className="block"><span className="mb-1 block text-xs font-medium text-slate-600">Category</span>
                   <select name="category" className={inputCls} defaultValue="OTHER">{expenseCats.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}</select>
@@ -265,11 +265,13 @@ export default async function FinancePage({
                     <option value="">Company</option>
                     {users.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
                   </select>
-                  <span className="mt-1 block text-xs text-slate-400">If a team member fronted it, it shows as owed until reimbursed.</span>
                 </label>
                 <label className="block"><span className="mb-1 block text-xs font-medium text-slate-600">Date</span><input name="date" type="date" defaultValue={today} className={inputCls} /></label>
-                <label className="block"><span className="mb-1 block text-xs font-medium text-slate-600">Note</span><input name="note" className={inputCls} /></label>
-                <AnimatedButton className="w-full rounded-xl bg-brand px-4 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-brand-dark">Add expense</AnimatedButton>
+                <label className="block"><span className="mb-1 block text-xs font-medium text-slate-600">Note</span><input name="note" className={inputCls} placeholder="Optional" /></label>
+              </div>
+              <div className="mt-4 flex items-center justify-between gap-3">
+                <span className="text-xs text-slate-400">If a team member fronted it, it shows as owed until reimbursed.</span>
+                <AnimatedButton className="shrink-0 rounded-xl bg-brand px-5 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-brand-dark">Add expense</AnimatedButton>
               </div>
             </form>
           </FadeIn>
@@ -277,10 +279,10 @@ export default async function FinancePage({
       )}
 
       {tab === 'salaries' && (
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-          <FadeIn delay={0.05} className="lg:col-span-2">
+        <div className="space-y-6">
+          <FadeIn delay={0.05}>
             <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-              <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-5 py-4">
                 <h2 className="text-sm font-semibold">Team salaries</h2>
                 <span className="text-xs text-slate-400">Paid {monthLabel}: {formatMoney(salaryTotal, 'CAD')}</span>
               </div>
@@ -329,9 +331,9 @@ export default async function FinancePage({
             )}
           </FadeIn>
 
-          <div className="space-y-6">
-            <FadeIn delay={0.1}>
-              <form action={setSalary} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+            <FadeIn delay={0.1} className="h-full">
+              <form action={setSalary} className="h-full rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                 <h2 className="mb-4 text-sm font-semibold">Set / update salary</h2>
                 <div className="space-y-3">
                   <label className="block"><span className="mb-1 block text-xs font-medium text-slate-600">Member *</span><select name="userId" required defaultValue="" className={inputCls}><option value="" disabled>Select…</option>{users.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}</select></label>
@@ -345,8 +347,8 @@ export default async function FinancePage({
               </form>
             </FadeIn>
 
-            <FadeIn delay={0.14}>
-              <form action={recordSalaryPayment} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <FadeIn delay={0.14} className="h-full">
+              <form action={recordSalaryPayment} className="h-full rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                 <h2 className="mb-4 text-sm font-semibold">Record salary payment</h2>
                 <div className="space-y-3">
                   <label className="block"><span className="mb-1 block text-xs font-medium text-slate-600">Member *</span><select name="userId" required defaultValue="" className={inputCls}><option value="" disabled>Select…</option>{users.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}</select></label>
@@ -382,15 +384,15 @@ export default async function FinancePage({
             ))}
           </section>
 
-          <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
-            <FadeIn delay={0.08} className="lg:col-span-2">
+          <div className="mt-6 space-y-6">
+            <FadeIn delay={0.08}>
               <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
                 <div className="border-b border-slate-100 px-5 py-4">
                   <h2 className="text-sm font-semibold">Loans into the business</h2>
                   <p className="mt-0.5 text-xs text-slate-400">Who put money in, how much, what for — and whether they’ve been paid back.</p>
                 </div>
                 {loans.length === 0 ? (
-                  <div className="px-5 py-10 text-center text-sm text-slate-500">No loans recorded. Add one on the right.</div>
+                  <div className="px-5 py-10 text-center text-sm text-slate-500">No loans recorded. Add one below.</div>
                 ) : (
                   <div className="overflow-x-auto">
                     <table className="w-full min-w-[760px] text-sm">
@@ -466,7 +468,7 @@ export default async function FinancePage({
             <FadeIn delay={0.12}>
               <form action={addLoan} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                 <h2 className="mb-4 flex items-center gap-2 text-sm font-semibold"><Plus size={16} className="text-brand" /> Add a loan</h2>
-                <div className="space-y-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
                   <label className="block"><span className="mb-1 block text-xs font-medium text-slate-600">Given by *</span><input name="counterparty" required className={inputCls} placeholder="Who put the money in" /></label>
                   <label className="block"><span className="mb-1 block text-xs font-medium text-slate-600">For what</span><input name="note" className={inputCls} placeholder="e.g. startup costs, equipment" /></label>
                   <div className="grid grid-cols-3 gap-2">
@@ -474,8 +476,11 @@ export default async function FinancePage({
                     <label className="block"><span className="mb-1 block text-xs font-medium text-slate-600">Cur</span><select name="currency" defaultValue="CAD" className={inputCls}>{currencies.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}</select></label>
                   </div>
                   <label className="block"><span className="mb-1 block text-xs font-medium text-slate-600">Date received</span><input name="givenAt" type="date" defaultValue={today} className={inputCls} /></label>
-                  <label className="block"><span className="mb-1 block text-xs font-medium text-slate-600">Already paid back (CAD)</span><input name="recoveredAmount" type="number" min="0" step="any" className={inputCls} placeholder="0" /><span className="mt-1 block text-xs text-slate-400">For older loans that are already partly repaid.</span></label>
-                  <AnimatedButton className="w-full rounded-xl bg-brand px-4 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-brand-dark">Add loan</AnimatedButton>
+                  <label className="block"><span className="mb-1 block text-xs font-medium text-slate-600">Already paid back (CAD)</span><input name="recoveredAmount" type="number" min="0" step="any" className={inputCls} placeholder="0" /></label>
+                </div>
+                <div className="mt-4 flex items-center justify-between gap-3">
+                  <span className="text-xs text-slate-400">For older loans already partly repaid, set “already paid back”.</span>
+                  <AnimatedButton className="shrink-0 rounded-xl bg-brand px-5 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-brand-dark">Add loan</AnimatedButton>
                 </div>
               </form>
             </FadeIn>
