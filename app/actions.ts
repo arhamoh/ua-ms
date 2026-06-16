@@ -575,3 +575,122 @@ export async function deleteFileAsset(formData: FormData) {
   revalidatePath(`/projects/${projectId}`);
   redirect(`/projects/${projectId}?tab=files`);
 }
+
+// ─── Demo data & maintenance ─────────────────────────────────────────────────
+
+// Create an invoice for any project that doesn't have one yet.
+export async function backfillInvoices() {
+  const projects = await prisma.project.findMany({ where: { invoices: { none: {} } } });
+  for (const p of projects) {
+    await prisma.invoice.create({
+      data: {
+        clientId: p.clientId,
+        projectId: p.id,
+        amount: p.budgetAmount ?? 0,
+        currency: p.budgetCurrency ?? 'USD',
+        dueAt: p.deadline,
+      },
+    });
+  }
+  revalidatePath('/invoices');
+  redirect('/settings?done=invoices');
+}
+
+export async function clearDemoData() {
+  await prisma.client.deleteMany({ where: { name: { startsWith: 'Demo —' } } });
+  await prisma.expense.deleteMany({ where: { title: { startsWith: 'Demo —' } } });
+  await prisma.user.deleteMany({ where: { email: 'demo.sales@uaagency.com' } });
+  revalidatePath('/');
+  redirect('/settings?done=cleared');
+}
+
+export async function seedDemoData() {
+  const rates = await getRatesToCad();
+  const cadOf = (a: number, c: string) => toCad(a, c, rates);
+  const admin = await prisma.user.findFirst({ where: { roles: { has: 'SUPER_ADMIN' as any } } });
+  const sales = await prisma.user.upsert({
+    where: { email: 'demo.sales@uaagency.com' },
+    update: { roles: ['SALES'] as any },
+    create: { email: 'demo.sales@uaagency.com', name: 'Demo Salesperson', roles: ['SALES'] as any },
+  });
+
+  const defs = [
+    { client: 'Demo — Brightline', lead: 'GENERATED', project: 'Brightline Website', type: 'DEVELOPMENT', budget: 12000, cur: 'USD', status: 'ACTIVE', pay: 6000, payCur: 'USD' },
+    { client: 'Demo — Nova Foods', lead: 'INVITE', project: 'Nova Branding', type: 'DESIGN', budget: 4000, cur: 'CAD', status: 'ACTIVE', pay: 4000, payCur: 'CAD' },
+    { client: 'Demo — Karachi Tech', lead: 'GENERATED', project: 'KT Mobile App', type: 'SOFTWARE', budget: 8000, cur: 'USD', status: 'ONBOARDING', pay: 2000, payCur: 'USD' },
+  ];
+
+  const statuses = ['BACKLOG', 'TODO', 'IN_PROGRESS', 'IN_REVIEW', 'DONE'];
+  const prios = ['LOW', 'MEDIUM', 'HIGH'];
+
+  for (const d of defs) {
+    const client = await prisma.client.create({
+      data: {
+        name: d.client,
+        email: `hello@${d.client.replace('Demo — ', '').toLowerCase().replace(/\s+/g, '')}.com`,
+        source: 'UPWORK' as any,
+        leadType: d.lead as any,
+        salespersonId: sales.id,
+        projects: {
+          create: {
+            name: d.project,
+            type: d.type as any,
+            budgetAmount: d.budget,
+            budgetCurrency: d.cur,
+            budgetType: 'FIXED' as any,
+            status: d.status as any,
+            priority: 'MEDIUM' as any,
+            pmCommissionRate: 10,
+            members: admin ? { create: { userId: admin.id, role: 'PROJECT_MANAGER' as any } } : undefined,
+          },
+        },
+      },
+      include: { projects: true },
+    });
+    const project = client.projects[0];
+
+    await prisma.invoice.create({
+      data: { clientId: client.id, projectId: project.id, amount: d.budget, currency: d.cur, status: 'SENT' as any },
+    });
+    await prisma.payment.create({
+      data: {
+        clientId: client.id,
+        projectId: project.id,
+        amount: d.pay,
+        currency: d.payCur,
+        amountCad: cadOf(d.pay, d.payCur),
+        method: 'BANK_TRANSFER' as any,
+        paidAt: new Date(),
+      },
+    });
+    for (let i = 0; i < 5; i++) {
+      await prisma.task.create({
+        data: {
+          projectId: project.id,
+          title: `Demo task ${i + 1}`,
+          status: statuses[i] as any,
+          priority: prios[i % 3] as any,
+          assigneeId: admin?.id ?? null,
+        },
+      });
+    }
+  }
+
+  const exp = [
+    { t: 'Demo — Adobe CC', a: 60, c: 'USD', cat: 'SOFTWARE' },
+    { t: 'Demo — Office (Karachi)', a: 50000, c: 'PKR', cat: 'OFFICE' },
+    { t: 'Demo — Hosting', a: 20, c: 'USD', cat: 'HOSTING' },
+  ];
+  for (const e of exp) {
+    await prisma.expense.create({
+      data: { title: e.t, category: e.cat as any, amount: e.a, currency: e.c, amountCad: cadOf(e.a, e.c), date: new Date() },
+    });
+  }
+
+  await prisma.salary.create({ data: { userId: sales.id, amount: 1500, currency: 'CAD', effectiveFrom: new Date() } });
+  await prisma.salaryPayment.create({ data: { userId: sales.id, amount: 1500, currency: 'CAD', amountCad: 1500, paidAt: new Date(), method: 'Wise' } });
+  await prisma.commissionPayout.create({ data: { userId: sales.id, amount: 200, paidAt: new Date(), method: 'Wise', note: 'Demo payout' } });
+
+  revalidatePath('/');
+  redirect('/settings?done=seeded');
+}

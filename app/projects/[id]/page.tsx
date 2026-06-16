@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, FileText } from 'lucide-react';
 import { prisma } from '@/lib/prisma';
 import {
   PROJECT_STATUS_LABELS,
@@ -10,6 +10,9 @@ import {
   BUDGET_TYPE_LABELS,
   CLIENT_SOURCE_LABELS,
   PROJECT_ROLE_LABELS,
+  INVOICE_STATUS_LABELS,
+  INVOICE_STATUS_BADGE,
+  formatMoney,
 } from '@/lib/enums';
 import TaskBoard from '@/components/TaskBoard';
 import ProjectFiles from '@/components/ProjectFiles';
@@ -53,6 +56,7 @@ export default async function ProjectDetailPage({
         include: { uploadedBy: true, comments: { include: { author: true }, orderBy: { createdAt: 'asc' } } },
         orderBy: { createdAt: 'desc' },
       },
+      invoices: { orderBy: { number: 'desc' } },
     },
   });
 
@@ -133,7 +137,30 @@ export default async function ProjectDetailPage({
       ) : activeTab === 'files' ? (
         <ProjectFiles projectId={project.id} files={project.files} driveOk={driveConfigured()} />
       ) : (
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <div className="space-y-6">
+          {project.invoices[0] && (
+            <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <span className="grid h-9 w-9 place-items-center rounded-lg bg-indigo-50 text-indigo-600">
+                <FileText size={18} />
+              </span>
+              <div className="text-sm">
+                <div className="font-medium">Invoice #{project.invoices[0].number}</div>
+                <div className="flex items-center gap-2 text-slate-500">
+                  {formatMoney(project.invoices[0].amount, project.invoices[0].currency)}
+                  <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${INVOICE_STATUS_BADGE[project.invoices[0].status]}`}>
+                    {INVOICE_STATUS_LABELS[project.invoices[0].status]}
+                  </span>
+                </div>
+              </div>
+              <Link
+                href={`/invoices/${project.invoices[0].id}`}
+                className="ml-auto rounded-xl bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-dark"
+              >
+                View invoice
+              </Link>
+            </div>
+          )}
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
             <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">Project</h2>
             <dl className="divide-y divide-slate-100">
@@ -180,6 +207,7 @@ export default async function ProjectDetailPage({
               <Row label="Internal notes" value={project.internalNotes} />
             </dl>
           </section>
+          </div>
         </div>
       )}
     </div>

@@ -1,7 +1,42 @@
-// Email via Resend. No-ops gracefully until RESEND_API_KEY + INVOICE_FROM_EMAIL are set.
+// Email sending. Supports SMTP (e.g. Gmail) OR Resend — whichever is configured.
+// SMTP takes precedence if SMTP_HOST is set.
+
+import nodemailer from 'nodemailer';
+
+function smtpConfigured() {
+  return Boolean(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS);
+}
+
+function resendConfigured() {
+  return Boolean(process.env.RESEND_API_KEY && process.env.INVOICE_FROM_EMAIL);
+}
 
 export function emailConfigured() {
-  return Boolean(process.env.RESEND_API_KEY && process.env.INVOICE_FROM_EMAIL);
+  return smtpConfigured() || resendConfigured();
+}
+
+async function sendViaSmtp(to: string, subject: string, html: string) {
+  const port = Number(process.env.SMTP_PORT ?? 465);
+  const transport = nodemailer.createTransport({
+    host: process.env.SMTP_HOST,
+    port,
+    secure: port === 465,
+    auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
+  });
+  const from = process.env.SMTP_FROM || process.env.INVOICE_FROM_EMAIL || process.env.SMTP_USER!;
+  await transport.sendMail({ from, to, subject, html });
+}
+
+async function sendViaResend(to: string, subject: string, html: string) {
+  const res = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ from: process.env.INVOICE_FROM_EMAIL, to, subject, html }),
+  });
+  if (!res.ok) {
+    const t = await res.text();
+    throw new Error(`Resend ${res.status}: ${t.slice(0, 160)}`);
+  }
 }
 
 export async function sendEmail({
@@ -13,22 +48,16 @@ export async function sendEmail({
   subject: string;
   html: string;
 }): Promise<{ ok: boolean; error?: string }> {
-  const key = process.env.RESEND_API_KEY;
-  const from = process.env.INVOICE_FROM_EMAIL;
-  if (!key || !from) {
-    return { ok: false, error: 'Email not configured (set RESEND_API_KEY and INVOICE_FROM_EMAIL).' };
-  }
   try {
-    const res = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ from, to, subject, html }),
-    });
-    if (!res.ok) {
-      const t = await res.text();
-      return { ok: false, error: `Email send failed: ${res.status} ${t.slice(0, 200)}` };
+    if (smtpConfigured()) {
+      await sendViaSmtp(to, subject, html);
+      return { ok: true };
     }
-    return { ok: true };
+    if (resendConfigured()) {
+      await sendViaResend(to, subject, html);
+      return { ok: true };
+    }
+    return { ok: false, error: 'Email not configured (set SMTP_* for Gmail, or RESEND_API_KEY + INVOICE_FROM_EMAIL).' };
   } catch (e: any) {
     return { ok: false, error: e?.message ?? 'Email send failed' };
   }

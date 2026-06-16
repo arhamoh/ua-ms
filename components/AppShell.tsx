@@ -18,6 +18,7 @@ import {
   PiggyBank,
   FileText,
   Sparkles,
+  Settings,
   type LucideIcon,
 } from 'lucide-react';
 import CommandPalette from '@/components/CommandPalette';
@@ -56,6 +57,7 @@ const nav: NavItem[] = [
   { href: '/invoices', label: 'Invoices', icon: FileText },
   { href: '/assistant', label: 'Assistant', icon: Sparkles },
   { href: '/team', label: 'Team', icon: Users },
+  { href: '/settings', label: 'Settings', icon: Settings },
 ];
 
 function NavContent({ onNavigate, user }: { onNavigate?: () => void; user: SessionUser }) {

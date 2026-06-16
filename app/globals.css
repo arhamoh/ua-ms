@@ -11,3 +11,22 @@ body {
   background: var(--background);
   color: var(--foreground);
 }
+
+/* Entrance animation that only moves (never changes opacity), so content is
+   always visible even if the animation is paused/throttled. */
+@keyframes ua-fade-in {
+  from {
+    transform: translateY(6px);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+.ua-fade-in {
+  animation: ua-fade-in 0.35s ease both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ua-fade-in {
+    animation: none;
+  }
+}
