@@ -83,6 +83,17 @@ enum PaymentMethod {
   OTHER
 }
 
+enum ExpenseCategory {
+  SOFTWARE
+  HOSTING
+  MARKETING
+  OFFICE
+  CONTRACTOR
+  EQUIPMENT
+  FEES
+  OTHER
+}
+
 // ─── Models ──────────────────────────────────────────────────────────────────
 
 model User {
@@ -99,6 +110,8 @@ model User {
   projectMembers    ProjectMember[]
   salesLeads        Client[]           @relation("SalesLeads")
   commissionPayouts CommissionPayout[]
+  salaries          Salary[]
+  salaryPayments    SalaryPayment[]
 
   @@index([email])
 }
@@ -225,6 +238,54 @@ model Tag {
 model CommissionPayout {
   id        String   @id @default(cuid())
   amount    Float
+  paidAt    DateTime
+  method    String?
+  note      String?
+  createdAt DateTime @default(now())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// A business expense (any currency, normalized to CAD).
+model Expense {
+  id        String          @id @default(cuid())
+  title     String
+  category  ExpenseCategory @default(OTHER)
+  amount    Float
+  currency  String          @default("CAD")
+  amountCad Float?
+  fxRate    Float?
+  date      DateTime        // the date the expense applies to
+  note      String?
+  createdAt DateTime        @default(now())
+
+  @@index([date])
+}
+
+// Salary progression: one row per salary change for a user (latest = current).
+model Salary {
+  id            String   @id @default(cuid())
+  amount        Float
+  currency      String   @default("CAD")
+  effectiveFrom DateTime
+  note          String?
+  createdAt     DateTime @default(now())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// A salary payment to a user (any currency, normalized to CAD).
+model SalaryPayment {
+  id        String   @id @default(cuid())
+  amount    Float
+  currency  String   @default("CAD")
+  amountCad Float?
   paidAt    DateTime
   method    String?
   note      String?

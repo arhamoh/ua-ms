@@ -15,6 +15,7 @@ import {
   LogOut,
   Coins,
   RefreshCw,
+  PiggyBank,
   type LucideIcon,
 } from 'lucide-react';
 import CommandPalette from '@/components/CommandPalette';
@@ -48,6 +49,7 @@ const nav: NavItem[] = [
   { href: '/', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/clients', label: 'Clients', icon: Briefcase },
   { href: '/commissions', label: 'Commissions', icon: Coins },
+  { href: '/finance', label: 'Finance', icon: PiggyBank },
   { href: '/team', label: 'Team', icon: Users },
 ];
 

@@ -1,12 +1,13 @@
 // Live foreign-exchange helpers — converts any currency to CAD.
-// Uses Frankfurter (ECB data, free, no API key). Cached ~1h via fetch revalidate.
+// Uses open.er-api.com (free, no key, 160+ currencies incl. PKR).
+// Cached ~1h via fetch revalidate.
 
 export type Rates = Record<string, number>; // currency -> multiplier to CAD
 
 export async function getRatesToCad(): Promise<Rates> {
   const rates: Rates = { CAD: 1 };
   try {
-    const res = await fetch('https://api.frankfurter.app/latest?from=CAD', {
+    const res = await fetch('https://open.er-api.com/v6/latest/CAD', {
       next: { revalidate: 3600 },
     });
     if (!res.ok) throw new Error(`fx ${res.status}`);

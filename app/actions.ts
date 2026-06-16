@@ -12,6 +12,7 @@ import {
   PAYMENT_METHODS,
   TASK_STATUSES,
   LEAD_TYPES,
+  EXPENSE_CATEGORIES,
 } from '@/lib/enums';
 import { getRatesToCad, toCad } from '@/lib/fx';
 
@@ -285,4 +286,100 @@ export async function recordCommissionPayout(formData: FormData) {
 
   revalidatePath('/commissions');
   redirect('/commissions');
+}
+
+// ─── Expenses & salaries ─────────────────────────────────────────────────────
+
+export async function addExpense(formData: FormData) {
+  const title = str(formData.get('title'));
+  if (!title) throw new Error('Expense title is required.');
+
+  const amountRaw = str(formData.get('amount'));
+  const amount = amountRaw ? Number(amountRaw) : NaN;
+  if (!amountRaw || Number.isNaN(amount) || amount <= 0) {
+    throw new Error('A valid amount is required.');
+  }
+
+  const rawCat = str(formData.get('category'));
+  const category = EXPENSE_CATEGORIES.includes(rawCat ?? '') ? (rawCat as any) : 'OTHER';
+  const currency = str(formData.get('currency')) ?? 'CAD';
+  const dateRaw = str(formData.get('date'));
+
+  const rates = await getRatesToCad();
+  const fxRate = currency === 'CAD' ? 1 : rates[currency] ?? null;
+  const amountCad = toCad(amount, currency, rates);
+
+  await prisma.expense.create({
+    data: {
+      title,
+      category,
+      amount,
+      currency,
+      amountCad,
+      fxRate,
+      date: dateRaw ? new Date(dateRaw) : new Date(),
+      note: str(formData.get('note')),
+    },
+  });
+
+  revalidatePath('/finance');
+  redirect('/finance?tab=expenses');
+}
+
+export async function setSalary(formData: FormData) {
+  const userId = str(formData.get('userId'));
+  if (!userId) throw new Error('Missing team member.');
+
+  const amountRaw = str(formData.get('amount'));
+  const amount = amountRaw ? Number(amountRaw) : NaN;
+  if (!amountRaw || Number.isNaN(amount) || amount < 0) {
+    throw new Error('A valid salary amount is required.');
+  }
+
+  const effRaw = str(formData.get('effectiveFrom'));
+
+  await prisma.salary.create({
+    data: {
+      userId,
+      amount,
+      currency: str(formData.get('currency')) ?? 'CAD',
+      effectiveFrom: effRaw ? new Date(effRaw) : new Date(),
+      note: str(formData.get('note')),
+    },
+  });
+
+  revalidatePath('/finance');
+  redirect('/finance?tab=salaries');
+}
+
+export async function recordSalaryPayment(formData: FormData) {
+  const userId = str(formData.get('userId'));
+  if (!userId) throw new Error('Missing team member.');
+
+  const amountRaw = str(formData.get('amount'));
+  const amount = amountRaw ? Number(amountRaw) : NaN;
+  if (!amountRaw || Number.isNaN(amount) || amount <= 0) {
+    throw new Error('A valid amount is required.');
+  }
+
+  const currency = str(formData.get('currency')) ?? 'CAD';
+  const paidRaw = str(formData.get('paidAt'));
+
+  const rates = await getRatesToCad();
+  const amountCad = toCad(amount, currency, rates);
+
+  await prisma.salaryPayment.create({
+    data: {
+      userId,
+      amount,
+      currency,
+      amountCad,
+      paidAt: paidRaw ? new Date(paidRaw) : new Date(),
+      method: str(formData.get('method')),
+      note: str(formData.get('note')),
+    },
+  });
+
+  revalidatePath('/finance');
+  redirect('/finance?tab=salaries');
 }

@@ -87,7 +87,19 @@ export const PRIORITY_DOT: Record<string, string> = {
   HIGH: 'bg-rose-500',
 };
 
-export const CURRENCIES = ['USD', 'CAD', 'EUR', 'GBP', 'AUD'];
+export const EXPENSE_CATEGORY_LABELS: Record<string, string> = {
+  SOFTWARE: 'Software',
+  HOSTING: 'Hosting',
+  MARKETING: 'Marketing',
+  OFFICE: 'Office',
+  CONTRACTOR: 'Contractor',
+  EQUIPMENT: 'Equipment',
+  FEES: 'Fees',
+  OTHER: 'Other',
+};
+export const EXPENSE_CATEGORIES = Object.keys(EXPENSE_CATEGORY_LABELS);
+
+export const CURRENCIES = ['USD', 'CAD', 'EUR', 'GBP', 'AUD', 'PKR'];
 
 export const PAYMENT_METHOD_LABELS: Record<string, string> = {
   BANK_TRANSFER: 'Bank transfer',
