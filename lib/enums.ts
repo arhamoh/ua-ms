@@ -52,6 +52,29 @@ export const PROJECT_STATUS_LABELS: Record<string, string> = {
   ARCHIVED: 'Archived',
 };
 
+export const TASK_STATUS_LABELS: Record<string, string> = {
+  BACKLOG: 'Backlog',
+  TODO: 'To Do',
+  IN_PROGRESS: 'In Progress',
+  IN_REVIEW: 'In Review',
+  DONE: 'Done',
+};
+export const TASK_STATUSES = Object.keys(TASK_STATUS_LABELS);
+
+export const TASK_STATUS_DOT: Record<string, string> = {
+  BACKLOG: 'bg-slate-400',
+  TODO: 'bg-sky-500',
+  IN_PROGRESS: 'bg-amber-500',
+  IN_REVIEW: 'bg-violet-500',
+  DONE: 'bg-emerald-500',
+};
+
+export const PRIORITY_DOT: Record<string, string> = {
+  LOW: 'bg-slate-300',
+  MEDIUM: 'bg-amber-400',
+  HIGH: 'bg-rose-500',
+};
+
 export const CURRENCIES = ['USD', 'CAD', 'EUR', 'GBP', 'AUD'];
 
 export const PAYMENT_METHOD_LABELS: Record<string, string> = {

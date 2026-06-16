@@ -10,6 +10,7 @@ import {
   BUDGET_TYPES,
   PRIORITIES,
   PAYMENT_METHODS,
+  TASK_STATUSES,
 } from '@/lib/enums';
 import { getRatesToCad, toCad } from '@/lib/fx';
 
@@ -180,4 +181,68 @@ export async function recordPayment(formData: FormData) {
 
   revalidatePath(`/clients/${clientId}`);
   redirect(`/clients/${clientId}`);
+}
+
+// ─── Tasks (project board) ───────────────────────────────────────────────────
+
+export async function createTask(projectId: string, title: string, status: string) {
+  const t = title.trim();
+  if (!projectId || !t) return;
+  await prisma.task.create({
+    data: {
+      projectId,
+      title: t,
+      status: TASK_STATUSES.includes(status) ? (status as any) : 'TODO',
+    },
+  });
+  revalidatePath(`/projects/${projectId}`);
+}
+
+export async function moveTask(taskId: string, status: string, projectId: string) {
+  if (!taskId || !TASK_STATUSES.includes(status)) return;
+  await prisma.task.update({ where: { id: taskId }, data: { status: status as any } });
+  revalidatePath(`/projects/${projectId}`);
+}
+
+export async function updateTask(
+  taskId: string,
+  projectId: string,
+  data: {
+    title: string;
+    description: string;
+    status: string;
+    assigneeId: string;
+    priority: string;
+    dueDate: string;
+    tags: string[];
+  },
+) {
+  const title = data.title.trim();
+  if (!taskId || !title) return;
+  const tagNames = Array.from(
+    new Set(data.tags.map((s) => s.trim()).filter(Boolean)),
+  ).slice(0, 12);
+
+  await prisma.task.update({
+    where: { id: taskId },
+    data: {
+      title,
+      description: data.description.trim() || null,
+      status: TASK_STATUSES.includes(data.status) ? (data.status as any) : 'TODO',
+      priority: PRIORITIES.includes(data.priority) ? (data.priority as any) : 'MEDIUM',
+      assigneeId: data.assigneeId || null,
+      dueDate: data.dueDate ? new Date(data.dueDate) : null,
+      tags: {
+        set: [],
+        connectOrCreate: tagNames.map((name) => ({ where: { name }, create: { name } })),
+      },
+    },
+  });
+  revalidatePath(`/projects/${projectId}`);
+}
+
+export async function deleteTask(taskId: string, projectId: string) {
+  if (!taskId) return;
+  await prisma.task.delete({ where: { id: taskId } });
+  revalidatePath(`/projects/${projectId}`);
 }
