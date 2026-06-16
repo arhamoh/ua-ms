@@ -14,6 +14,7 @@ import {
   formatMoney,
 } from '@/lib/enums';
 import FadeIn from '@/components/FadeIn';
+import { getRatesToCad, toCad } from '@/lib/fx';
 
 export const dynamic = 'force-dynamic';
 
@@ -44,22 +45,25 @@ export default async function ClientProfilePage({
 
   if (!client) notFound();
 
-  // Currency: assume one per client; fall back to first project/payment, else USD.
-  const currency =
-    client.projects.find((p) => p.budgetCurrency)?.budgetCurrency ??
-    client.payments[0]?.currency ??
-    'USD';
-
-  const billed = client.projects.reduce((sum, p) => sum + (p.budgetAmount ?? 0), 0);
-  const paid = client.payments.reduce((sum, p) => sum + p.amount, 0);
+  // All totals are normalized to CAD using live rates (payments lock in the
+  // rate captured when recorded; projects/budgets convert at the current rate).
+  const rates = await getRatesToCad();
+  const billed = client.projects.reduce(
+    (sum, p) => sum + (p.budgetAmount != null ? toCad(p.budgetAmount, p.budgetCurrency, rates) : 0),
+    0,
+  );
+  const paid = client.payments.reduce(
+    (sum, p) => sum + (p.amountCad ?? toCad(p.amount, p.currency, rates)),
+    0,
+  );
   const balance = billed - paid;
 
   const summary = [
-    { label: 'Total billed', value: formatMoney(billed, currency), icon: Receipt, tint: 'bg-indigo-50 text-indigo-600' },
-    { label: 'Total paid', value: formatMoney(paid, currency), icon: Wallet, tint: 'bg-emerald-50 text-emerald-600' },
+    { label: 'Total billed', value: formatMoney(billed, 'CAD'), icon: Receipt, tint: 'bg-indigo-50 text-indigo-600' },
+    { label: 'Total paid', value: formatMoney(paid, 'CAD'), icon: Wallet, tint: 'bg-emerald-50 text-emerald-600' },
     {
       label: 'Outstanding',
-      value: formatMoney(balance, currency),
+      value: formatMoney(balance, 'CAD'),
       icon: Scale,
       tint: balance > 0 ? 'bg-rose-50 text-rose-600' : 'bg-slate-100 text-slate-500',
     },
@@ -113,6 +117,9 @@ export default async function ClientProfilePage({
           </FadeIn>
         ))}
       </section>
+      <p className="mt-2 text-xs text-slate-400">
+        Totals shown in CAD, converted at current exchange rates. Payments lock in the rate at the time they’re recorded.
+      </p>
 
       <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
         {/* History */}
@@ -156,7 +163,7 @@ export default async function ClientProfilePage({
                             </span>
                           </td>
                           <td className="px-5 py-3 text-right font-medium tabular-nums">
-                            {p.budgetAmount != null ? formatMoney(p.budgetAmount, p.budgetCurrency ?? currency) : '—'}
+                            {p.budgetAmount != null ? formatMoney(p.budgetAmount, p.budgetCurrency ?? 'CAD') : '—'}
                           </td>
                         </tr>
                       ))}
@@ -164,10 +171,10 @@ export default async function ClientProfilePage({
                     <tfoot>
                       <tr className="border-t border-slate-200 bg-slate-50">
                         <td colSpan={3} className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                          Total billed
+                          Total billed (CAD)
                         </td>
                         <td className="px-5 py-3 text-right font-semibold tabular-nums">
-                          {formatMoney(billed, currency)}
+                          {formatMoney(billed, 'CAD')}
                         </td>
                       </tr>
                     </tfoot>
@@ -204,8 +211,13 @@ export default async function ClientProfilePage({
                           <td className="px-5 py-3 tabular-nums text-slate-600">{fmtDate(p.paidAt)}</td>
                           <td className="px-5 py-3 text-slate-600">{PAYMENT_METHOD_LABELS[p.method] ?? p.method}</td>
                           <td className="px-5 py-3 text-slate-500">{p.project?.name ?? '—'}</td>
-                          <td className="px-5 py-3 text-right font-medium tabular-nums text-emerald-600">
-                            {formatMoney(p.amount, p.currency)}
+                          <td className="px-5 py-3 text-right tabular-nums">
+                            <div className="font-medium text-emerald-600">{formatMoney(p.amount, p.currency)}</div>
+                            {p.currency !== 'CAD' && (
+                              <div className="text-xs text-slate-400">
+                                {formatMoney(p.amountCad ?? toCad(p.amount, p.currency, rates), 'CAD')} CAD
+                              </div>
+                            )}
                           </td>
                         </tr>
                       ))}
@@ -213,10 +225,10 @@ export default async function ClientProfilePage({
                     <tfoot>
                       <tr className="border-t border-slate-200 bg-slate-50">
                         <td colSpan={3} className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                          Total paid
+                          Total paid (CAD)
                         </td>
                         <td className="px-5 py-3 text-right font-semibold tabular-nums">
-                          {formatMoney(paid, currency)}
+                          {formatMoney(paid, 'CAD')}
                         </td>
                       </tr>
                     </tfoot>
@@ -246,7 +258,7 @@ export default async function ClientProfilePage({
                 </label>
                 <label className="block">
                   <span className="mb-1 block text-xs font-medium text-slate-600">Currency</span>
-                  <select name="currency" defaultValue={currency} className={inputCls}>
+                  <select name="currency" defaultValue="USD" className={inputCls}>
                     {CURRENCIES.map((c) => (
                       <option key={c} value={c}>{c}</option>
                     ))}

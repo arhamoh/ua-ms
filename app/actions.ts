@@ -11,6 +11,7 @@ import {
   PRIORITIES,
   PAYMENT_METHODS,
 } from '@/lib/enums';
+import { getRatesToCad, toCad } from '@/lib/fx';
 
 function str(v: FormDataEntryValue | null): string | null {
   const s = (v ?? '').toString().trim();
@@ -156,12 +157,20 @@ export async function recordPayment(formData: FormData) {
 
   const paidRaw = str(formData.get('paidAt'));
   const projectId = str(formData.get('projectId'));
+  const currency = str(formData.get('currency')) ?? 'USD';
+
+  // Capture the CAD value at the moment of recording.
+  const rates = await getRatesToCad();
+  const fxRate = currency === 'CAD' ? 1 : rates[currency] ?? null;
+  const amountCad = toCad(amount, currency, rates);
 
   await prisma.payment.create({
     data: {
       clientId,
       amount,
-      currency: str(formData.get('currency')) ?? 'USD',
+      currency,
+      amountCad,
+      fxRate,
       method,
       paidAt: paidRaw ? new Date(paidRaw) : new Date(),
       note: str(formData.get('note')),

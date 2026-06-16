@@ -216,6 +216,8 @@ model Payment {
   id        String        @id @default(cuid())
   amount    Float
   currency  String        @default("USD")
+  amountCad Float?        // amount converted to CAD at the rate when recorded
+  fxRate    Float?        // currency -> CAD rate used at record time
   method    PaymentMethod @default(BANK_TRANSFER)
   paidAt    DateTime
   note      String?

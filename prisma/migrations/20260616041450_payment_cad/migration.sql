@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE "Payment" ADD COLUMN     "amountCad" DOUBLE PRECISION,
+ADD COLUMN     "fxRate" DOUBLE PRECISION;
