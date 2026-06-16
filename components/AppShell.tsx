@@ -14,6 +14,7 @@ import {
   X,
   LogOut,
   Coins,
+  RefreshCw,
   type LucideIcon,
 } from 'lucide-react';
 import CommandPalette from '@/components/CommandPalette';
@@ -22,6 +23,23 @@ import type { SessionUser } from '@/lib/auth';
 
 function openSearch() {
   window.dispatchEvent(new Event('open-command-palette'));
+}
+
+// Hard refresh: clear caches + update the service worker, then reload from network.
+async function hardRefresh() {
+  try {
+    if ('caches' in window) {
+      const keys = await caches.keys();
+      await Promise.all(keys.map((k) => caches.delete(k)));
+    }
+    if ('serviceWorker' in navigator) {
+      const regs = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(regs.map((r) => r.update()));
+    }
+  } catch {
+    // ignore — still reload below
+  }
+  window.location.reload();
 }
 
 type NavItem = { href: string; label: string; icon: LucideIcon };
@@ -194,7 +212,15 @@ export default function AppShell({
               <Search size={18} />
             </button>
             <button
-              className="grid h-9 w-9 place-items-center rounded-xl border border-slate-200 text-slate-500 hover:bg-slate-50"
+              onClick={hardRefresh}
+              className="grid h-9 w-9 place-items-center rounded-xl border border-slate-200 text-slate-500 transition hover:bg-slate-50 hover:text-brand active:rotate-180"
+              aria-label="Hard refresh"
+              title="Hard refresh (clear cache & reload)"
+            >
+              <RefreshCw size={17} />
+            </button>
+            <button
+              className="hidden h-9 w-9 place-items-center rounded-xl border border-slate-200 text-slate-500 hover:bg-slate-50 sm:grid"
               aria-label="Notifications"
             >
               <Bell size={18} />
