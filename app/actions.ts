@@ -1123,6 +1123,23 @@ export async function quickCheckOut() {
   revalidatePath('/time/report');
 }
 
+// Activity heartbeat: adds non-idle seconds to the open session. Sent ~every
+// minute by the client while the user is actually interacting. No revalidate —
+// must not churn the UI.
+export async function recordActivity(seconds: number) {
+  const s = await getSession();
+  if (!s) return;
+  const inc = Math.min(Math.max(Math.round(seconds || 0), 0), 120); // clamp to a sane beat
+  if (!inc) return;
+  const open = await prisma.timeEntry.findFirst({
+    where: { userId: s.id, checkOutAt: null },
+    orderBy: { checkInAt: 'desc' },
+    select: { id: true },
+  });
+  if (!open) return;
+  await prisma.timeEntry.update({ where: { id: open.id }, data: { activeSeconds: { increment: inc } } });
+}
+
 export async function checkOut(formData: FormData) {
   const s = await getSession();
   if (!s) return;

@@ -391,14 +391,15 @@ model SalaryPayment {
 
 // A check-in / check-out session. checkOutAt null = still checked in (open).
 model TimeEntry {
-  id         String    @id @default(cuid())
-  checkInAt  DateTime
-  checkOutAt DateTime?
-  hours      Float?
-  tasks      String?
-  notes      String?
-  source     String    @default("SELF") // SELF | ADMIN
-  createdAt  DateTime  @default(now())
+  id            String    @id @default(cuid())
+  checkInAt     DateTime
+  checkOutAt    DateTime?
+  hours         Float?
+  tasks         String?
+  notes         String?
+  source        String    @default("SELF") // SELF | ADMIN
+  activeSeconds Int       @default(0) // accumulated active (non-idle) time
+  createdAt     DateTime  @default(now())
 
   userId String
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)

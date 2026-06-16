@@ -24,6 +24,13 @@ function overlapDays(s: Date, e: Date, rangeStart: Date, rangeEnd: Date) {
   return b <= a ? 0 : Math.round((b - a) / 86_400_000);
 }
 
+function pct(active: number, total: number) {
+  return total <= 0 ? null : Math.min(100, Math.round((active / total) * 100));
+}
+function pctTone(p: number) {
+  return p >= 70 ? 'bg-emerald-100 text-emerald-700' : p >= 40 ? 'bg-amber-100 text-amber-700' : 'bg-rose-100 text-rose-700';
+}
+
 export default async function TimeReportPage({ searchParams }: { searchParams: Promise<{ month?: string }> }) {
   const session = await getSession();
   if (!session) redirect('/login');
@@ -62,12 +69,12 @@ export default async function TimeReportPage({ searchParams }: { searchParams: P
     }),
   ]);
 
-  type Row = { id: string; name: string; hours: number; sessions: number; leaveDays: number };
+  type Row = { id: string; name: string; hours: number; sessions: number; leaveDays: number; activeSeconds: number };
   const byUser = new Map<string, Row>();
-  users.forEach((u) => byUser.set(u.id, { id: u.id, name: u.name, hours: 0, sessions: 0, leaveDays: 0 }));
+  users.forEach((u) => byUser.set(u.id, { id: u.id, name: u.name, hours: 0, sessions: 0, leaveDays: 0, activeSeconds: 0 }));
   for (const e of entries) {
     const r = byUser.get(e.userId);
-    if (r) { r.hours += e.hours ?? 0; r.sessions += 1; }
+    if (r) { r.hours += e.hours ?? 0; r.sessions += 1; r.activeSeconds += e.activeSeconds; }
   }
   for (const l of approvedLeaves) {
     const r = byUser.get(l.userId);
@@ -156,24 +163,38 @@ export default async function TimeReportPage({ searchParams }: { searchParams: P
                       <th className="px-5 py-3 font-medium">Member</th>
                       <th className="px-5 py-3 text-right font-medium">Sessions</th>
                       <th className="px-5 py-3 text-right font-medium">Hours</th>
+                      <th className="px-5 py-3 text-right font-medium">Active</th>
                       <th className="px-5 py-3 text-right font-medium">Days off</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {rows.map((r) => (
-                      <tr key={r.id} className="hover:bg-slate-50">
-                        <td className="px-5 py-3 font-medium text-slate-800">{r.name}</td>
-                        <td className="px-5 py-3 text-right tabular-nums text-slate-500">{r.sessions}</td>
-                        <td className="px-5 py-3 text-right font-semibold tabular-nums">{r.hours.toFixed(1)}</td>
-                        <td className="px-5 py-3 text-right tabular-nums text-slate-500">{r.leaveDays || '—'}</td>
-                      </tr>
-                    ))}
+                    {rows.map((r) => {
+                      const p = pct(r.activeSeconds, r.hours * 3600);
+                      return (
+                        <tr key={r.id} className="hover:bg-slate-50">
+                          <td className="px-5 py-3 font-medium text-slate-800">{r.name}</td>
+                          <td className="px-5 py-3 text-right tabular-nums text-slate-500">{r.sessions}</td>
+                          <td className="px-5 py-3 text-right font-semibold tabular-nums">{r.hours.toFixed(1)}</td>
+                          <td className="px-5 py-3 text-right">
+                            {p != null ? (
+                              <span className="inline-flex items-center gap-2">
+                                <span className="tabular-nums text-slate-500">{(r.activeSeconds / 3600).toFixed(1)}h</span>
+                                <Pill className={pctTone(p)}>{p}%</Pill>
+                              </span>
+                            ) : (
+                              <span className="text-slate-300">—</span>
+                            )}
+                          </td>
+                          <td className="px-5 py-3 text-right tabular-nums text-slate-500">{r.leaveDays || '—'}</td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                   <tfoot>
                     <tr className="border-t border-slate-200 bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
                       <td className="px-5 py-3" colSpan={2}>Total</td>
                       <td className="px-5 py-3 text-right tabular-nums">{totalHours.toFixed(1)}</td>
-                      <td className="px-5 py-3" />
+                      <td className="px-5 py-3" colSpan={2} />
                     </tr>
                   </tfoot>
                 </table>
@@ -241,6 +262,7 @@ export default async function TimeReportPage({ searchParams }: { searchParams: P
                     <th className="px-5 py-3 font-medium">In</th>
                     <th className="px-5 py-3 font-medium">Out</th>
                     <th className="px-5 py-3 text-right font-medium">Hours</th>
+                    <th className="px-5 py-3 text-right font-medium">Active</th>
                     <th className="px-5 py-3 font-medium">Tasks done</th>
                     <th className="px-5 py-3 text-right font-medium">Actions</th>
                   </tr>
@@ -253,6 +275,12 @@ export default async function TimeReportPage({ searchParams }: { searchParams: P
                       <td className="px-5 py-3 tabular-nums text-slate-500">{fmtTime(e.checkInAt)}</td>
                       <td className="px-5 py-3 tabular-nums text-slate-500">{fmtTime(e.checkOutAt)}</td>
                       <td className="px-5 py-3 text-right font-medium tabular-nums">{e.hours != null ? e.hours.toFixed(2) : '—'}</td>
+                      <td className="px-5 py-3 text-right">
+                        {(() => {
+                          const p = pct(e.activeSeconds, (e.hours ?? 0) * 3600);
+                          return p != null ? <Pill className={pctTone(p)}>{p}%</Pill> : <span className="text-slate-300">—</span>;
+                        })()}
+                      </td>
                       <td className="px-5 py-3 text-xs text-slate-500"><span className="whitespace-pre-line">{e.tasks || '—'}</span></td>
                       <td className="px-5 py-3"><RowActions deleteAction={deleteTimeEntry.bind(null, e.id)} label="session" /></td>
                     </tr>

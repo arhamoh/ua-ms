@@ -1,10 +1,14 @@
 'use client';
 
-import { useEffect, useState, useTransition } from 'react';
+import { useEffect, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { AnimatePresence, motion } from 'motion/react';
 import { LogIn, LogOut, Loader2, Sparkles, X } from 'lucide-react';
-import { checkIn, checkOut, getCheckoutTasks } from '@/app/actions';
+import { checkIn, checkOut, getCheckoutTasks, recordActivity } from '@/app/actions';
+
+const HEARTBEAT_MS = 60_000; // send an active beat at most once a minute
+const ACTIVE_WINDOW_MS = 180_000; // interaction within 3 min still counts as active
+const IDLE_DOT_MS = 300_000; // dot goes amber after 5 min with no input
 
 const inputCls =
   'w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/10';
@@ -27,6 +31,8 @@ export default function HeaderClock({ initial }: { initial: Status }) {
   const [tasks, setTasks] = useState('');
   const [notes, setNotes] = useState('');
   const [loadingTasks, setLoadingTasks] = useState(false);
+  const [idle, setIdle] = useState(false);
+  const lastActivityRef = useRef(Date.now());
 
   // Keep in sync with the server (updates whenever a route calls router.refresh,
   // e.g. checking in from the Time page).
@@ -34,14 +40,43 @@ export default function HeaderClock({ initial }: { initial: Status }) {
     setStatus(initial);
   }, [initial.open, initial.checkInAt]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Live timer while checked in.
+  // Watch for real interaction while checked in (used for idle detection).
+  useEffect(() => {
+    if (!status.open) return;
+    const mark = () => { lastActivityRef.current = Date.now(); };
+    const events = ['mousemove', 'mousedown', 'keydown', 'scroll', 'touchstart', 'click'];
+    events.forEach((e) => window.addEventListener(e, mark, { passive: true }));
+    const onVisible = () => { if (document.visibilityState === 'visible') mark(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      events.forEach((e) => window.removeEventListener(e, mark));
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [status.open]);
+
+  // Live timer + idle flag while checked in.
   useEffect(() => {
     if (!status.open || !status.checkInAt) return;
-    const tick = () => setElapsed(fmtElapsed(Date.now() - new Date(status.checkInAt!).getTime()));
+    const tick = () => {
+      setElapsed(fmtElapsed(Date.now() - new Date(status.checkInAt!).getTime()));
+      setIdle(Date.now() - lastActivityRef.current > IDLE_DOT_MS);
+    };
     tick();
     const t = setInterval(tick, 1000);
     return () => clearInterval(t);
   }, [status]);
+
+  // Heartbeat: count this minute as active only if the tab is visible and the
+  // user interacted recently. Idle minutes simply aren't counted.
+  useEffect(() => {
+    if (!status.open) return;
+    const beat = () => {
+      const active = document.visibilityState === 'visible' && Date.now() - lastActivityRef.current <= ACTIVE_WINDOW_MS;
+      if (active) recordActivity(HEARTBEAT_MS / 1000).catch(() => {});
+    };
+    const t = setInterval(beat, HEARTBEAT_MS);
+    return () => clearInterval(t);
+  }, [status.open]);
 
   const onCheckIn = () =>
     start(async () => {
@@ -76,14 +111,23 @@ export default function HeaderClock({ initial }: { initial: Status }) {
       {status.open ? (
         <button
           onClick={openModal}
-          title="Check out"
-          className="group inline-flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-2.5 py-2 text-sm font-medium text-emerald-700 transition hover:bg-emerald-100"
+          title={idle ? 'Idle — no activity detected. Click to check out.' : 'Active — click to check out'}
+          className={`group inline-flex items-center gap-2 rounded-xl border px-2.5 py-2 text-sm font-medium transition ${
+            idle
+              ? 'border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100'
+              : 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+          }`}
         >
-          <span className="relative flex h-2 w-2">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-            <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
-          </span>
+          {idle ? (
+            <span className="h-2 w-2 rounded-full bg-amber-500" />
+          ) : (
+            <span className="relative flex h-2 w-2">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+              <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+            </span>
+          )}
           <span className="tabular-nums">{elapsed}</span>
+          {idle && <span className="hidden text-xs font-normal sm:inline">idle</span>}
           <LogOut size={15} className="opacity-60 group-hover:opacity-100" />
         </button>
       ) : (

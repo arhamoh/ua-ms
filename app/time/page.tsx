@@ -23,6 +23,15 @@ function leaveDays(start: Date, end: Date) {
   return Math.max(1, Math.round((end.getTime() - start.getTime()) / 86_400_000) + 1);
 }
 
+function activity(e: { hours: number | null; activeSeconds: number }) {
+  const total = (e.hours ?? 0) * 3600;
+  if (total <= 0) return null;
+  return { pct: Math.min(100, Math.round((e.activeSeconds / total) * 100)), activeHours: e.activeSeconds / 3600 };
+}
+function pctTone(pct: number) {
+  return pct >= 70 ? 'bg-emerald-100 text-emerald-700' : pct >= 40 ? 'bg-amber-100 text-amber-700' : 'bg-rose-100 text-rose-700';
+}
+
 export default async function TimePage() {
   const session = await getSession();
   if (!session) redirect('/login');
@@ -65,7 +74,9 @@ export default async function TimePage() {
       </FadeIn>
 
       <p className="mt-2 text-xs text-slate-400">
-        Last 7 days: <span className="font-medium text-slate-600">{weekHours.toFixed(1)}h</span> logged.
+        Last 7 days: <span className="font-medium text-slate-600">{weekHours.toFixed(1)}h</span> logged. The dot in the
+        header turns amber when idle; <span className="font-medium text-slate-600">Active %</span> is time with detected
+        activity (idle time isn’t counted).
       </p>
 
       <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
@@ -86,6 +97,7 @@ export default async function TimePage() {
                       <th className="px-5 py-3 font-medium">In</th>
                       <th className="px-5 py-3 font-medium">Out</th>
                       <th className="px-5 py-3 text-right font-medium">Hours</th>
+                      <th className="px-5 py-3 text-right font-medium">Active</th>
                       <th className="px-5 py-3 font-medium">Tasks done</th>
                     </tr>
                   </thead>
@@ -98,6 +110,19 @@ export default async function TimePage() {
                           {e.checkOutAt ? fmtTime(e.checkOutAt) : <Pill className="bg-emerald-100 text-emerald-700">Open</Pill>}
                         </td>
                         <td className="px-5 py-3 text-right font-medium tabular-nums">{e.hours != null ? `${e.hours.toFixed(2)}` : '—'}</td>
+                        <td className="px-5 py-3 text-right">
+                          {(() => {
+                            const a = activity(e);
+                            return a ? (
+                              <span className="inline-flex items-center gap-2">
+                                <span className="tabular-nums text-slate-500">{a.activeHours.toFixed(1)}h</span>
+                                <Pill className={pctTone(a.pct)}>{a.pct}%</Pill>
+                              </span>
+                            ) : (
+                              <span className="text-slate-300">—</span>
+                            );
+                          })()}
+                        </td>
                         <td className="px-5 py-3 text-xs text-slate-500">
                           {e.tasks ? <span className="whitespace-pre-line">{e.tasks}</span> : '—'}
                         </td>
