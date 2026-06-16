@@ -13,10 +13,15 @@ export default function AssistantWidget() {
     <>
       <button
         onClick={() => setOpen((o) => !o)}
-        className="fixed bottom-5 right-5 z-40 grid h-12 w-12 place-items-center rounded-full bg-brand text-white shadow-lg transition hover:bg-brand-dark print:hidden"
+        className="fixed bottom-5 right-5 z-40 grid h-12 w-12 place-items-center overflow-hidden rounded-full bg-brand text-white shadow-lg transition hover:opacity-90 print:hidden"
         aria-label="Analytics assistant"
       >
-        {open ? <X size={20} /> : <Sparkles size={20} />}
+        {open ? (
+          <X size={20} />
+        ) : (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src="/icon.svg" alt="" className="h-full w-full object-cover" />
+        )}
       </button>
 
       <AnimatePresence>
