@@ -12,8 +12,10 @@ import {
   PROJECT_ROLE_LABELS,
   INVOICE_STATUS_LABELS,
   INVOICE_STATUS_BADGE,
+  isTaskApprover,
   formatMoney,
 } from '@/lib/enums';
+import { getSession } from '@/lib/auth';
 import TaskBoard from '@/components/TaskBoard';
 import ProjectFiles from '@/components/ProjectFiles';
 import ProjectStatusSelect from '@/components/ProjectStatusSelect';
@@ -44,6 +46,8 @@ export default async function ProjectDetailPage({
 }) {
   const { id } = await params;
   const { tab } = await searchParams;
+  const session = await getSession();
+  const canApprove = isTaskApprover(session?.roles);
   const project = await prisma.project.findUnique({
     where: { id },
     include: {
@@ -92,6 +96,14 @@ export default async function ProjectDetailPage({
     tags: t.tags.map((tg) => ({ id: tg.id, name: tg.name, color: tg.color })),
   }));
 
+  // Existing tags, most-used first, for the task tag picker.
+  const tagRows = await prisma.tag.findMany({
+    select: { name: true, color: true, _count: { select: { tasks: true } } },
+    orderBy: [{ tasks: { _count: 'desc' } }, { name: 'asc' }],
+    take: 50,
+  });
+  const allTags = tagRows.map((t) => ({ name: t.name, color: t.color }));
+
   const tabCls = (active: boolean) =>
     `border-b-2 px-1 pb-2 text-sm font-medium transition ${
       active ? 'border-brand text-brand' : 'border-transparent text-slate-500 hover:text-slate-800'
@@ -132,7 +144,7 @@ export default async function ProjectDetailPage({
       </div>
 
       {activeTab === 'tasks' ? (
-        <TaskBoard projectId={project.id} initialTasks={boardTasks} members={members} />
+        <TaskBoard projectId={project.id} initialTasks={boardTasks} members={members} canApprove={canApprove} allTags={allTags} />
       ) : activeTab === 'files' ? (
         <ProjectFiles projectId={project.id} files={project.files} driveOk={driveConfigured()} />
       ) : (

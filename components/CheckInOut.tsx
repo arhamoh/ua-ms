@@ -2,8 +2,9 @@
 
 import { useEffect, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { LogIn, LogOut, Clock, Loader2, Sparkles } from 'lucide-react';
-import { checkIn, checkOut, getCheckoutTasks } from '@/app/actions';
+import { LogIn, LogOut, Clock } from 'lucide-react';
+import { checkIn, checkOut, getCheckoutTasksDetailed } from '@/app/actions';
+import CheckoutTasks, { type CheckoutTask } from './CheckoutTasks';
 
 const inputCls =
   'w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/10';
@@ -24,6 +25,7 @@ export default function CheckInOut({ open }: { open: { id: string; checkInAt: st
   const router = useRouter();
   const [pending, start] = useTransition();
   const [checkoutOpen, setCheckoutOpen] = useState(false);
+  const [taskItems, setTaskItems] = useState<CheckoutTask[]>([]);
   const [tasks, setTasks] = useState('');
   const [loadingTasks, setLoadingTasks] = useState(false);
   const [elapsed, setElapsed] = useState('');
@@ -44,10 +46,11 @@ export default function CheckInOut({ open }: { open: { id: string; checkInAt: st
 
   const openCheckout = async () => {
     setCheckoutOpen(true);
+    setTasks('');
+    setTaskItems([]);
     setLoadingTasks(true);
     try {
-      const draft = await getCheckoutTasks();
-      setTasks(draft);
+      setTaskItems(await getCheckoutTasksDetailed());
     } finally {
       setLoadingTasks(false);
     }
@@ -100,23 +103,8 @@ export default function CheckInOut({ open }: { open: { id: string; checkInAt: st
 
       {checkoutOpen && (
         <form action={checkOut} className="mt-5 border-t border-emerald-200 pt-5">
-          <label className="block">
-            <span className="mb-1 flex items-center gap-1.5 text-xs font-medium text-slate-600">
-              <Sparkles size={13} className="text-brand" /> Tasks done today
-              {loadingTasks && <Loader2 size={12} className="animate-spin text-slate-400" />}
-            </span>
-            <textarea
-              name="tasks"
-              rows={5}
-              value={tasks}
-              onChange={(e) => setTasks(e.target.value)}
-              placeholder="Auto-filled from the tasks you changed today — add anything else here."
-              className={inputCls}
-            />
-            <span className="mt-1 block text-xs text-slate-400">
-              Pre-filled from task changes since you checked in. Edit or add freely.
-            </span>
-          </label>
+          <input type="hidden" name="tasks" value={tasks} />
+          <CheckoutTasks items={taskItems} loading={loadingTasks} onChange={setTasks} />
           <label className="mt-3 block">
             <span className="mb-1 block text-xs font-medium text-slate-600">Notes (optional)</span>
             <input name="notes" className={inputCls} placeholder="Anything to flag" />

@@ -19,6 +19,18 @@ function getDrive() {
 
 type DriveClient = ReturnType<typeof getDrive>;
 
+// Live connectivity check for the Settings integrations panel.
+export async function testDriveConnection(): Promise<{ ok: boolean; message: string }> {
+  if (!driveConfigured()) return { ok: false, message: 'Not configured.' };
+  try {
+    const driveId = process.env.GOOGLE_SHARED_DRIVE_ID as string;
+    const res = await getDrive().drives.get({ driveId, fields: 'id,name' });
+    return { ok: true, message: `Connected to “${res.data.name ?? driveId}”.` };
+  } catch (err: any) {
+    return { ok: false, message: err?.message?.slice(0, 200) ?? 'Connection failed.' };
+  }
+}
+
 const esc = (name: string) => name.replace(/'/g, "\\'");
 
 // Find a folder by name under a parent, creating it if missing. Shared-drive aware.

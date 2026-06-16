@@ -1,9 +1,11 @@
-import { Database, FileText, Trash2, SlidersHorizontal, Plus, X, Building2 } from 'lucide-react';
+import { Database, FileText, Trash2, SlidersHorizontal, Plus, X, Building2, Plug } from 'lucide-react';
 import { prisma } from '@/lib/prisma';
 import { seedDemoData, backfillInvoices, clearDemoData, addOption, deleteOption, saveCompanySettings } from '@/app/actions';
-import { ensureOptionsSeeded, OPTION_KINDS } from '@/lib/options';
+import { ensureOptionsSeeded, ensureOptionDefaults, OPTION_KINDS } from '@/lib/options';
+import { getIntegrations } from '@/lib/integrations';
 import { getCompany } from '@/lib/company';
 import FadeIn from '@/components/FadeIn';
+import IntegrationsPanel from '@/components/IntegrationsPanel';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,21 +26,40 @@ export default async function SettingsPage({
 }) {
   const { done } = await searchParams;
   await ensureOptionsSeeded();
+  // Surface newer built-in defaults (e.g. Wise/Remitly) on already-seeded DBs.
+  await Promise.all(OPTION_KINDS.map((k) => ensureOptionDefaults(k.kind)));
   const allOptions = await prisma.optionItem.findMany({ orderBy: [{ order: 'asc' }, { createdAt: 'asc' }] });
   const byKind: Record<string, typeof allOptions> = {};
   for (const o of allOptions) (byKind[o.kind] ??= []).push(o);
   const company = await getCompany();
+  const integrations = await getIntegrations();
 
   return (
     <div className="max-w-3xl">
       <FadeIn>
         <h1 className="text-2xl font-bold tracking-tight">Settings</h1>
-        <p className="mt-1 text-sm text-slate-500">Dropdown options and demo data.</p>
+        <p className="mt-1 text-sm text-slate-500">Integrations, dropdown options, and demo data.</p>
       </FadeIn>
 
       {done && MESSAGES[done] && (
         <div className="mt-4 rounded-lg bg-emerald-50 px-4 py-2.5 text-sm text-emerald-700">{MESSAGES[done]}</div>
       )}
+
+      {/* Integrations & connections */}
+      <FadeIn delay={0.02}>
+        <div className="mt-6">
+          <div className="mb-3 flex items-center gap-2">
+            <Plug size={18} className="text-brand" />
+            <h2 className="text-sm font-semibold">Integrations &amp; connections</h2>
+            <span className="text-xs text-slate-400">What’s connected, and whether the keys work</span>
+          </div>
+          <IntegrationsPanel integrations={integrations} />
+          <p className="mt-2 text-xs text-slate-400">
+            Keys are set in Railway → <span className="font-medium text-slate-500">ua-ms</span> service → Variables.
+            Secret values are never shown here — only whether each one is set.
+          </p>
+        </div>
+      </FadeIn>
 
       {/* Company details */}
       <FadeIn delay={0.03}>

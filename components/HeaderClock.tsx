@@ -4,8 +4,9 @@ import { useEffect, useRef, useState, useTransition } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import { AnimatePresence, motion } from 'motion/react';
-import { LogIn, LogOut, Loader2, Sparkles, X } from 'lucide-react';
-import { checkIn, checkOut, getCheckoutTasks, recordActivity } from '@/app/actions';
+import { LogIn, LogOut, X } from 'lucide-react';
+import { checkIn, checkOut, getCheckoutTasksDetailed, recordActivity } from '@/app/actions';
+import CheckoutTasks, { type CheckoutTask } from './CheckoutTasks';
 
 const HEARTBEAT_MS = 60_000; // send an active beat at most once a minute
 const ACTIVE_WINDOW_MS = 180_000; // interaction within 3 min still counts as active
@@ -29,6 +30,7 @@ export default function HeaderClock({ initial }: { initial: Status }) {
   const [elapsed, setElapsed] = useState('');
   const [pending, start] = useTransition();
   const [modalOpen, setModalOpen] = useState(false);
+  const [taskItems, setTaskItems] = useState<CheckoutTask[]>([]);
   const [tasks, setTasks] = useState('');
   const [notes, setNotes] = useState('');
   const [loadingTasks, setLoadingTasks] = useState(false);
@@ -91,9 +93,11 @@ export default function HeaderClock({ initial }: { initial: Status }) {
   const openModal = async () => {
     setModalOpen(true);
     setNotes('');
+    setTasks('');
+    setTaskItems([]);
     setLoadingTasks(true);
     try {
-      setTasks(await getCheckoutTasks());
+      setTaskItems(await getCheckoutTasksDetailed());
     } finally {
       setLoadingTasks(false);
     }
@@ -160,7 +164,7 @@ export default function HeaderClock({ initial }: { initial: Status }) {
           >
             <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => !pending && setModalOpen(false)} />
             <motion.div
-              className="relative w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl"
+              className="relative max-h-[80vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl"
               initial={{ opacity: 0, scale: 0.97, y: -8 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.97, y: -8 }}
@@ -176,20 +180,9 @@ export default function HeaderClock({ initial }: { initial: Status }) {
                   : 'Review what you did, then check out.'}
               </p>
 
-              <label className="mt-4 block">
-                <span className="mb-1 flex items-center gap-1.5 text-xs font-medium text-slate-600">
-                  <Sparkles size={13} className="text-brand" /> Tasks done today
-                  {loadingTasks && <Loader2 size={12} className="animate-spin text-slate-400" />}
-                </span>
-                <textarea
-                  rows={6}
-                  value={tasks}
-                  onChange={(e) => setTasks(e.target.value)}
-                  placeholder="Auto-filled from the tasks you changed today — add anything else here."
-                  className={inputCls}
-                />
-                <span className="mt-1 block text-xs text-slate-400">Pre-filled from your task changes since check-in. Edit or add freely.</span>
-              </label>
+              <div className="mt-4">
+                <CheckoutTasks items={taskItems} loading={loadingTasks} onChange={setTasks} />
+              </div>
 
               <label className="mt-3 block">
                 <span className="mb-1 block text-xs font-medium text-slate-600">Notes (optional)</span>

@@ -3,13 +3,15 @@
 import { useState, useEffect, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'motion/react';
-import { Plus, X, LayoutGrid, List as ListIcon, Calendar, Trash2 } from 'lucide-react';
+import { Plus, X, LayoutGrid, List as ListIcon, Calendar, Trash2, Lock } from 'lucide-react';
 import { createTask, moveTask, updateTask, deleteTask } from '@/app/actions';
 import {
   TASK_STATUSES,
   TASK_STATUS_LABELS,
   TASK_STATUS_DOT,
   TASK_STATUS_BADGE,
+  TASK_APPROVAL_GATED_STATUSES,
+  TASK_REVIEW_STATUS,
   PRIORITIES,
   PRIORITY_LABELS,
   PRIORITY_BADGE,
@@ -17,7 +19,10 @@ import {
 import Pill from '@/components/Pill';
 
 type Tag = { id: string; name: string; color: string };
+export type TagOption = { name: string; color: string };
 type Member = { id: string; name: string };
+
+const DEFAULT_TAG_COLOR = '#64748b';
 export type BoardTask = {
   id: string;
   title: string;
@@ -139,14 +144,121 @@ function QuickAdd({ status, onAdd }: { status: string; onAdd: (title: string) =>
   );
 }
 
+function colorFor(name: string, options: TagOption[]) {
+  return options.find((t) => t.name.toLowerCase() === name.toLowerCase())?.color ?? DEFAULT_TAG_COLOR;
+}
+
+/**
+ * Tag input: pick from the most-used existing tags (dropdown) or type a new one.
+ * Selected tags show as removable colored chips; emits the names array upward.
+ */
+function TagPicker({
+  value,
+  options,
+  onChange,
+}: {
+  value: string[];
+  options: TagOption[];
+  onChange: (names: string[]) => void;
+}) {
+  const [query, setQuery] = useState('');
+  const [open, setOpen] = useState(false);
+
+  const add = (name: string) => {
+    const n = name.trim();
+    if (!n) return;
+    if (!value.some((v) => v.toLowerCase() === n.toLowerCase())) onChange([...value, n]);
+    setQuery('');
+  };
+  const remove = (name: string) => onChange(value.filter((v) => v !== name));
+
+  const q = query.trim().toLowerCase();
+  const selectedLower = new Set(value.map((v) => v.toLowerCase()));
+  const suggestions = options
+    .filter((t) => !selectedLower.has(t.name.toLowerCase()) && (!q || t.name.toLowerCase().includes(q)))
+    .slice(0, 8);
+  const canCreate = q.length > 0 && !options.some((t) => t.name.toLowerCase() === q) && !selectedLower.has(q);
+
+  return (
+    <div className="relative">
+      <div className="flex flex-wrap items-center gap-1.5 rounded-lg border border-slate-300 px-2 py-1.5 focus-within:border-brand focus-within:ring-2 focus-within:ring-brand/10">
+        {value.map((name) => (
+          <span
+            key={name}
+            className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-medium"
+            style={{ backgroundColor: `${colorFor(name, options)}22`, color: colorFor(name, options) }}
+          >
+            {name}
+            <button type="button" onClick={() => remove(name)} aria-label={`Remove ${name}`} className="hover:opacity-70">
+              <X size={11} />
+            </button>
+          </span>
+        ))}
+        <input
+          value={query}
+          onChange={(e) => {
+            setQuery(e.target.value);
+            setOpen(true);
+          }}
+          onFocus={() => setOpen(true)}
+          onBlur={() => setTimeout(() => setOpen(false), 120)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              if (q) add(query);
+            } else if (e.key === 'Backspace' && !query && value.length) {
+              remove(value[value.length - 1]);
+            } else if (e.key === 'Escape') {
+              setOpen(false);
+            }
+          }}
+          placeholder={value.length ? 'Add tag…' : 'Add tags — pick or type a new one'}
+          className="min-w-[8rem] flex-1 bg-transparent py-0.5 text-sm outline-none"
+        />
+      </div>
+
+      {open && (suggestions.length > 0 || canCreate) && (
+        <div className="absolute z-10 mt-1 max-h-52 w-full overflow-auto rounded-lg border border-slate-200 bg-white p-1 shadow-lg">
+          {suggestions.map((t) => (
+            <button
+              key={t.name}
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => add(t.name)}
+              className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-slate-50"
+            >
+              <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: t.color }} />
+              <span className="text-slate-700">{t.name}</span>
+            </button>
+          ))}
+          {canCreate && (
+            <button
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => add(query)}
+              className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-brand hover:bg-brand-light/50"
+            >
+              <Plus size={13} /> Create “{query.trim()}”
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function TaskBoard({
   projectId,
   initialTasks,
   members,
+  canApprove,
+  allTags,
 }: {
   projectId: string;
   initialTasks: BoardTask[];
   members: Member[];
+  canApprove: boolean;
+  allTags: TagOption[];
 }) {
   const router = useRouter();
   const [tasks, setTasks] = useState<BoardTask[]>(initialTasks);
@@ -201,6 +313,9 @@ export default function TaskBoard({
         <div className="flex gap-4 overflow-x-auto pb-4">
           {TASK_STATUSES.map((status) => {
             const colTasks = tasks.filter((t) => t.status === status);
+            // Gated (client-facing) columns are locked for non-approvers: a drop
+            // there submits the task for approval (→ In Review) instead.
+            const locked = TASK_APPROVAL_GATED_STATUSES.includes(status) && !canApprove;
             return (
               <div
                 key={status}
@@ -210,19 +325,31 @@ export default function TaskBoard({
                 }}
                 onDragLeave={() => setDragOver((s) => (s === status ? null : s))}
                 onDrop={() => {
-                  if (dragId) move(dragId, status);
+                  if (dragId) move(dragId, locked ? TASK_REVIEW_STATUS : status);
                   setDragId(null);
                   setDragOver(null);
                 }}
                 className={`flex w-72 shrink-0 flex-col rounded-2xl border p-3 transition ${
-                  dragOver === status ? 'border-brand/40 bg-brand-light/40' : 'border-slate-200 bg-slate-100/60'
+                  dragOver === status
+                    ? locked
+                      ? 'border-amber-300 bg-amber-50'
+                      : 'border-brand/40 bg-brand-light/40'
+                    : locked
+                      ? 'border-dashed border-slate-300 bg-slate-100/60'
+                      : 'border-slate-200 bg-slate-100/60'
                 }`}
               >
-                <div className="mb-3 flex items-center gap-2 px-1">
+                <div className="mb-1 flex items-center gap-2 px-1">
                   <span className={`h-2 w-2 rounded-full ${TASK_STATUS_DOT[status]}`} />
                   <span className="text-sm font-semibold">{TASK_STATUS_LABELS[status]}</span>
+                  {locked && <Lock size={12} className="text-slate-400" />}
                   <span className="ml-auto text-xs text-slate-400">{colTasks.length}</span>
                 </div>
+                {locked && (
+                  <p className="mb-2 px-1 text-[11px] leading-snug text-slate-400">
+                    {dragOver === status ? 'Drop to submit for approval' : 'PM/admin approval required'}
+                  </p>
+                )}
                 <div className="flex-1 space-y-2">
                   {colTasks.map((task) => (
                     <Card
@@ -233,9 +360,11 @@ export default function TaskBoard({
                     />
                   ))}
                 </div>
-                <div className="mt-2">
-                  <QuickAdd status={status} onAdd={(title) => add(status, title)} />
-                </div>
+                {!locked && (
+                  <div className="mt-2">
+                    <QuickAdd status={status} onAdd={(title) => add(status, title)} />
+                  </div>
+                )}
               </div>
             );
           })}
@@ -251,6 +380,8 @@ export default function TaskBoard({
             task={editing}
             members={members}
             projectId={projectId}
+            canApprove={canApprove}
+            allTags={allTags}
             onClose={() => setEditing(null)}
             onSaved={() => {
               setEditing(null);
@@ -310,12 +441,16 @@ function TaskModal({
   task,
   members,
   projectId,
+  canApprove,
+  allTags,
   onClose,
   onSaved,
 }: {
   task: BoardTask;
   members: Member[];
   projectId: string;
+  canApprove: boolean;
+  allTags: TagOption[];
   onClose: () => void;
   onSaved: () => void;
 }) {
@@ -325,7 +460,7 @@ function TaskModal({
   const [assigneeId, setAssigneeId] = useState(task.assignee?.id ?? '');
   const [priority, setPriority] = useState(task.priority);
   const [dueDate, setDueDate] = useState(task.dueDate ? task.dueDate.slice(0, 10) : '');
-  const [tags, setTags] = useState(task.tags.map((t) => t.name).join(', '));
+  const [tags, setTags] = useState<string[]>(task.tags.map((t) => t.name));
   const [pending, startTransition] = useTransition();
 
   const save = () => {
@@ -338,7 +473,7 @@ function TaskModal({
         assigneeId,
         priority,
         dueDate,
-        tags: tags.split(',').map((s) => s.trim()).filter(Boolean),
+        tags,
       });
       onSaved();
     });
@@ -390,10 +525,22 @@ function TaskModal({
           <label className="block">
             <span className="mb-1 block text-xs font-medium text-slate-600">Status</span>
             <select value={status} onChange={(e) => setStatus(e.target.value)} className={inputCls}>
-              {TASK_STATUSES.map((s) => (
-                <option key={s} value={s}>{TASK_STATUS_LABELS[s]}</option>
-              ))}
+              {TASK_STATUSES.map((s) => {
+                // Non-approvers can't pick a gated status (unless the task is
+                // already there) — they submit via "In Review" for approval.
+                const blocked = TASK_APPROVAL_GATED_STATUSES.includes(s) && !canApprove && s !== task.status;
+                return (
+                  <option key={s} value={s} disabled={blocked}>
+                    {TASK_STATUS_LABELS[s]}{blocked ? ' — needs approval' : ''}
+                  </option>
+                );
+              })}
             </select>
+            {!canApprove && (
+              <span className="mt-1 block text-[11px] leading-snug text-slate-400">
+                Choose <span className="font-medium text-slate-500">In Review</span> to submit for PM/admin approval.
+              </span>
+            )}
           </label>
           <label className="block">
             <span className="mb-1 block text-xs font-medium text-slate-600">Priority</span>
@@ -418,15 +565,10 @@ function TaskModal({
           </label>
         </div>
 
-        <label className="mt-3 block">
+        <div className="mt-3">
           <span className="mb-1 block text-xs font-medium text-slate-600">Tags</span>
-          <input
-            value={tags}
-            onChange={(e) => setTags(e.target.value)}
-            placeholder="design, urgent, frontend (comma separated)"
-            className={inputCls}
-          />
-        </label>
+          <TagPicker value={tags} options={allTags} onChange={setTags} />
+        </div>
 
         <div className="mt-5 flex items-center justify-between">
           <button

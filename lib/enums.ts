@@ -75,6 +75,17 @@ export const TASK_STATUS_LABELS: Record<string, string> = {
 };
 export const TASK_STATUSES = Object.keys(TASK_STATUS_LABELS);
 
+// Approval workflow: developers/designers can submit work for review, but only
+// PM/admin may move a task into a gated (client-facing) status. "In Review" is
+// the submit-for-approval gate; "Done" is the approved / ready-for-client state.
+export const TASK_APPROVER_ROLES = ['SUPER_ADMIN', 'MANAGER', 'PROJECT_MANAGER'];
+export const TASK_APPROVAL_GATED_STATUSES = ['DONE'];
+export const TASK_REVIEW_STATUS = 'IN_REVIEW';
+
+export function isTaskApprover(roles?: string[] | null) {
+  return !!roles?.some((r) => TASK_APPROVER_ROLES.includes(r));
+}
+
 export const TASK_STATUS_DOT: Record<string, string> = {
   BACKLOG: 'bg-slate-400',
   TODO: 'bg-sky-500',
@@ -133,6 +144,9 @@ export const CURRENCIES = ['USD', 'CAD', 'EUR', 'GBP', 'AUD', 'PKR'];
 
 export const PAYMENT_METHOD_LABELS: Record<string, string> = {
   BANK_TRANSFER: 'Bank transfer',
+  WISE: 'Wise',
+  REMITLY: 'Remitly',
+  PAYONEER: 'Payoneer',
   CARD: 'Card',
   PAYPAL: 'PayPal',
   CASH: 'Cash',

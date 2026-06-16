@@ -12,6 +12,9 @@ import {
   PAYMENT_METHODS,
   TASK_STATUSES,
   TASK_STATUS_LABELS,
+  TASK_APPROVAL_GATED_STATUSES,
+  TASK_REVIEW_STATUS,
+  isTaskApprover,
   LEAD_TYPES,
   EXPENSE_CATEGORIES,
   CURRENCIES,
@@ -21,11 +24,12 @@ import {
   PROJECT_STATUSES,
 } from '@/lib/enums';
 import { getRatesToCad, toCad } from '@/lib/fx';
-import { sendEmail } from '@/lib/email';
+import { sendEmail, verifyEmailConnection } from '@/lib/email';
 import { invoiceHtml, receiptHtml } from '@/lib/documents';
 import { getCompany, computeTax } from '@/lib/company';
 import { getSession } from '@/lib/auth';
-import { driveConfigured, uploadToDrive } from '@/lib/drive';
+import { driveConfigured, uploadToDrive, testDriveConnection } from '@/lib/drive';
+import { testOpenRouter } from '@/lib/integrations';
 
 function str(v: FormDataEntryValue | null): string | null {
   const s = (v ?? '').toString().trim();
@@ -245,14 +249,37 @@ async function logActivity(summary: string) {
   await logTaskActivity(summary, {});
 }
 
+// Approval gate: developers/designers can't push a task into a gated
+// (client-facing) status. Their attempt is downgraded to "In Review" — i.e.
+// submitted for PM/admin approval instead of completed.
+function gateStatus(
+  requested: string,
+  roles?: string[],
+  currentStatus?: string,
+): { status: string; gated: boolean } {
+  // Only gate a *transition into* a client-facing status — editing a task that
+  // is already there (e.g. fixing a typo) must not bounce it back to review.
+  if (
+    TASK_APPROVAL_GATED_STATUSES.includes(requested) &&
+    requested !== currentStatus &&
+    !isTaskApprover(roles)
+  ) {
+    return { status: TASK_REVIEW_STATUS, gated: true };
+  }
+  return { status: requested, gated: false };
+}
+
 export async function createTask(projectId: string, title: string, status: string) {
   const t = title.trim();
   if (!projectId || !t) return;
+  const s = await getSession();
+  const requested = TASK_STATUSES.includes(status) ? status : 'TODO';
+  const { status: target } = gateStatus(requested, s?.roles);
   const created = await prisma.task.create({
     data: {
       projectId,
       title: t,
-      status: TASK_STATUSES.includes(status) ? (status as any) : 'TODO',
+      status: target as any,
     },
   });
   await logTaskActivity(`Created “${t}”`, { taskId: created.id, projectId });
@@ -269,9 +296,19 @@ export async function setProjectStatus(projectId: string, status: string) {
 
 export async function moveTask(taskId: string, status: string, projectId: string) {
   if (!taskId || !TASK_STATUSES.includes(status)) return;
-  const task = await prisma.task.findUnique({ where: { id: taskId }, select: { title: true } });
-  await prisma.task.update({ where: { id: taskId }, data: { status: status as any } });
-  await logTaskActivity(`Moved “${task?.title ?? 'task'}” to ${TASK_STATUS_LABELS[status] ?? status}`, { taskId, projectId });
+  const s = await getSession();
+  const task = await prisma.task.findUnique({ where: { id: taskId }, select: { title: true, status: true } });
+  const { status: target, gated } = gateStatus(status, s?.roles, task?.status);
+  if (task?.status === target) return; // no-op (e.g. gated request already in review)
+  await prisma.task.update({ where: { id: taskId }, data: { status: target as any } });
+  const title = task?.title ?? 'task';
+  if (gated) {
+    await logTaskActivity(`Submitted “${title}” for approval`, { taskId, projectId });
+  } else if (target === 'DONE' && task?.status === TASK_REVIEW_STATUS) {
+    await logTaskActivity(`Approved “${title}” → Done`, { taskId, projectId });
+  } else {
+    await logTaskActivity(`Moved “${title}” to ${TASK_STATUS_LABELS[target] ?? target}`, { taskId, projectId });
+  }
   revalidatePath(`/projects/${projectId}`);
 }
 
@@ -290,6 +327,10 @@ export async function updateTask(
 ) {
   const title = data.title.trim();
   if (!taskId || !title) return;
+  const s = await getSession();
+  const existing = await prisma.task.findUnique({ where: { id: taskId }, select: { status: true } });
+  const requested = TASK_STATUSES.includes(data.status) ? data.status : 'TODO';
+  const { status: target, gated } = gateStatus(requested, s?.roles, existing?.status);
   const tagNames = Array.from(
     new Set(data.tags.map((s) => s.trim()).filter(Boolean)),
   ).slice(0, 12);
@@ -299,7 +340,7 @@ export async function updateTask(
     data: {
       title,
       description: data.description.trim() || null,
-      status: TASK_STATUSES.includes(data.status) ? (data.status as any) : 'TODO',
+      status: target as any,
       priority: PRIORITIES.includes(data.priority) ? (data.priority as any) : 'MEDIUM',
       assigneeId: data.assigneeId || null,
       dueDate: data.dueDate ? new Date(data.dueDate) : null,
@@ -309,8 +350,11 @@ export async function updateTask(
       },
     },
   });
-  const statusLabel = TASK_STATUS_LABELS[data.status] ?? data.status;
-  await logTaskActivity(`Updated “${title}” (${statusLabel})`, { taskId, projectId });
+  const statusLabel = TASK_STATUS_LABELS[target] ?? target;
+  await logTaskActivity(
+    gated ? `Submitted “${title}” for approval` : `Updated “${title}” (${statusLabel})`,
+    { taskId, projectId },
+  );
   revalidatePath(`/projects/${projectId}`);
 }
 
@@ -786,6 +830,23 @@ export async function deleteOption(formData: FormData) {
   redirect('/settings');
 }
 
+// Live "test connection" for the Settings integrations panel. Only runs the
+// network probe for the integration the user clicked; returns ok + a message.
+export async function testIntegration(id: string): Promise<{ ok: boolean; message: string }> {
+  const s = await getSession();
+  if (!s) return { ok: false, message: 'Not authorized.' };
+  switch (id) {
+    case 'drive':
+      return testDriveConnection();
+    case 'email':
+      return verifyEmailConnection();
+    case 'openrouter':
+      return testOpenRouter();
+    default:
+      return { ok: false, message: 'Nothing to test for this integration.' };
+  }
+}
+
 // ─── Company settings ────────────────────────────────────────────────────────
 
 export async function saveCompanySettings(formData: FormData) {
@@ -1088,6 +1149,44 @@ export async function getCheckoutTasks(): Promise<string> {
     }
   }
   return lines.join('\n');
+}
+
+// Interactive checkout: the distinct tasks the user actually touched since
+// check-in, each with its *current* board status (not a replay of every move).
+// The UI shows these as a checklist so the person confirms what they finished.
+export async function getCheckoutTasksDetailed(): Promise<
+  { taskId: string; title: string; project: string | null; status: string }[]
+> {
+  const s = await getSession();
+  if (!s) return [];
+  const open = await prisma.timeEntry.findFirst({
+    where: { userId: s.id, checkOutAt: null },
+    orderBy: { checkInAt: 'desc' },
+  });
+  if (!open) return [];
+  const acts = await prisma.taskActivity.findMany({
+    where: { userId: s.id, createdAt: { gte: open.checkInAt }, taskId: { not: null } },
+    orderBy: { createdAt: 'asc' },
+    select: { taskId: true },
+  });
+  // Distinct task ids, preserving first-touched order.
+  const ids: string[] = [];
+  const seen = new Set<string>();
+  for (const a of acts) {
+    if (a.taskId && !seen.has(a.taskId)) {
+      seen.add(a.taskId);
+      ids.push(a.taskId);
+    }
+  }
+  if (!ids.length) return [];
+  const tasks = await prisma.task.findMany({
+    where: { id: { in: ids } },
+    select: { id: true, title: true, status: true, project: { select: { name: true } } },
+  });
+  const order = new Map(ids.map((id, i) => [id, i]));
+  return tasks
+    .sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0))
+    .map((t) => ({ taskId: t.id, title: t.title, project: t.project?.name ?? null, status: t.status }));
 }
 
 // Current user's open-session status, for the header quick button.

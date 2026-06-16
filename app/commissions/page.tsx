@@ -4,7 +4,7 @@ import { prisma } from '@/lib/prisma';
 import { recordCommissionPayout } from '@/app/actions';
 import { SALES_COMMISSION_RATE, formatMoney } from '@/lib/enums';
 import { getRatesToCad, toCad } from '@/lib/fx';
-import { getLeadTypeRates } from '@/lib/options';
+import { getLeadTypeRates, getOptions, ensureOptionDefaults } from '@/lib/options';
 import FadeIn from '@/components/FadeIn';
 import RowActions from '@/components/RowActions';
 import AnimatedButton from '@/components/AnimatedButton';
@@ -47,6 +47,8 @@ export default async function CommissionsPage() {
     getRatesToCad(),
   ]);
   const leadRates = await getLeadTypeRates();
+  await ensureOptionDefaults('paymentMethod');
+  const methods = await getOptions('paymentMethod');
 
   const cad = (amt: number | null, cur: string | null) => toCad(amt ?? 0, cur, rates);
 
@@ -244,7 +246,11 @@ export default async function CommissionsPage() {
             </label>
             <label className="block">
               <span className="mb-1 block text-xs font-medium text-slate-600">Method</span>
-              <input name="method" className={inputCls} placeholder="Wise, Payoneer, bank…" />
+              <select name="method" defaultValue="BANK_TRANSFER" className={inputCls}>
+                {methods.map((m) => (
+                  <option key={m.value} value={m.value}>{m.label}</option>
+                ))}
+              </select>
             </label>
             <label className="block">
               <span className="mb-1 block text-xs font-medium text-slate-600">Note</span>
