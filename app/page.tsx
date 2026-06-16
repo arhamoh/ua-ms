@@ -127,15 +127,17 @@ export default async function DashboardPage() {
       <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {stats.map((s, i) => (
           <FadeIn key={s.label} delay={0.04 * i} className="h-full">
-            <Link href={s.href} className="group block h-full rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-brand/30 hover:shadow-md">
+            <Link href={s.href} className="group flex h-full flex-col rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-brand/30 hover:shadow-md">
               <div className="flex items-center justify-between">
                 <span className={`grid h-10 w-10 place-items-center rounded-xl ${s.tint}`}>
                   <s.icon size={20} />
                 </span>
                 <ArrowUpRight size={16} className="text-slate-300 transition group-hover:text-brand" />
               </div>
-              <div className="mt-4 text-2xl font-semibold tracking-tight">{s.value}</div>
-              <div className="mt-0.5 text-sm text-slate-500">{s.label}</div>
+              <div className="mt-auto pt-5">
+                <div className="truncate text-2xl font-semibold tracking-tight">{s.value}</div>
+                <div className="mt-0.5 text-sm text-slate-500">{s.label}</div>
+              </div>
             </Link>
           </FadeIn>
         ))}
