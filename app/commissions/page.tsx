@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { TrendingUp, Wallet, Scale, Plus } from 'lucide-react';
 import { prisma } from '@/lib/prisma';
 import { recordCommissionPayout } from '@/app/actions';
@@ -5,6 +6,7 @@ import { ROLE_LABELS, SALES_COMMISSION_RATE, formatMoney } from '@/lib/enums';
 import { getRatesToCad, toCad } from '@/lib/fx';
 import { getLeadTypeRates } from '@/lib/options';
 import FadeIn from '@/components/FadeIn';
+import RowActions from '@/components/RowActions';
 
 export const dynamic = 'force-dynamic';
 
@@ -148,13 +150,16 @@ export default async function CommissionsPage() {
                       <th className="px-5 py-3 text-right font-medium">Earned</th>
                       <th className="px-5 py-3 text-right font-medium">Paid</th>
                       <th className="px-5 py-3 text-right font-medium">Outstanding</th>
+                      <th className="px-5 py-3 text-right font-medium">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {people.map((r) => (
                       <tr key={r.id} className="hover:bg-slate-50">
                         <td className="px-5 py-3">
-                          <div className="font-medium text-slate-800">{r.name}</div>
+                          <Link href={`/commissions/${r.id}`} className="font-medium text-slate-800 hover:text-brand">
+                            {r.name}
+                          </Link>
                           <div className="text-xs text-slate-400">
                             {r.roles.map((x) => ROLE_LABELS[x] ?? x).join(', ') || '—'}
                             {r.leads > 0 && ` · ${r.leads} lead${r.leads === 1 ? '' : 's'}`}
@@ -166,6 +171,9 @@ export default async function CommissionsPage() {
                         <td className="px-5 py-3 text-right tabular-nums text-slate-500">{formatMoney(r.paid, 'CAD')}</td>
                         <td className={`px-5 py-3 text-right font-medium tabular-nums ${r.outstanding > 0.01 ? 'text-rose-600' : 'text-emerald-600'}`}>
                           {formatMoney(r.outstanding, 'CAD')}
+                        </td>
+                        <td className="px-5 py-3">
+                          <RowActions viewHref={`/commissions/${r.id}`} label="member" />
                         </td>
                       </tr>
                     ))}

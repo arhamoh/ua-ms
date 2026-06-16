@@ -896,6 +896,14 @@ export async function deleteSalaryPayment(id: string) {
   revalidatePath('/finance');
 }
 
+export async function deleteCommissionPayout(id: string) {
+  if (!id) return;
+  const p = await prisma.commissionPayout.findUnique({ where: { id }, select: { userId: true } });
+  await prisma.commissionPayout.delete({ where: { id } });
+  revalidatePath('/commissions');
+  if (p) revalidatePath(`/commissions/${p.userId}`);
+}
+
 // ─── Loans / money to recover ────────────────────────────────────────────────
 
 export async function addLoan(formData: FormData) {
