@@ -16,6 +16,7 @@ import {
   Coins,
   RefreshCw,
   PiggyBank,
+  FileText,
   type LucideIcon,
 } from 'lucide-react';
 import CommandPalette from '@/components/CommandPalette';
@@ -50,6 +51,7 @@ const nav: NavItem[] = [
   { href: '/clients', label: 'Clients', icon: Briefcase },
   { href: '/commissions', label: 'Commissions', icon: Coins },
   { href: '/finance', label: 'Finance', icon: PiggyBank },
+  { href: '/invoices', label: 'Invoices', icon: FileText },
   { href: '/team', label: 'Team', icon: Users },
 ];
 
@@ -152,13 +154,13 @@ export default function AppShell({
   return (
     <>
       {/* Desktop sidebar */}
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r border-slate-200 bg-white lg:flex">
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r border-slate-200 bg-white lg:flex print:hidden">
         <NavContent user={user} />
       </aside>
 
       {/* Mobile drawer */}
       <div
-        className={`fixed inset-0 z-40 lg:hidden ${open ? '' : 'pointer-events-none'}`}
+        className={`fixed inset-0 z-40 lg:hidden print:hidden ${open ? '' : 'pointer-events-none'}`}
         aria-hidden={!open}
       >
         <div
@@ -184,8 +186,8 @@ export default function AppShell({
       </div>
 
       {/* Main column */}
-      <div className="lg:pl-60">
-        <header className="sticky top-0 z-20 flex h-16 items-center gap-3 border-b border-slate-200 bg-white/80 px-4 backdrop-blur sm:px-6">
+      <div className="lg:pl-60 print:pl-0">
+        <header className="sticky top-0 z-20 flex h-16 items-center gap-3 border-b border-slate-200 bg-white/80 px-4 backdrop-blur sm:px-6 print:hidden">
           <button
             onClick={() => setOpen(true)}
             aria-label="Open menu"

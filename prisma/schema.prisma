@@ -94,6 +94,13 @@ enum ExpenseCategory {
   OTHER
 }
 
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  PAID
+  VOID
+}
+
 // ─── Models ──────────────────────────────────────────────────────────────────
 
 model User {
@@ -139,6 +146,7 @@ model Client {
 
   projects Project[]
   payments Payment[]
+  invoices Invoice[]
 
   @@index([salespersonId])
 }
@@ -181,6 +189,7 @@ model Project {
   tasks       Task[]
   timeEntries TimeEntry[]
   payments    Payment[]
+  invoices    Invoice[]
 
   @@index([clientId])
   @@index([status])
@@ -247,6 +256,29 @@ model CommissionPayout {
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+}
+
+// An invoice for a project (or client). Number auto-increments.
+model Invoice {
+  id        String        @id @default(cuid())
+  number    Int           @unique @default(autoincrement())
+  status    InvoiceStatus @default(DRAFT)
+  amount    Float
+  currency  String        @default("USD")
+  issuedAt  DateTime      @default(now())
+  dueAt     DateTime?
+  notes     String?
+  sentAt    DateTime?
+  createdAt DateTime      @default(now())
+
+  clientId String
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  projectId String?
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  @@index([clientId])
+  @@index([projectId])
 }
 
 // A business expense (any currency, normalized to CAD).

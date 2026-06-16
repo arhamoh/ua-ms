@@ -13,8 +13,11 @@ import {
   TASK_STATUSES,
   LEAD_TYPES,
   EXPENSE_CATEGORIES,
+  PAYMENT_METHOD_LABELS,
 } from '@/lib/enums';
 import { getRatesToCad, toCad } from '@/lib/fx';
+import { sendEmail } from '@/lib/email';
+import { invoiceHtml, receiptHtml } from '@/lib/documents';
 
 function str(v: FormDataEntryValue | null): string | null {
   const s = (v ?? '').toString().trim();
@@ -132,6 +135,8 @@ export async function onboardClient(formData: FormData) {
     include: { projects: true },
   });
 
+  await autoInvoice(client.id, client.projects[0]);
+
   revalidatePath('/clients');
   revalidatePath('/');
   redirect(`/projects/${client.projects[0].id}`);
@@ -146,10 +151,28 @@ export async function addProjectToClient(formData: FormData) {
     data: { ...buildProjectData(formData), client: { connect: { id: clientId } } },
   });
 
+  await autoInvoice(clientId, project);
+
   revalidatePath(`/clients/${clientId}`);
   revalidatePath('/clients');
   revalidatePath('/');
   redirect(`/projects/${project.id}`);
+}
+
+// Generate a draft invoice for a freshly-created project.
+async function autoInvoice(
+  clientId: string,
+  project: { id: string; budgetAmount: number | null; budgetCurrency: string | null; deadline: Date | null },
+) {
+  await prisma.invoice.create({
+    data: {
+      clientId,
+      projectId: project.id,
+      amount: project.budgetAmount ?? 0,
+      currency: project.budgetCurrency ?? 'USD',
+      dueAt: project.deadline,
+    },
+  });
 }
 
 // ─── Payments ────────────────────────────────────────────────────────────────
@@ -382,4 +405,93 @@ export async function recordSalaryPayment(formData: FormData) {
 
   revalidatePath('/finance');
   redirect('/finance?tab=salaries');
+}
+
+// ─── Invoices & receipts ─────────────────────────────────────────────────────
+
+const INVOICE_STATUSES = ['DRAFT', 'SENT', 'PAID', 'VOID'];
+
+export async function setInvoiceStatus(formData: FormData) {
+  const id = str(formData.get('invoiceId'));
+  const status = str(formData.get('status'));
+  if (!id || !INVOICE_STATUSES.includes(status ?? '')) return;
+  await prisma.invoice.update({ where: { id }, data: { status: status as any } });
+  revalidatePath(`/invoices/${id}`);
+  revalidatePath('/invoices');
+  redirect(`/invoices/${id}`);
+}
+
+export async function emailInvoice(formData: FormData) {
+  const id = str(formData.get('invoiceId'));
+  if (!id) return;
+  const invoice = await prisma.invoice.findUnique({
+    where: { id },
+    include: { client: true, project: true },
+  });
+  if (!invoice) redirect('/invoices');
+  if (!invoice!.client.email) {
+    redirect(`/invoices/${id}?error=${encodeURIComponent('Client has no email on file.')}`);
+  }
+
+  const html = invoiceHtml({
+    number: invoice!.number,
+    clientName: invoice!.client.name,
+    projectName: invoice!.project?.name,
+    amount: invoice!.amount,
+    currency: invoice!.currency,
+    issuedAt: invoice!.issuedAt,
+    dueAt: invoice!.dueAt,
+    notes: invoice!.notes,
+  });
+
+  const result = await sendEmail({
+    to: invoice!.client.email!,
+    subject: `Invoice #${invoice!.number} from UA Agency`,
+    html,
+  });
+
+  if (!result.ok) {
+    redirect(`/invoices/${id}?error=${encodeURIComponent(result.error ?? 'Send failed')}`);
+  }
+
+  await prisma.invoice.update({
+    where: { id },
+    data: { sentAt: new Date(), status: invoice!.status === 'DRAFT' ? 'SENT' : invoice!.status },
+  });
+  revalidatePath(`/invoices/${id}`);
+  redirect(`/invoices/${id}?sent=1`);
+}
+
+export async function emailReceipt(formData: FormData) {
+  const id = str(formData.get('paymentId'));
+  if (!id) return;
+  const payment = await prisma.payment.findUnique({
+    where: { id },
+    include: { client: true, project: true },
+  });
+  if (!payment) redirect('/clients');
+  if (!payment!.client.email) {
+    redirect(`/receipts/${id}?error=${encodeURIComponent('Client has no email on file.')}`);
+  }
+
+  const html = receiptHtml({
+    clientName: payment!.client.name,
+    projectName: payment!.project?.name,
+    amount: payment!.amount,
+    currency: payment!.currency,
+    paidAt: payment!.paidAt,
+    method: PAYMENT_METHOD_LABELS[payment!.method] ?? payment!.method,
+    note: payment!.note,
+  });
+
+  const result = await sendEmail({
+    to: payment!.client.email!,
+    subject: `Receipt from UA Agency`,
+    html,
+  });
+
+  if (!result.ok) {
+    redirect(`/receipts/${id}?error=${encodeURIComponent(result.error ?? 'Send failed')}`);
+  }
+  redirect(`/receipts/${id}?sent=1`);
 }

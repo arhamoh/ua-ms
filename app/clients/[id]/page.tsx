@@ -208,7 +208,9 @@ export default async function ClientProfilePage({
                     <tbody className="divide-y divide-slate-100">
                       {client.payments.map((p) => (
                         <tr key={p.id} className="transition hover:bg-slate-50">
-                          <td className="px-5 py-3 tabular-nums text-slate-600">{fmtDate(p.paidAt)}</td>
+                          <td className="px-5 py-3 tabular-nums">
+                            <Link href={`/receipts/${p.id}`} className="text-brand hover:underline">{fmtDate(p.paidAt)}</Link>
+                          </td>
                           <td className="px-5 py-3 text-slate-600">{PAYMENT_METHOD_LABELS[p.method] ?? p.method}</td>
                           <td className="px-5 py-3 text-slate-500">{p.project?.name ?? '—'}</td>
                           <td className="px-5 py-3 text-right tabular-nums">
