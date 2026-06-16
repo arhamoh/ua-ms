@@ -96,11 +96,39 @@ export default async function OnboardPage() {
     </SectionCard>
   );
 
+  const byId = (sid: string) => projSecs.find((s) => s.id === sid)?.node;
   const steps: WizardStep[] = [
-    { id: 'contact', label: 'Client', content: contactStep },
-    { id: 'background', label: 'Background', content: backgroundStep },
-    { id: 'sales', label: 'Sales', content: salesStep },
-    ...projSecs.map((s) => ({ id: s.id, label: s.short, content: s.node })),
+    {
+      id: 'client',
+      label: 'Client',
+      content: (
+        <>
+          {contactStep}
+          {backgroundStep}
+          {salesStep}
+        </>
+      ),
+    },
+    {
+      id: 'project',
+      label: 'Project',
+      content: (
+        <>
+          {byId('overview')}
+          {byId('scope')}
+        </>
+      ),
+    },
+    {
+      id: 'team',
+      label: 'Assets & Team',
+      content: (
+        <>
+          {byId('assets')}
+          {byId('assignment')}
+        </>
+      ),
+    },
   ];
 
   return (

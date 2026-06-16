@@ -22,7 +22,29 @@ export default async function NewProjectPage({
   if (!client) notFound();
 
   const projSecs = await projectSections({ users });
-  const steps: WizardStep[] = projSecs.map((s) => ({ id: s.id, label: s.short, content: s.node }));
+  const byId = (sid: string) => projSecs.find((s) => s.id === sid)?.node;
+  const steps: WizardStep[] = [
+    {
+      id: 'project',
+      label: 'Project',
+      content: (
+        <>
+          {byId('overview')}
+          {byId('scope')}
+        </>
+      ),
+    },
+    {
+      id: 'team',
+      label: 'Assets & Team',
+      content: (
+        <>
+          {byId('assets')}
+          {byId('assignment')}
+        </>
+      ),
+    },
+  ];
 
   return (
     <div>
