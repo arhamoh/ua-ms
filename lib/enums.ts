@@ -61,8 +61,10 @@ export const PROJECT_STATUS_LABELS: Record<string, string> = {
   ACTIVE: 'Active',
   ON_HOLD: 'On Hold',
   COMPLETED: 'Completed',
+  CANCELLED: 'Cancelled',
   ARCHIVED: 'Archived',
 };
+export const PROJECT_STATUSES = Object.keys(PROJECT_STATUS_LABELS);
 
 export const TASK_STATUS_LABELS: Record<string, string> = {
   BACKLOG: 'Backlog',
@@ -152,5 +154,6 @@ export const STATUS_BADGE: Record<string, string> = {
   ACTIVE: 'bg-emerald-100 text-emerald-700',
   ON_HOLD: 'bg-slate-200 text-slate-600',
   COMPLETED: 'bg-blue-100 text-blue-700',
+  CANCELLED: 'bg-rose-100 text-rose-700',
   ARCHIVED: 'bg-slate-100 text-slate-400',
 };

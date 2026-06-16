@@ -16,6 +16,7 @@ import {
   PAYMENT_METHOD_LABELS,
   FILE_CATEGORIES,
   FILE_CATEGORY_LABELS,
+  PROJECT_STATUSES,
 } from '@/lib/enums';
 import { getRatesToCad, toCad } from '@/lib/fx';
 import { sendEmail } from '@/lib/email';
@@ -232,6 +233,14 @@ export async function createTask(projectId: string, title: string, status: strin
     },
   });
   revalidatePath(`/projects/${projectId}`);
+}
+
+export async function setProjectStatus(projectId: string, status: string) {
+  if (!projectId || !PROJECT_STATUSES.includes(status)) return;
+  await prisma.project.update({ where: { id: projectId }, data: { status: status as any } });
+  revalidatePath(`/projects/${projectId}`);
+  revalidatePath('/clients');
+  revalidatePath('/');
 }
 
 export async function moveTask(taskId: string, status: string, projectId: string) {

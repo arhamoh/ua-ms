@@ -16,6 +16,7 @@ import {
 } from '@/lib/enums';
 import TaskBoard from '@/components/TaskBoard';
 import ProjectFiles from '@/components/ProjectFiles';
+import ProjectStatusSelect from '@/components/ProjectStatusSelect';
 import { driveConfigured } from '@/lib/drive';
 
 export const dynamic = 'force-dynamic';
@@ -105,11 +106,9 @@ export default async function ProjectDetailPage({
         >
           <ArrowLeft size={14} /> Clients
         </Link>
-        <div className="mt-2 flex items-center gap-3">
+        <div className="mt-2 flex flex-wrap items-center gap-3">
           <h1 className="text-2xl font-bold tracking-tight">{project.name}</h1>
-          <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS_BADGE[project.status] ?? ''}`}>
-            {PROJECT_STATUS_LABELS[project.status] ?? project.status}
-          </span>
+          <ProjectStatusSelect projectId={project.id} status={project.status} />
         </div>
         <p className="mt-1 text-sm text-slate-500">
           {PROJECT_TYPE_LABELS[project.type] ?? project.type} · for{' '}
