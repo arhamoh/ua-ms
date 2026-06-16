@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Camera, ImageUp, Loader2, CheckCircle2, RotateCcw, Sparkles } from 'lucide-react';
 import { importStatementExpenses } from '@/app/actions';
+import ProgressBar from './ProgressBar';
 
 type Opt = { value: string; label: string };
 
@@ -205,6 +206,10 @@ export default function BillScan({ currencies, categories }: { currencies: Opt[]
               </>
             )}
           </div>
+
+          {scanning && (
+            <ProgressBar label="Reading the photo — this can take a few seconds…" className="mb-4" />
+          )}
 
           {notice && (
             <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">{notice}</div>

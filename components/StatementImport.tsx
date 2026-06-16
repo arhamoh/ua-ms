@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { UploadCloud, FileSpreadsheet, CheckCircle2, RotateCcw, Loader2, Eye } from 'lucide-react';
 import { importStatementExpenses } from '@/app/actions';
+import ProgressBar from './ProgressBar';
 
 function fileToBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -391,6 +392,7 @@ export default function StatementImport({ currencies, categories }: { currencies
         </span>
         <h2 className="mt-4 text-sm font-semibold">Reading {fileName}…</h2>
         <p className="mt-1 text-sm text-slate-500">Extracting and structuring the transactions — this can take a few seconds.</p>
+        <ProgressBar label="Analyzing the statement…" className="mx-auto mt-4 max-w-xs" />
       </div>
     );
   }

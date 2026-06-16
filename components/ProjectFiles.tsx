@@ -1,10 +1,8 @@
-import { FileUp, ExternalLink, Trash2, MessageSquare } from 'lucide-react';
-import { uploadProjectFile, addFileComment, deleteFileAsset } from '@/app/actions';
+import { ExternalLink, Trash2, MessageSquare } from 'lucide-react';
+import { addFileComment, deleteFileAsset } from '@/app/actions';
 import { FILE_CATEGORY_LABELS } from '@/lib/enums';
 import { getOptions } from '@/lib/options';
-
-const inputCls =
-  'w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/10';
+import DriveUploadForm from '@/components/DriveUploadForm';
 
 type FileComment = { id: string; body: string; createdAt: Date; author: { name: string } | null };
 type FileAsset = {
@@ -103,28 +101,7 @@ export default async function ProjectFiles({
       {/* Upload */}
       <div>
         {driveOk ? (
-          <form action={uploadProjectFile} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h2 className="mb-4 flex items-center gap-2 text-sm font-semibold">
-              <FileUp size={16} className="text-brand" /> Upload a file
-            </h2>
-            <input type="hidden" name="projectId" value={projectId} />
-            <div className="space-y-3">
-              <label className="block">
-                <span className="mb-1 block text-xs font-medium text-slate-600">Type</span>
-                <select name="category" className={inputCls} defaultValue="OTHER">
-                  {fileCategories.map((c) => (
-                    <option key={c.value} value={c.value}>{c.label}</option>
-                  ))}
-                </select>
-              </label>
-              <label className="block">
-                <span className="mb-1 block text-xs font-medium text-slate-600">File</span>
-                <input type="file" name="file" required className="w-full text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-brand file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-white" />
-              </label>
-              <button className="w-full rounded-xl bg-brand px-4 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-brand-dark">Upload to Drive</button>
-              <p className="text-xs text-slate-400">Saved to the Shared Drive under <span className="font-medium">Client - Project / Type</span>.</p>
-            </div>
-          </form>
+          <DriveUploadForm projectId={projectId} categories={fileCategories} />
         ) : (
           <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-800">
             <p className="font-medium">Google Drive not connected</p>

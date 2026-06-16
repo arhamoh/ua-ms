@@ -25,6 +25,17 @@ body {
 .ua-fade-in {
   animation: ua-fade-in 0.35s ease both;
 }
+@keyframes progress-indeterminate {
+  0% {
+    transform: translateX(-110%);
+  }
+  100% {
+    transform: translateX(410%);
+  }
+}
+.animate-progress-indeterminate {
+  animation: progress-indeterminate 1.1s ease-in-out infinite;
+}
 @media (prefers-reduced-motion: reduce) {
   .ua-fade-in {
     animation: none;
