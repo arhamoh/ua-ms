@@ -82,6 +82,7 @@ model User {
   commissionPayouts CommissionPayout[]
   salaries          Salary[]
   salaryPayments    SalaryPayment[]
+  expensesPaid      Expense[]          @relation("ExpensePaidBy")
   uploadedFiles     FileAsset[]        @relation("UploadedFiles")
   fileComments      FileComment[]      @relation("FileComments")
 
@@ -329,7 +330,30 @@ model Expense {
   note      String?
   createdAt DateTime        @default(now())
 
+  // Who fronted the money. null = paid by the company directly.
+  paidById     String?
+  paidBy       User?     @relation("ExpensePaidBy", fields: [paidById], references: [id], onDelete: SetNull)
+  reimbursed   Boolean   @default(false) // only meaningful when paidById is set
+  reimbursedAt DateTime?
+
   @@index([date])
+  @@index([paidById])
+}
+
+// Money the company has given out (advances, loans, opening balances) that
+// still has to be recovered. Outstanding = amountCad − recoveredAmount.
+model Loan {
+  id              String   @id @default(cuid())
+  counterparty    String   // who received it / who owes it back
+  note            String?
+  amount          Float
+  currency        String   @default("CAD")
+  amountCad       Float?
+  recoveredAmount Float    @default(0) // total recovered so far, in CAD
+  givenAt         DateTime
+  createdAt       DateTime @default(now())
+
+  @@index([givenAt])
 }
 
 // Salary progression: one row per salary change for a user (latest = current).

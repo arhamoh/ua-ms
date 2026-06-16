@@ -340,6 +340,9 @@ export async function addExpense(formData: FormData) {
   const fxRate = currency === 'CAD' ? 1 : rates[currency] ?? null;
   const amountCad = toCad(amount, currency, rates);
 
+  // null = company paid directly; otherwise a team member fronted the money.
+  const paidById = str(formData.get('paidById')) || null;
+
   await prisma.expense.create({
     data: {
       title,
@@ -350,11 +353,26 @@ export async function addExpense(formData: FormData) {
       fxRate,
       date: dateRaw ? new Date(dateRaw) : new Date(),
       note: str(formData.get('note')),
+      paidById,
+      // A company-paid expense never needs reimbursing.
+      reimbursed: paidById ? false : true,
     },
   });
 
   revalidatePath('/finance');
   redirect('/finance?tab=expenses');
+}
+
+// Flip an expense's reimbursed flag (when a team member fronted the money).
+export async function toggleExpenseReimbursed(id: string) {
+  if (!id) return;
+  const e = await prisma.expense.findUnique({ where: { id }, select: { reimbursed: true } });
+  if (!e) return;
+  await prisma.expense.update({
+    where: { id },
+    data: { reimbursed: !e.reimbursed, reimbursedAt: !e.reimbursed ? new Date() : null },
+  });
+  revalidatePath('/finance');
 }
 
 export async function setSalary(formData: FormData) {
@@ -875,5 +893,65 @@ export async function deleteExpense(id: string) {
 export async function deleteSalaryPayment(id: string) {
   if (!id) return;
   await prisma.salaryPayment.delete({ where: { id } });
+  revalidatePath('/finance');
+}
+
+// ─── Loans / money to recover ────────────────────────────────────────────────
+
+export async function addLoan(formData: FormData) {
+  const counterparty = str(formData.get('counterparty'));
+  if (!counterparty) throw new Error('Who received the money is required.');
+
+  const amountRaw = str(formData.get('amount'));
+  const amount = amountRaw ? Number(amountRaw) : NaN;
+  if (!amountRaw || Number.isNaN(amount) || amount <= 0) {
+    throw new Error('A valid amount is required.');
+  }
+
+  const currency = str(formData.get('currency')) ?? 'CAD';
+  const givenRaw = str(formData.get('givenAt'));
+  const rates = await getRatesToCad();
+  const amountCad = toCad(amount, currency, rates);
+
+  // An optional opening "already recovered" amount (e.g. for back-dated loans).
+  const recoveredRaw = str(formData.get('recoveredAmount'));
+  const recovered = recoveredRaw ? Number(recoveredRaw) : 0;
+
+  await prisma.loan.create({
+    data: {
+      counterparty,
+      note: str(formData.get('note')),
+      amount,
+      currency,
+      amountCad,
+      recoveredAmount: !Number.isNaN(recovered) && recovered > 0 ? recovered : 0,
+      givenAt: givenRaw ? new Date(givenRaw) : new Date(),
+    },
+  });
+
+  revalidatePath('/finance');
+  redirect('/finance?tab=loans');
+}
+
+// Record a (partial) recovery against a loan. Amount is taken in CAD.
+export async function recordLoanRecovery(formData: FormData) {
+  const id = str(formData.get('loanId'));
+  if (!id) return;
+  const amountRaw = str(formData.get('amount'));
+  const amount = amountRaw ? Number(amountRaw) : NaN;
+  if (!amountRaw || Number.isNaN(amount) || amount <= 0) return;
+
+  const loan = await prisma.loan.findUnique({ where: { id }, select: { amountCad: true, recoveredAmount: true } });
+  if (!loan) return;
+  const cap = loan.amountCad ?? Infinity;
+  const next = Math.min(loan.recoveredAmount + amount, cap);
+
+  await prisma.loan.update({ where: { id }, data: { recoveredAmount: next } });
+  revalidatePath('/finance');
+}
+
+export async function deleteLoan(id: string) {
+  if (!id) return;
+  await prisma.loan.delete({ where: { id } });
   revalidatePath('/finance');
 }

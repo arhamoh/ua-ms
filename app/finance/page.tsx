@@ -1,7 +1,17 @@
 import Link from 'next/link';
-import { TrendingUp, TrendingDown, Scale, Plus } from 'lucide-react';
+import { TrendingUp, TrendingDown, Scale, Plus, Landmark, RotateCcw, HandCoins } from 'lucide-react';
 import { prisma } from '@/lib/prisma';
-import { addExpense, setSalary, recordSalaryPayment, deleteExpense, deleteSalaryPayment } from '@/app/actions';
+import {
+  addExpense,
+  setSalary,
+  recordSalaryPayment,
+  deleteExpense,
+  deleteSalaryPayment,
+  toggleExpenseReimbursed,
+  addLoan,
+  recordLoanRecovery,
+  deleteLoan,
+} from '@/app/actions';
 import { EXPENSE_CATEGORY_LABELS, formatMoney } from '@/lib/enums';
 import { getOptions } from '@/lib/options';
 import { getRatesToCad, toCad } from '@/lib/fx';
@@ -21,7 +31,7 @@ export default async function FinancePage({
   searchParams: Promise<{ tab?: string; month?: string }>;
 }) {
   const sp = await searchParams;
-  const tab = ['expenses', 'salaries'].includes(sp.tab ?? '') ? sp.tab! : 'pnl';
+  const tab = ['expenses', 'salaries', 'loans'].includes(sp.tab ?? '') ? sp.tab! : 'pnl';
 
   const now = new Date();
   const defaultMonth = `${now.getUTCFullYear()}-${pad(now.getUTCMonth() + 1)}`;
@@ -32,18 +42,37 @@ export default async function FinancePage({
   const monthLabel = start.toLocaleString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' });
   const today = now.toISOString().split('T')[0];
 
-  const [rates, payments, expenses, salaryPays, commPays, users, expenseCats, currencies] = await Promise.all([
-    getRatesToCad(),
-    prisma.payment.findMany({ where: { paidAt: { gte: start, lt: end } } }),
-    prisma.expense.findMany({ where: { date: { gte: start, lt: end } }, orderBy: { date: 'desc' } }),
-    prisma.salaryPayment.findMany({ where: { paidAt: { gte: start, lt: end } }, include: { user: true }, orderBy: { paidAt: 'desc' } }),
-    prisma.commissionPayout.findMany({ where: { paidAt: { gte: start, lt: end } } }),
-    prisma.user.findMany({ orderBy: { name: 'asc' }, include: { salaries: { orderBy: { effectiveFrom: 'desc' }, take: 1 } } }),
-    getOptions('expenseCategory'),
-    getOptions('currency'),
-  ]);
+  const [rates, payments, expenses, salaryPays, commPays, users, expenseCats, currencies, loans, owedExpenses] =
+    await Promise.all([
+      getRatesToCad(),
+      prisma.payment.findMany({ where: { paidAt: { gte: start, lt: end } } }),
+      prisma.expense.findMany({
+        where: { date: { gte: start, lt: end } },
+        orderBy: { date: 'desc' },
+        include: { paidBy: { select: { name: true } } },
+      }),
+      prisma.salaryPayment.findMany({ where: { paidAt: { gte: start, lt: end } }, include: { user: true }, orderBy: { paidAt: 'desc' } }),
+      prisma.commissionPayout.findMany({ where: { paidAt: { gte: start, lt: end } } }),
+      prisma.user.findMany({ orderBy: { name: 'asc' }, include: { salaries: { orderBy: { effectiveFrom: 'desc' }, take: 1 } } }),
+      getOptions('expenseCategory'),
+      getOptions('currency'),
+      prisma.loan.findMany({ orderBy: { givenAt: 'desc' } }),
+      // Reimbursements still owed to team members — across all time, not just this month.
+      prisma.expense.findMany({
+        where: { paidById: { not: null }, reimbursed: false },
+        include: { paidBy: { select: { name: true } } },
+      }),
+    ]);
 
   const cadOf = (amt: number, cur: string) => toCad(amt, cur, rates);
+
+  // Loans ledger (all in CAD).
+  const loanGiven = loans.reduce((s, l) => s + (l.amountCad ?? cadOf(l.amount, l.currency)), 0);
+  const loanRecovered = loans.reduce((s, l) => s + l.recoveredAmount, 0);
+  const loanOutstanding = loanGiven - loanRecovered;
+
+  // Total still owed back to people who fronted expenses.
+  const owedTotal = owedExpenses.reduce((s, e) => s + (e.amountCad ?? cadOf(e.amount, e.currency)), 0);
 
   const income = payments.reduce((s, p) => s + (p.amountCad ?? cadOf(p.amount, p.currency)), 0);
   const expenseTotal = expenses.reduce((s, e) => s + (e.amountCad ?? cadOf(e.amount, e.currency)), 0);
@@ -86,6 +115,7 @@ export default async function FinancePage({
         <Link href={tabHref('pnl')} className={tabCls(tab === 'pnl')}>P&amp;L</Link>
         <Link href={tabHref('expenses')} className={tabCls(tab === 'expenses')}>Expenses</Link>
         <Link href={tabHref('salaries')} className={tabCls(tab === 'salaries')}>Salaries</Link>
+        <Link href={tabHref('loans')} className={tabCls(tab === 'loans')}>Loans</Link>
       </div>
 
       {tab === 'pnl' && (
@@ -148,19 +178,49 @@ export default async function FinancePage({
                 <h2 className="text-sm font-semibold">Expenses — {monthLabel}</h2>
                 <span className="text-sm font-medium">{formatMoney(expenseTotal, 'CAD')}</span>
               </div>
+              {owedTotal > 0.5 && (
+                <div className="flex items-center gap-2 border-b border-amber-100 bg-amber-50 px-5 py-3 text-sm text-amber-800">
+                  <HandCoins size={16} className="shrink-0" />
+                  <span>
+                    <span className="font-semibold">{formatMoney(owedTotal, 'CAD')}</span> still owed to team members who
+                    fronted expenses (all time).
+                  </span>
+                </div>
+              )}
               {expenses.length === 0 ? (
                 <div className="px-5 py-10 text-center text-sm text-slate-500">No expenses this month.</div>
               ) : (
                 <div className="overflow-x-auto">
-                  <table className="w-full min-w-[560px] text-sm">
+                  <table className="w-full min-w-[680px] text-sm">
                     <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
-                      <tr><th className="px-5 py-3 font-medium">Expense</th><th className="px-5 py-3 font-medium">Category</th><th className="px-5 py-3 font-medium">Date</th><th className="px-5 py-3 text-right font-medium">Amount</th><th className="px-5 py-3 text-right font-medium">Actions</th></tr>
+                      <tr><th className="px-5 py-3 font-medium">Expense</th><th className="px-5 py-3 font-medium">Category</th><th className="px-5 py-3 font-medium">Paid by</th><th className="px-5 py-3 font-medium">Date</th><th className="px-5 py-3 text-right font-medium">Amount</th><th className="px-5 py-3 text-right font-medium">Actions</th></tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                       {expenses.map((e) => (
                         <tr key={e.id} className="hover:bg-slate-50">
                           <td className="px-5 py-3 font-medium text-slate-800">{e.title}</td>
                           <td className="px-5 py-3 text-slate-500">{EXPENSE_CATEGORY_LABELS[e.category] ?? e.category}</td>
+                          <td className="px-5 py-3">
+                            {e.paidById ? (
+                              <div className="flex flex-col gap-1">
+                                <span className="text-slate-700">{e.paidBy?.name ?? 'Team member'}</span>
+                                <form action={toggleExpenseReimbursed.bind(null, e.id)}>
+                                  <button
+                                    className={`rounded-full px-2 py-0.5 text-xs font-medium transition ${
+                                      e.reimbursed
+                                        ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                                        : 'bg-rose-50 text-rose-700 hover:bg-rose-100'
+                                    }`}
+                                    title={e.reimbursed ? 'Mark as not reimbursed' : 'Mark as reimbursed'}
+                                  >
+                                    {e.reimbursed ? 'Reimbursed' : 'Mark reimbursed'}
+                                  </button>
+                                </form>
+                              </div>
+                            ) : (
+                              <span className="text-slate-400">Company</span>
+                            )}
+                          </td>
                           <td className="px-5 py-3 tabular-nums text-slate-500">{e.date.toISOString().slice(0, 10)}</td>
                           <td className="px-5 py-3 text-right tabular-nums">
                             <div className="font-medium">{formatMoney(e.amount, e.currency)}</div>
@@ -188,6 +248,14 @@ export default async function FinancePage({
                   <label className="col-span-2 block"><span className="mb-1 block text-xs font-medium text-slate-600">Amount *</span><input name="amount" type="number" min="0" step="any" required className={inputCls} placeholder="50" /></label>
                   <label className="block"><span className="mb-1 block text-xs font-medium text-slate-600">Currency</span><select name="currency" defaultValue="CAD" className={inputCls}>{currencies.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}</select></label>
                 </div>
+                <label className="block">
+                  <span className="mb-1 block text-xs font-medium text-slate-600">Paid by</span>
+                  <select name="paidById" defaultValue="" className={inputCls}>
+                    <option value="">Company</option>
+                    {users.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
+                  </select>
+                  <span className="mt-1 block text-xs text-slate-400">If a team member fronted it, it shows as owed until reimbursed.</span>
+                </label>
                 <label className="block"><span className="mb-1 block text-xs font-medium text-slate-600">Date</span><input name="date" type="date" defaultValue={today} className={inputCls} /></label>
                 <label className="block"><span className="mb-1 block text-xs font-medium text-slate-600">Note</span><input name="note" className={inputCls} /></label>
                 <button className="w-full rounded-xl bg-brand px-4 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-brand-dark">Add expense</button>
@@ -278,6 +346,115 @@ export default async function FinancePage({
                   <label className="block"><span className="mb-1 block text-xs font-medium text-slate-600">Date</span><input name="paidAt" type="date" defaultValue={today} className={inputCls} /></label>
                   <label className="block"><span className="mb-1 block text-xs font-medium text-slate-600">Method</span><input name="method" className={inputCls} placeholder="Wise, Remitly…" /></label>
                   <button className="w-full rounded-xl bg-brand px-4 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-brand-dark">Record payment</button>
+                </div>
+              </form>
+            </FadeIn>
+          </div>
+        </div>
+      )}
+
+      {tab === 'loans' && (
+        <div>
+          <section className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            {[
+              { label: 'Total given out', value: formatMoney(loanGiven, 'CAD'), icon: Landmark, tint: 'bg-slate-100 text-slate-600' },
+              { label: 'Recovered', value: formatMoney(loanRecovered, 'CAD'), icon: RotateCcw, tint: 'bg-emerald-50 text-emerald-600' },
+              { label: 'Outstanding to recover', value: formatMoney(loanOutstanding, 'CAD'), icon: HandCoins, tint: loanOutstanding > 0.5 ? 'bg-rose-50 text-rose-600' : 'bg-slate-100 text-slate-500' },
+            ].map((s, i) => (
+              <FadeIn key={s.label} delay={0.04 * i}>
+                <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                  <span className={`grid h-10 w-10 place-items-center rounded-xl ${s.tint}`}><s.icon size={20} /></span>
+                  <div className="mt-4 text-2xl font-semibold tracking-tight">{s.value}</div>
+                  <div className="mt-0.5 text-sm text-slate-500">{s.label}</div>
+                </div>
+              </FadeIn>
+            ))}
+          </section>
+
+          <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
+            <FadeIn delay={0.08} className="lg:col-span-2">
+              <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+                <div className="border-b border-slate-100 px-5 py-4">
+                  <h2 className="text-sm font-semibold">Money to recover</h2>
+                  <p className="mt-0.5 text-xs text-slate-400">Advances, loans and opening balances given out that still need to come back.</p>
+                </div>
+                {loans.length === 0 ? (
+                  <div className="px-5 py-10 text-center text-sm text-slate-500">Nothing outstanding. Add a loan or advance on the right.</div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-[640px] text-sm">
+                      <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+                        <tr>
+                          <th className="px-5 py-3 font-medium">Given to</th>
+                          <th className="px-5 py-3 font-medium">Date</th>
+                          <th className="px-5 py-3 text-right font-medium">Amount</th>
+                          <th className="px-5 py-3 text-right font-medium">Outstanding</th>
+                          <th className="px-5 py-3 font-medium">Record recovery</th>
+                          <th className="px-5 py-3 text-right font-medium">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {loans.map((l) => {
+                          const givenCad = l.amountCad ?? cadOf(l.amount, l.currency);
+                          const outstanding = givenCad - l.recoveredAmount;
+                          const settled = outstanding <= 0.5;
+                          return (
+                            <tr key={l.id} className="hover:bg-slate-50">
+                              <td className="px-5 py-3">
+                                <div className="font-medium text-slate-800">{l.counterparty}</div>
+                                {l.note && <div className="text-xs text-slate-400">{l.note}</div>}
+                              </td>
+                              <td className="px-5 py-3 tabular-nums text-slate-500">{l.givenAt.toISOString().slice(0, 10)}</td>
+                              <td className="px-5 py-3 text-right tabular-nums">
+                                <div className="font-medium">{formatMoney(l.amount, l.currency)}</div>
+                                {l.currency !== 'CAD' && <div className="text-xs text-slate-400">{formatMoney(givenCad, 'CAD')} CAD</div>}
+                              </td>
+                              <td className={`px-5 py-3 text-right font-medium tabular-nums ${settled ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                {settled ? 'Settled' : formatMoney(outstanding, 'CAD')}
+                              </td>
+                              <td className="px-5 py-3">
+                                {settled ? (
+                                  <span className="text-xs text-slate-400">—</span>
+                                ) : (
+                                  <form action={recordLoanRecovery} className="flex items-center gap-1.5">
+                                    <input type="hidden" name="loanId" value={l.id} />
+                                    <input
+                                      name="amount"
+                                      type="number"
+                                      min="0"
+                                      step="any"
+                                      required
+                                      placeholder="CAD"
+                                      className="w-24 rounded-lg border border-slate-300 px-2 py-1.5 text-sm focus:border-brand focus:outline-none"
+                                    />
+                                    <button className="rounded-lg bg-brand px-2.5 py-1.5 text-xs font-medium text-white hover:bg-brand-dark">Add</button>
+                                  </form>
+                                )}
+                              </td>
+                              <td className="px-5 py-3"><RowActions deleteAction={deleteLoan.bind(null, l.id)} label="loan" /></td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </FadeIn>
+
+            <FadeIn delay={0.12}>
+              <form action={addLoan} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                <h2 className="mb-4 flex items-center gap-2 text-sm font-semibold"><Plus size={16} className="text-brand" /> Add loan / advance</h2>
+                <div className="space-y-3">
+                  <label className="block"><span className="mb-1 block text-xs font-medium text-slate-600">Given to *</span><input name="counterparty" required className={inputCls} placeholder="Name or party" /></label>
+                  <div className="grid grid-cols-3 gap-2">
+                    <label className="col-span-2 block"><span className="mb-1 block text-xs font-medium text-slate-600">Amount *</span><input name="amount" type="number" min="0" step="any" required className={inputCls} placeholder="1000" /></label>
+                    <label className="block"><span className="mb-1 block text-xs font-medium text-slate-600">Cur</span><select name="currency" defaultValue="CAD" className={inputCls}>{currencies.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}</select></label>
+                  </div>
+                  <label className="block"><span className="mb-1 block text-xs font-medium text-slate-600">Date given</span><input name="givenAt" type="date" defaultValue={today} className={inputCls} /></label>
+                  <label className="block"><span className="mb-1 block text-xs font-medium text-slate-600">Already recovered (CAD)</span><input name="recoveredAmount" type="number" min="0" step="any" className={inputCls} placeholder="0" /><span className="mt-1 block text-xs text-slate-400">For back-dated loans that are partly paid back.</span></label>
+                  <label className="block"><span className="mb-1 block text-xs font-medium text-slate-600">Note</span><input name="note" className={inputCls} placeholder="What it was for" /></label>
+                  <button className="w-full rounded-xl bg-brand px-4 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-brand-dark">Add loan</button>
                 </div>
               </form>
             </FadeIn>
