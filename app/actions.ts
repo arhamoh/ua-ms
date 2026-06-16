@@ -1081,6 +1081,48 @@ export async function getCheckoutTasks(): Promise<string> {
   return lines.join('\n');
 }
 
+// Current user's open-session status, for the header quick button.
+export async function attendanceStatus(): Promise<{ open: boolean; checkInAt: string | null }> {
+  const s = await getSession();
+  if (!s) return { open: false, checkInAt: null };
+  const open = await prisma.timeEntry.findFirst({
+    where: { userId: s.id, checkOutAt: null },
+    orderBy: { checkInAt: 'desc' },
+  });
+  return { open: !!open, checkInAt: open ? open.checkInAt.toISOString() : null };
+}
+
+// One-click checkout from the header — auto-fills tasks done from activity.
+export async function quickCheckOut() {
+  const s = await getSession();
+  if (!s) return;
+  const open = await prisma.timeEntry.findFirst({
+    where: { userId: s.id, checkOutAt: null },
+    orderBy: { checkInAt: 'desc' },
+  });
+  if (!open) return;
+  const now = new Date();
+  const hours = Math.max(0, (now.getTime() - open.checkInAt.getTime()) / 3_600_000);
+  const acts = await prisma.taskActivity.findMany({
+    where: { userId: s.id, createdAt: { gte: open.checkInAt } },
+    orderBy: { createdAt: 'asc' },
+  });
+  const seen = new Set<string>();
+  const lines: string[] = [];
+  for (const a of acts) {
+    if (!seen.has(a.summary)) {
+      seen.add(a.summary);
+      lines.push(`• ${a.summary}`);
+    }
+  }
+  await prisma.timeEntry.update({
+    where: { id: open.id },
+    data: { checkOutAt: now, hours: Math.round(hours * 100) / 100, tasks: lines.join('\n') },
+  });
+  revalidatePath('/time');
+  revalidatePath('/time/report');
+}
+
 export async function checkOut(formData: FormData) {
   const s = await getSession();
   if (!s) return;

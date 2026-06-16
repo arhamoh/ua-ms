@@ -28,6 +28,7 @@ import {
 } from 'lucide-react';
 import CommandPalette from '@/components/CommandPalette';
 import AssistantWidget from '@/components/AssistantWidget';
+import HeaderClock from '@/components/HeaderClock';
 import { logout } from '@/app/login/actions';
 import type { SessionUser } from '@/lib/auth';
 
@@ -314,6 +315,7 @@ export default function AppShell({
           </button>
 
           <div className="ml-auto flex items-center gap-2 sm:gap-3">
+            <HeaderClock />
             <button
               onClick={openSearch}
               className="grid h-9 w-9 place-items-center rounded-xl border border-slate-200 text-slate-500 hover:bg-slate-50 sm:hidden"
