@@ -86,7 +86,7 @@ export default function CommandPalette() {
         dynamic.push({ id: `pr-${p.id}`, label: p.name, sub: p.sub, href: `/projects/${p.id}`, group: 'Projects', icon: FolderKanban }),
       );
       data.clients.forEach((c) =>
-        dynamic.push({ id: `cl-${c.id}`, label: c.name, href: '/clients', group: 'Clients', icon: Briefcase }),
+        dynamic.push({ id: `cl-${c.id}`, label: c.name, href: `/clients/${c.id}`, group: 'Clients', icon: Briefcase }),
       );
       data.team.forEach((u) =>
         dynamic.push({ id: `tm-${u.id}`, label: u.name, sub: u.sub, href: '/team', group: 'Team', icon: Users }),

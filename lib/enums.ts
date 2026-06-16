@@ -54,6 +54,29 @@ export const PROJECT_STATUS_LABELS: Record<string, string> = {
 
 export const CURRENCIES = ['USD', 'CAD', 'EUR', 'GBP', 'AUD'];
 
+export const PAYMENT_METHOD_LABELS: Record<string, string> = {
+  BANK_TRANSFER: 'Bank transfer',
+  CARD: 'Card',
+  PAYPAL: 'PayPal',
+  CASH: 'Cash',
+  CRYPTO: 'Crypto',
+  OTHER: 'Other',
+};
+export const PAYMENT_METHODS = Object.keys(PAYMENT_METHOD_LABELS);
+
+// Format an amount with a currency code, e.g. formatMoney(8000, 'USD') -> "$8,000".
+export function formatMoney(amount: number, currency = 'USD'): string {
+  try {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency,
+      maximumFractionDigits: amount % 1 === 0 ? 0 : 2,
+    }).format(amount);
+  } catch {
+    return `${currency} ${amount.toLocaleString()}`;
+  }
+}
+
 export const STATUS_BADGE: Record<string, string> = {
   ONBOARDING: 'bg-amber-100 text-amber-700',
   ACTIVE: 'bg-emerald-100 text-emerald-700',

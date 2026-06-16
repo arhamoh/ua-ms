@@ -66,6 +66,15 @@ enum TaskStatus {
   DONE
 }
 
+enum PaymentMethod {
+  BANK_TRANSFER
+  CARD
+  PAYPAL
+  CASH
+  CRYPTO
+  OTHER
+}
+
 // ─── Models ──────────────────────────────────────────────────────────────────
 
 model User {
@@ -102,6 +111,7 @@ model Client {
   updatedAt    DateTime      @updatedAt
 
   projects Project[]
+  payments Payment[]
 }
 
 model Project {
@@ -140,6 +150,7 @@ model Project {
   members     ProjectMember[]
   tasks       Task[]
   timeEntries TimeEntry[]
+  payments    Payment[]
 
   @@index([clientId])
   @@index([status])
@@ -197,5 +208,25 @@ model TimeEntry {
   project   Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
 
   @@index([userId])
+  @@index([projectId])
+}
+
+// A payment received from a client (optionally tied to a specific project).
+model Payment {
+  id        String        @id @default(cuid())
+  amount    Float
+  currency  String        @default("USD")
+  method    PaymentMethod @default(BANK_TRANSFER)
+  paidAt    DateTime
+  note      String?
+  createdAt DateTime      @default(now())
+
+  clientId String
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  projectId String?
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  @@index([clientId])
   @@index([projectId])
 }

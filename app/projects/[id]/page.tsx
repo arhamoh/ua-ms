@@ -70,7 +70,9 @@ export default async function ProjectDetailPage({
         </div>
         <p className="mt-1 text-sm text-slate-500">
           {PROJECT_TYPE_LABELS[project.type] ?? project.type} · for{' '}
-          <span className="font-medium text-slate-700">{c.name}</span>
+          <Link href={`/clients/${c.id}`} className="font-medium text-slate-700 hover:text-brand">
+            {c.name}
+          </Link>
         </p>
       </div>
 

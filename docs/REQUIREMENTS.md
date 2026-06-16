@@ -108,6 +108,18 @@ more projects later without re-onboarding. (yours) = originally requested,
 - Which fields are REQUIRED vs optional? (default: Client name, email, Project name,
   Project type, + at least one assignee required; rest optional)
 
+## Client billing & payments  (built)
+
+Each client has a profile (`/clients/[id]`) acting as a billing hub:
+- **Projects = billing history**: each project's budget is treated as the amount
+  billed; the profile lists all projects with their billed amounts + a total.
+- **Payments**: a Payment record (amount, currency, method, date, optional
+  project, note) is logged against the client. Payment history + total paid shown.
+- **Summary**: Total billed vs. Total paid vs. Outstanding balance.
+- Assumes one currency per client (uses the first project/payment currency).
+- FUTURE: explicit invoices/milestones, per-project billed amount separate from
+  budget, multi-currency totals, payment editing/deletion.
+
 ## 3. Key workflows
 _TBD_
 

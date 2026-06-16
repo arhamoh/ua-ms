@@ -41,7 +41,9 @@ export default async function ClientsPage() {
             <div key={c.id} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <div className="flex items-start justify-between">
                 <div>
-                  <h2 className="font-semibold">{c.name}</h2>
+                  <Link href={`/clients/${c.id}`} className="font-semibold hover:text-brand">
+                    {c.name}
+                  </Link>
                   <p className="text-sm text-slate-500">
                     {[c.contactName, c.email, c.phone].filter(Boolean).join(' · ') || '—'}
                   </p>

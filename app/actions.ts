@@ -9,6 +9,7 @@ import {
   PROJECT_TYPES,
   BUDGET_TYPES,
   PRIORITIES,
+  PAYMENT_METHODS,
 } from '@/lib/enums';
 
 function str(v: FormDataEntryValue | null): string | null {
@@ -125,4 +126,40 @@ export async function onboardClient(formData: FormData) {
   revalidatePath('/clients');
   revalidatePath('/');
   redirect(`/projects/${client.projects[0].id}`);
+}
+
+// ─── Payments ────────────────────────────────────────────────────────────────
+
+export async function recordPayment(formData: FormData) {
+  const clientId = str(formData.get('clientId'));
+  if (!clientId) throw new Error('Missing client.');
+
+  const amountRaw = str(formData.get('amount'));
+  const amount = amountRaw ? Number(amountRaw) : NaN;
+  if (!amountRaw || Number.isNaN(amount) || amount <= 0) {
+    throw new Error('A valid payment amount is required.');
+  }
+
+  const rawMethod = str(formData.get('method'));
+  const method = PAYMENT_METHODS.includes(rawMethod ?? '')
+    ? (rawMethod as any)
+    : 'BANK_TRANSFER';
+
+  const paidRaw = str(formData.get('paidAt'));
+  const projectId = str(formData.get('projectId'));
+
+  await prisma.payment.create({
+    data: {
+      clientId,
+      amount,
+      currency: str(formData.get('currency')) ?? 'USD',
+      method,
+      paidAt: paidRaw ? new Date(paidRaw) : new Date(),
+      note: str(formData.get('note')),
+      projectId: projectId || null,
+    },
+  });
+
+  revalidatePath(`/clients/${clientId}`);
+  redirect(`/clients/${clientId}`);
 }
