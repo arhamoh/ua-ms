@@ -1,3 +1,4 @@
+import { Fragment } from 'react';
 import {
   BUDGET_TYPES,
   BUDGET_TYPE_LABELS,
@@ -57,7 +58,11 @@ function dateValue(d: unknown): string {
 // The project-specific sections, shared by onboarding, "add project to client",
 // and the project edit form. Field names match the onboard/add/update actions.
 // Pass `initial` (an existing project) + `assigned` role id-arrays to prefill.
-export default async function ProjectFields({
+//
+// `projectSections` returns the four sections individually (with short labels) so
+// the onboarding wizard can place each on its own step; `ProjectFields` renders
+// them all together for the add/edit pages.
+export async function projectSections({
   users,
   initial,
   assigned,
@@ -65,7 +70,7 @@ export default async function ProjectFields({
   users: TeamUser[];
   initial?: ProjectInitial;
   assigned?: { pm: string[]; dev: string[]; designer: string[] };
-}) {
+}): Promise<{ id: string; short: string; node: React.ReactNode }[]> {
   const [projectTypes, currencies] = await Promise.all([getOptions('projectType'), getOptions('currency')]);
   const pms = users.filter((u) => u.roles.includes('PROJECT_MANAGER'));
   const devs = users.filter((u) => u.roles.includes('DEVELOPER'));
@@ -73,8 +78,11 @@ export default async function ProjectFields({
   const a = assigned ?? { pm: [], dev: [], designer: [] };
   const v = (k: string): string => (initial?.[k] ?? '') as string;
 
-  return (
-    <>
+  return [
+    {
+      id: 'overview',
+      short: 'Project',
+      node: (
       <SectionCard title="Project Overview">
         <Field label="Project name" required>
           <input name="projectName" required defaultValue={v('name')} className={inputCls} placeholder="Website redesign" />
@@ -103,7 +111,12 @@ export default async function ProjectFields({
           <input name="referenceLinks" defaultValue={v('referenceLinks')} className={inputCls} placeholder="Links to examples" />
         </Field>
       </SectionCard>
-
+      ),
+    },
+    {
+      id: 'scope',
+      short: 'Budget',
+      node: (
       <SectionCard title="Scope · Budget · Timeline">
         <Field label="Budget amount">
           <input name="budgetAmount" type="number" min="0" step="any" defaultValue={v('budgetAmount')} className={inputCls} placeholder="5000" />
@@ -145,7 +158,12 @@ export default async function ProjectFields({
           </select>
         </Field>
       </SectionCard>
-
+      ),
+    },
+    {
+      id: 'assets',
+      short: 'Assets',
+      node: (
       <SectionCard title="Assets & Links">
         <Field label="Figma link" hint="For design / dev projects">
           <input name="figmaLink" defaultValue={v('figmaLink')} className={inputCls} placeholder="https://figma.com/…" />
@@ -164,7 +182,12 @@ export default async function ProjectFields({
           </Field>
         </div>
       </SectionCard>
-
+      ),
+    },
+    {
+      id: 'assignment',
+      short: 'Team',
+      node: (
       <SectionCard title="Assignment (internal)">
         <Field label="Project Manager(s)" hint="Ctrl/Cmd-click to select multiple">
           <select name="pmIds" multiple defaultValue={a.pm} className={`${inputCls} h-28`}>
@@ -202,6 +225,22 @@ export default async function ProjectFields({
           </Field>
         </div>
       </SectionCard>
+      ),
+    },
+  ];
+}
+
+export default async function ProjectFields(props: {
+  users: TeamUser[];
+  initial?: ProjectInitial;
+  assigned?: { pm: string[]; dev: string[]; designer: string[] };
+}) {
+  const sections = await projectSections(props);
+  return (
+    <>
+      {sections.map((s) => (
+        <Fragment key={s.id}>{s.node}</Fragment>
+      ))}
     </>
   );
 }
