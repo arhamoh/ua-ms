@@ -13,11 +13,11 @@ export default function DonutChart({ data }: { data: Slice[] }) {
   }
 
   return (
-    <div className="flex items-center gap-4">
-      <div className="relative h-40 w-40 shrink-0">
+    <div className="flex w-full items-center gap-5">
+      <div className="relative h-36 w-36 shrink-0">
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
-            <Pie data={shown} dataKey="value" nameKey="name" innerRadius={46} outerRadius={68} paddingAngle={2} stroke="none">
+            <Pie data={shown} dataKey="value" nameKey="name" innerRadius={42} outerRadius={62} paddingAngle={2} stroke="none">
               {shown.map((d, i) => (
                 <Cell key={i} fill={d.color} />
               ))}
@@ -32,12 +32,12 @@ export default function DonutChart({ data }: { data: Slice[] }) {
           </div>
         </div>
       </div>
-      <ul className="flex-1 space-y-1.5 text-sm">
+      <ul className="min-w-0 flex-1 space-y-2 pr-1 text-sm">
         {shown.map((d) => (
-          <li key={d.name} className="flex items-center gap-2">
+          <li key={d.name} className="flex items-center gap-2.5">
             <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: d.color }} />
-            <span className="truncate text-slate-600">{d.name}</span>
-            <span className="ml-auto font-medium tabular-nums">{d.value}</span>
+            <span className="min-w-0 flex-1 truncate text-slate-600">{d.name}</span>
+            <span className="shrink-0 pl-2 font-medium tabular-nums">{d.value}</span>
           </li>
         ))}
       </ul>
