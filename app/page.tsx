@@ -6,7 +6,7 @@ import { getRatesToCad, toCad } from '@/lib/fx';
 import { getSession } from '@/lib/auth';
 import FadeIn from '@/components/FadeIn';
 import DashboardGreeting from '@/components/DashboardGreeting';
-import DashboardSearch from '@/components/DashboardSearch';
+import InlineSearch from '@/components/InlineSearch';
 import IncomeExpenseChart from '@/components/charts/IncomeExpenseChart';
 import DonutChart from '@/components/charts/DonutChart';
 
@@ -119,8 +119,8 @@ export default async function DashboardPage() {
         <DashboardGreeting name={userName} />
       </FadeIn>
 
-      <FadeIn className="mb-6 block">
-        <DashboardSearch />
+      <FadeIn className="relative z-20 mb-6 block">
+        <InlineSearch />
       </FadeIn>
 
       {/* Stat tiles */}
