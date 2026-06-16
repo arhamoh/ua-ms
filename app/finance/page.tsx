@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { TrendingUp, TrendingDown, Scale, Plus, Landmark, RotateCcw, HandCoins, Upload } from 'lucide-react';
+import { TrendingUp, TrendingDown, Scale, Plus, Landmark, RotateCcw, HandCoins, Upload, Camera } from 'lucide-react';
 import { prisma } from '@/lib/prisma';
 import {
   addExpense,
@@ -179,11 +179,14 @@ export default async function FinancePage({
             <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
               <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
                 <h2 className="text-sm font-semibold">Expenses — {monthLabel}</h2>
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2">
+                  <Link href="/finance/bill" className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50 hover:text-brand">
+                    <Camera size={13} /> Scan a bill
+                  </Link>
                   <Link href="/finance/import" className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50 hover:text-brand">
                     <Upload size={13} /> Import statement
                   </Link>
-                  <span className="text-sm font-medium">{formatMoney(expenseTotal, 'CAD')}</span>
+                  <span className="ml-1 text-sm font-medium">{formatMoney(expenseTotal, 'CAD')}</span>
                 </div>
               </div>
               {owedTotal > 0.5 && (

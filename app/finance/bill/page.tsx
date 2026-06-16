@@ -1,11 +1,11 @@
 import Link from 'next/link';
-import { ArrowLeft, Camera } from 'lucide-react';
+import { ArrowLeft, FileSpreadsheet } from 'lucide-react';
 import { getOptions, ensureExpenseCategories } from '@/lib/options';
-import StatementImport from '@/components/StatementImport';
+import BillScan from '@/components/BillScan';
 
 export const dynamic = 'force-dynamic';
 
-export default async function ImportStatementPage() {
+export default async function ScanBillPage() {
   await ensureExpenseCategories();
   const [currencies, categories] = await Promise.all([
     getOptions('currency'),
@@ -19,17 +19,17 @@ export default async function ImportStatementPage() {
       </Link>
       <div className="mb-6 mt-2 flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Import statement</h1>
+          <h1 className="text-2xl font-bold tracking-tight">Scan a bill</h1>
           <p className="mt-1 text-sm text-slate-500">
-            Upload a bank or credit-card CSV, review the lines, and add them to expenses.
+            Photograph or upload a bill / receipt — it’s read automatically and added to expenses in CAD.
           </p>
         </div>
-        <Link href="/finance/bill" className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50 hover:text-brand">
-          <Camera size={15} /> Scan a single bill instead
+        <Link href="/finance/import" className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50 hover:text-brand">
+          <FileSpreadsheet size={15} /> Import a CSV statement instead
         </Link>
       </div>
 
-      <StatementImport currencies={currencies} categories={categories} />
+      <BillScan currencies={currencies} categories={categories} />
     </div>
   );
 }
