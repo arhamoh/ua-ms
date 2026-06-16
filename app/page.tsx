@@ -126,8 +126,8 @@ export default async function DashboardPage() {
       {/* Stat tiles */}
       <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {stats.map((s, i) => (
-          <FadeIn key={s.label} delay={0.04 * i}>
-            <Link href={s.href} className="group block rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-brand/30 hover:shadow-md">
+          <FadeIn key={s.label} delay={0.04 * i} className="h-full">
+            <Link href={s.href} className="group block h-full rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-brand/30 hover:shadow-md">
               <div className="flex items-center justify-between">
                 <span className={`grid h-10 w-10 place-items-center rounded-xl ${s.tint}`}>
                   <s.icon size={20} />
@@ -143,8 +143,8 @@ export default async function DashboardPage() {
 
       {/* Charts: income/expense + status donut */}
       <section className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
-        <FadeIn delay={0.08} className="lg:col-span-2">
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <FadeIn delay={0.08} className="h-full lg:col-span-2">
+          <div className="h-full rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
               <h2 className="text-sm font-semibold">Income vs Expenses</h2>
               <div className="flex items-center gap-4 text-xs text-slate-500">
@@ -157,24 +157,26 @@ export default async function DashboardPage() {
           </div>
         </FadeIn>
 
-        <FadeIn delay={0.12}>
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <FadeIn delay={0.12} className="h-full">
+          <div className="flex h-full flex-col rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <h2 className="mb-4 text-sm font-semibold">Projects by status</h2>
-            <DonutChart data={statusData} />
+            <div className="flex flex-1 items-center">
+              <DonutChart data={statusData} />
+            </div>
           </div>
         </FadeIn>
       </section>
 
       {/* Upcoming deadlines + tasks */}
       <section className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <FadeIn delay={0.08}>
-          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <FadeIn delay={0.08} className="h-full">
+          <div className="flex h-full flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
             <div className="flex items-center gap-2 border-b border-slate-100 px-5 py-4">
               <CalendarClock size={16} className="text-brand" />
               <h2 className="text-sm font-semibold">Upcoming deadlines</h2>
             </div>
             {deadlines.length === 0 ? (
-              <div className="px-5 py-10 text-center text-sm text-slate-500">No deadlines in the next 45 days.</div>
+              <div className="flex flex-1 items-center justify-center px-5 py-10 text-center text-sm text-slate-500">No deadlines in the next 45 days.</div>
             ) : (
               <ul className="divide-y divide-slate-100">
                 {deadlines.map((p) => {
@@ -201,14 +203,14 @@ export default async function DashboardPage() {
           </div>
         </FadeIn>
 
-        <FadeIn delay={0.12}>
-          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <FadeIn delay={0.12} className="h-full">
+          <div className="flex h-full flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
             <div className="flex items-center gap-2 border-b border-slate-100 px-5 py-4">
               <ListTodo size={16} className="text-brand" />
               <h2 className="text-sm font-semibold">Upcoming tasks</h2>
             </div>
             {upcomingTasks.length === 0 ? (
-              <div className="px-5 py-10 text-center text-sm text-slate-500">No tasks due in the next 14 days.</div>
+              <div className="flex flex-1 items-center justify-center px-5 py-10 text-center text-sm text-slate-500">No tasks due in the next 14 days.</div>
             ) : (
               <ul className="divide-y divide-slate-100">
                 {upcomingTasks.map((t) => {
@@ -237,8 +239,8 @@ export default async function DashboardPage() {
 
       {/* Recent projects + project types */}
       <section className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
-        <FadeIn delay={0.08} className="lg:col-span-2">
-          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <FadeIn delay={0.08} className="h-full lg:col-span-2">
+          <div className="flex h-full flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
             <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
               <h2 className="text-sm font-semibold">Recent projects</h2>
               <Link href="/clients" className="flex items-center gap-1 text-xs font-medium text-brand hover:underline">
@@ -283,10 +285,12 @@ export default async function DashboardPage() {
           </div>
         </FadeIn>
 
-        <FadeIn delay={0.12}>
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <FadeIn delay={0.12} className="h-full">
+          <div className="flex h-full flex-col rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <h2 className="mb-4 text-sm font-semibold">Project types</h2>
-            <DonutChart data={typeData} />
+            <div className="flex flex-1 items-center">
+              <DonutChart data={typeData} />
+            </div>
           </div>
         </FadeIn>
       </section>
