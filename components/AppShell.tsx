@@ -10,7 +10,6 @@ import {
   Briefcase,
   FolderKanban,
   UserPlus,
-  Search,
   Bell,
   Menu,
   X,
@@ -33,10 +32,6 @@ import { logout } from '@/app/login/actions';
 import type { SessionUser } from '@/lib/auth';
 
 const MotionLink = motion.create(Link);
-
-function openSearch() {
-  window.dispatchEvent(new Event('open-command-palette'));
-}
 
 // Hard refresh: clear caches + update the service worker, then reload from network.
 async function hardRefresh() {
@@ -300,31 +295,19 @@ export default function AppShell({
           <button
             onClick={() => setOpen(true)}
             aria-label="Open menu"
-            className="grid h-9 w-9 place-items-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 lg:hidden"
+            className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 lg:hidden"
           >
             <Menu size={18} />
           </button>
 
-          <button
-            onClick={openSearch}
-            className="hidden w-full max-w-sm items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-400 transition hover:bg-white sm:flex"
-          >
-            <Search size={16} />
-            <span>Search…</span>
-            <kbd className="ml-auto rounded-md border border-slate-200 bg-white px-1.5 py-0.5 text-[10px] font-medium text-slate-400">
-              ⌘K
-            </kbd>
-          </button>
+          {/* Logo on mobile — tap to go back to the dashboard (sidebar is a drawer) */}
+          <Link href="/" aria-label="Dashboard" className="lg:hidden">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/logo.png" alt="UA Digital" className="h-9 w-auto" />
+          </Link>
 
           <div className="ml-auto flex items-center gap-2 sm:gap-3">
             <HeaderClock initial={attendance ?? { open: false, checkInAt: null }} />
-            <button
-              onClick={openSearch}
-              className="grid h-9 w-9 place-items-center rounded-xl border border-slate-200 text-slate-500 hover:bg-slate-50 sm:hidden"
-              aria-label="Search"
-            >
-              <Search size={18} />
-            </button>
             <button
               onClick={hardRefresh}
               className="grid h-9 w-9 place-items-center rounded-xl border border-slate-200 text-slate-500 transition hover:bg-slate-50 hover:text-brand active:rotate-180"
