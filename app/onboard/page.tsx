@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { onboardClient } from '@/app/actions';
 import ProjectFields, { SectionCard, Field, inputCls } from '@/components/ProjectFields';
 import { getOptions } from '@/lib/options';
+import { TAX_REGIONS } from '@/lib/company';
 
 export const dynamic = 'force-dynamic';
 
@@ -87,6 +88,14 @@ export default async function OnboardPage() {
                 <option key={l.value} value={l.value}>
                   {l.label}{l.rate != null ? ` (${l.rate}%)` : ''}
                 </option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Tax region" hint="Determines invoice tax (GST/QST)">
+            <select name="taxRegion" className={inputCls} defaultValue="">
+              <option value="">No tax / US</option>
+              {TAX_REGIONS.map((r) => (
+                <option key={r.value} value={r.value}>{r.label}</option>
               ))}
             </select>
           </Field>

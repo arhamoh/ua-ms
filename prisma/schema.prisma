@@ -103,6 +103,7 @@ model Client {
   notes        String?
   // Lead attribution for sales commission
   leadType      String?
+  taxRegion     String?   // 'QC' | 'CA' | 'US' — drives invoice tax
   salespersonId String?
   salesperson   User?     @relation("SalesLeads", fields: [salespersonId], references: [id], onDelete: SetNull)
   createdAt    DateTime      @default(now())
@@ -211,6 +212,22 @@ model Tag {
 // User-editable dropdown options. `kind` groups them (projectType, clientSource,
 // expenseCategory, fileCategory, paymentMethod, currency, leadType). `value` is
 // the stored string; `label` is shown; `rate` is the commission % for leadType.
+// Singleton company profile (used on invoices, receipts, contracts).
+model CompanySetting {
+  id        String   @id @default("default")
+  name      String   @default("UA Agency")
+  email     String?
+  phone     String?
+  website   String?
+  address   String?
+  gstNumber String?
+  qstNumber String?
+  neqNumber String?
+  gstRate   Float    @default(5)
+  qstRate   Float    @default(9.975)
+  updatedAt DateTime @updatedAt
+}
+
 model OptionItem {
   id        String   @id @default(cuid())
   kind      String

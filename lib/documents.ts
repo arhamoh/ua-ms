@@ -1,7 +1,5 @@
 import { formatMoney } from '@/lib/enums';
 
-const AGENCY = 'UA Agency';
-
 function fmt(d: Date | null | undefined) {
   if (!d) return '—';
   return new Date(d).toISOString().slice(0, 10);
@@ -9,11 +7,18 @@ function fmt(d: Date | null | undefined) {
 
 type DocRow = { label: string; value: string };
 
-function shell(title: string, heading: string, rows: DocRow[], amountLabel: string, amount: string, notes?: string | null) {
+function shell(
+  heading: string,
+  rows: DocRow[],
+  amountLabel: string,
+  amount: string,
+  notes?: string | null,
+  companyName = 'UA Agency',
+) {
   return `
   <div style="font-family:Geist,Inter,system-ui,Arial,sans-serif;max-width:640px;margin:0 auto;color:#0f172a;">
     <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid #4f46e5;padding-bottom:16px;">
-      <div style="font-size:20px;font-weight:700;">${AGENCY}</div>
+      <div style="font-size:20px;font-weight:700;">${companyName}</div>
       <div style="font-size:24px;font-weight:700;color:#4f46e5;">${heading}</div>
     </div>
     <table style="width:100%;margin-top:24px;border-collapse:collapse;font-size:14px;">
@@ -29,22 +34,31 @@ function shell(title: string, heading: string, rows: DocRow[], amountLabel: stri
       <span style="font-size:22px;font-weight:700;">${amount}</span>
     </div>
     ${notes ? `<p style="margin-top:20px;color:#475569;font-size:13px;white-space:pre-line;">${notes}</p>` : ''}
-    <p style="margin-top:32px;color:#94a3b8;font-size:12px;">Thank you for working with ${AGENCY}.</p>
+    <p style="margin-top:32px;color:#94a3b8;font-size:12px;">Thank you for working with ${companyName}.</p>
   </div>`;
 }
 
 export function invoiceHtml(o: {
   number: number;
+  companyName: string;
   clientName: string;
   projectName?: string | null;
-  amount: number;
   currency: string;
   issuedAt: Date;
   dueAt?: Date | null;
   notes?: string | null;
+  subtotal: number;
+  gst: number;
+  qst: number;
+  total: number;
+  gstRate: number;
+  qstRate: number;
 }) {
+  const taxRows: DocRow[] = [];
+  if (o.gst > 0) taxRows.push({ label: `GST (${o.gstRate}%)`, value: formatMoney(o.gst, o.currency) });
+  if (o.qst > 0) taxRows.push({ label: `QST (${o.qstRate}%)`, value: formatMoney(o.qst, o.currency) });
+
   return shell(
-    `Invoice #${o.number}`,
     'INVOICE',
     [
       { label: 'Invoice #', value: String(o.number) },
@@ -52,14 +66,18 @@ export function invoiceHtml(o: {
       ...(o.projectName ? [{ label: 'Project', value: o.projectName }] : []),
       { label: 'Issued', value: fmt(o.issuedAt) },
       { label: 'Due', value: fmt(o.dueAt) },
+      { label: 'Subtotal', value: formatMoney(o.subtotal, o.currency) },
+      ...taxRows,
     ],
-    'Amount due',
-    formatMoney(o.amount, o.currency),
+    'Total due',
+    formatMoney(o.total, o.currency),
     o.notes,
+    o.companyName,
   );
 }
 
 export function receiptHtml(o: {
+  companyName: string;
   clientName: string;
   projectName?: string | null;
   amount: number;
@@ -69,7 +87,6 @@ export function receiptHtml(o: {
   note?: string | null;
 }) {
   return shell(
-    'Receipt',
     'RECEIPT',
     [
       { label: 'Received from', value: o.clientName },
@@ -80,5 +97,6 @@ export function receiptHtml(o: {
     'Amount paid',
     formatMoney(o.amount, o.currency),
     o.note,
+    o.companyName,
   );
 }

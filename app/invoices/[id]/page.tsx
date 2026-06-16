@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma';
 import { setInvoiceStatus, emailInvoice } from '@/app/actions';
 import { emailConfigured } from '@/lib/email';
 import { INVOICE_STATUS_LABELS, INVOICE_STATUS_BADGE, formatMoney } from '@/lib/enums';
+import { getCompany, computeTax } from '@/lib/company';
 import PrintButton from '@/components/PrintButton';
 
 export const dynamic = 'force-dynamic';
@@ -28,6 +29,8 @@ export default async function InvoiceDetailPage({
   });
   if (!inv) notFound();
 
+  const company = await getCompany();
+  const tax = computeTax(inv.amount, inv.client.taxRegion, company);
   const canEmail = emailConfigured();
 
   return (
@@ -76,9 +79,17 @@ export default async function InvoiceDetailPage({
       {/* Invoice document */}
       <div className="rounded-2xl border border-slate-200 bg-white p-8 shadow-sm print:border-0 print:shadow-none">
         <div className="flex items-start justify-between border-b-2 border-brand pb-5">
-          <div>
-            <div className="text-xl font-bold">UA Agency</div>
-            <div className="mt-0.5 text-sm text-slate-500">Digital agency</div>
+          <div className="text-sm">
+            <div className="text-xl font-bold">{company.name}</div>
+            {company.address && <div className="mt-0.5 text-slate-500">{company.address}</div>}
+            {(company.email || company.phone) && (
+              <div className="text-slate-500">{[company.email, company.phone].filter(Boolean).join(' · ')}</div>
+            )}
+            <div className="mt-1 space-y-0.5 text-xs text-slate-400">
+              {company.gstNumber && <div>GST: {company.gstNumber}</div>}
+              {company.qstNumber && <div>QST: {company.qstNumber}</div>}
+              {company.neqNumber && <div>NEQ: {company.neqNumber}</div>}
+            </div>
           </div>
           <div className="text-right">
             <div className="text-2xl font-bold tracking-tight text-brand">INVOICE</div>
@@ -119,10 +130,26 @@ export default async function InvoiceDetailPage({
         </table>
 
         <div className="mt-6 flex justify-end">
-          <div className="w-56 rounded-xl bg-slate-50 px-5 py-4">
-            <div className="flex items-center justify-between">
+          <div className="w-64 space-y-1.5 rounded-xl bg-slate-50 px-5 py-4 text-sm">
+            <div className="flex items-center justify-between text-slate-600">
+              <span>Subtotal</span>
+              <span className="tabular-nums">{formatMoney(tax.subtotal, inv.currency)}</span>
+            </div>
+            {tax.gst > 0 && (
+              <div className="flex items-center justify-between text-slate-600">
+                <span>GST ({company.gstRate}%)</span>
+                <span className="tabular-nums">{formatMoney(tax.gst, inv.currency)}</span>
+              </div>
+            )}
+            {tax.qst > 0 && (
+              <div className="flex items-center justify-between text-slate-600">
+                <span>QST ({company.qstRate}%)</span>
+                <span className="tabular-nums">{formatMoney(tax.qst, inv.currency)}</span>
+              </div>
+            )}
+            <div className="flex items-center justify-between border-t border-slate-200 pt-1.5 text-base font-bold">
               <span className="text-xs uppercase tracking-wide text-slate-500">Total due</span>
-              <span className="text-lg font-bold tabular-nums">{formatMoney(inv.amount, inv.currency)}</span>
+              <span className="tabular-nums">{formatMoney(tax.total, inv.currency)}</span>
             </div>
           </div>
         </div>

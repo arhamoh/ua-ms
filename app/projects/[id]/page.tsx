@@ -138,11 +138,11 @@ export default async function ProjectDetailPage({
         <ProjectFiles projectId={project.id} files={project.files} driveOk={driveConfigured()} />
       ) : (
         <div className="space-y-6">
-          {project.invoices[0] && (
-            <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-              <span className="grid h-9 w-9 place-items-center rounded-lg bg-indigo-50 text-indigo-600">
-                <FileText size={18} />
-              </span>
+          <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <span className="grid h-9 w-9 place-items-center rounded-lg bg-indigo-50 text-indigo-600">
+              <FileText size={18} />
+            </span>
+            {project.invoices[0] ? (
               <div className="text-sm">
                 <div className="font-medium">Invoice #{project.invoices[0].number}</div>
                 <div className="flex items-center gap-2 text-slate-500">
@@ -152,14 +152,26 @@ export default async function ProjectDetailPage({
                   </span>
                 </div>
               </div>
+            ) : (
+              <div className="text-sm text-slate-500">Documents</div>
+            )}
+            <div className="ml-auto flex flex-wrap gap-2">
               <Link
-                href={`/invoices/${project.invoices[0].id}`}
-                className="ml-auto rounded-xl bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-dark"
+                href={`/projects/${project.id}/contract`}
+                className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
               >
-                View invoice
+                Sales contract
               </Link>
+              {project.invoices[0] && (
+                <Link
+                  href={`/invoices/${project.invoices[0].id}`}
+                  className="rounded-xl bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-dark"
+                >
+                  View invoice
+                </Link>
+              )}
             </div>
-          )}
+          </div>
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
             <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">Project</h2>

@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma';
 import { emailReceipt } from '@/app/actions';
 import { emailConfigured } from '@/lib/email';
 import { PAYMENT_METHOD_LABELS, formatMoney } from '@/lib/enums';
+import { getCompany } from '@/lib/company';
 import PrintButton from '@/components/PrintButton';
 
 export const dynamic = 'force-dynamic';
@@ -28,6 +29,7 @@ export default async function ReceiptPage({
   });
   if (!p) notFound();
 
+  const company = await getCompany();
   const canEmail = emailConfigured();
 
   return (
@@ -59,9 +61,12 @@ export default async function ReceiptPage({
 
       <div className="rounded-2xl border border-slate-200 bg-white p-8 shadow-sm print:border-0 print:shadow-none">
         <div className="flex items-start justify-between border-b-2 border-brand pb-5">
-          <div>
-            <div className="text-xl font-bold">UA Agency</div>
-            <div className="mt-0.5 text-sm text-slate-500">Digital agency</div>
+          <div className="text-sm">
+            <div className="text-xl font-bold">{company.name}</div>
+            {company.address && <div className="mt-0.5 text-slate-500">{company.address}</div>}
+            {(company.email || company.phone) && (
+              <div className="text-slate-500">{[company.email, company.phone].filter(Boolean).join(' · ')}</div>
+            )}
           </div>
           <div className="text-2xl font-bold tracking-tight text-brand">RECEIPT</div>
         </div>

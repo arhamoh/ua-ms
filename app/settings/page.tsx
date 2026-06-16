@@ -1,7 +1,8 @@
-import { Database, FileText, Trash2, SlidersHorizontal, Plus, X } from 'lucide-react';
+import { Database, FileText, Trash2, SlidersHorizontal, Plus, X, Building2 } from 'lucide-react';
 import { prisma } from '@/lib/prisma';
-import { seedDemoData, backfillInvoices, clearDemoData, addOption, deleteOption } from '@/app/actions';
+import { seedDemoData, backfillInvoices, clearDemoData, addOption, deleteOption, saveCompanySettings } from '@/app/actions';
 import { ensureOptionsSeeded, OPTION_KINDS } from '@/lib/options';
+import { getCompany } from '@/lib/company';
 import FadeIn from '@/components/FadeIn';
 
 export const dynamic = 'force-dynamic';
@@ -13,6 +14,7 @@ const MESSAGES: Record<string, string> = {
   seeded: 'Demo data added — explore the dashboard, finance, commissions, and invoices.',
   cleared: 'Demo data removed.',
   invoices: 'Generated invoices for any projects that were missing one.',
+  company: 'Company details saved.',
 };
 
 export default async function SettingsPage({
@@ -25,6 +27,7 @@ export default async function SettingsPage({
   const allOptions = await prisma.optionItem.findMany({ orderBy: [{ order: 'asc' }, { createdAt: 'asc' }] });
   const byKind: Record<string, typeof allOptions> = {};
   for (const o of allOptions) (byKind[o.kind] ??= []).push(o);
+  const company = await getCompany();
 
   return (
     <div className="max-w-3xl">
@@ -36,6 +39,32 @@ export default async function SettingsPage({
       {done && MESSAGES[done] && (
         <div className="mt-4 rounded-lg bg-emerald-50 px-4 py-2.5 text-sm text-emerald-700">{MESSAGES[done]}</div>
       )}
+
+      {/* Company details */}
+      <FadeIn delay={0.03}>
+        <form action={saveCompanySettings} className="mt-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="flex items-center gap-2">
+            <Building2 size={18} className="text-brand" />
+            <h2 className="text-sm font-semibold">Company details</h2>
+          </div>
+          <p className="mt-1 text-sm text-slate-500">Used on invoices, receipts, and contracts.</p>
+          <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <label className="block sm:col-span-2"><span className="mb-1 block text-xs font-medium text-slate-600">Company name</span><input name="name" defaultValue={company.name} className={inputCls} /></label>
+            <label className="block"><span className="mb-1 block text-xs font-medium text-slate-600">Email</span><input name="email" type="email" defaultValue={company.email ?? ''} className={inputCls} /></label>
+            <label className="block"><span className="mb-1 block text-xs font-medium text-slate-600">Phone</span><input name="phone" defaultValue={company.phone ?? ''} className={inputCls} /></label>
+            <label className="block"><span className="mb-1 block text-xs font-medium text-slate-600">Website</span><input name="website" defaultValue={company.website ?? ''} className={inputCls} /></label>
+            <label className="block"><span className="mb-1 block text-xs font-medium text-slate-600">Address</span><input name="address" defaultValue={company.address ?? ''} className={inputCls} /></label>
+            <label className="block"><span className="mb-1 block text-xs font-medium text-slate-600">GST number</span><input name="gstNumber" defaultValue={company.gstNumber ?? ''} className={inputCls} /></label>
+            <label className="block"><span className="mb-1 block text-xs font-medium text-slate-600">QST number</span><input name="qstNumber" defaultValue={company.qstNumber ?? ''} className={inputCls} /></label>
+            <label className="block"><span className="mb-1 block text-xs font-medium text-slate-600">NEQ number</span><input name="neqNumber" defaultValue={company.neqNumber ?? ''} className={inputCls} /></label>
+            <div className="grid grid-cols-2 gap-3 sm:col-span-2 sm:max-w-xs">
+              <label className="block"><span className="mb-1 block text-xs font-medium text-slate-600">GST rate (%)</span><input name="gstRate" type="number" step="any" min="0" defaultValue={company.gstRate} className={inputCls} /></label>
+              <label className="block"><span className="mb-1 block text-xs font-medium text-slate-600">QST rate (%)</span><input name="qstRate" type="number" step="any" min="0" defaultValue={company.qstRate} className={inputCls} /></label>
+            </div>
+          </div>
+          <button className="mt-4 rounded-xl bg-brand px-4 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-brand-dark">Save company details</button>
+        </form>
+      </FadeIn>
 
       {/* Dropdown options */}
       <FadeIn delay={0.05}>

@@ -3,10 +3,14 @@ import { Briefcase, Users, FolderKanban, Activity, ArrowRight, ArrowUpRight } fr
 import { prisma } from '@/lib/prisma';
 import { PROJECT_STATUS_LABELS, STATUS_BADGE, PROJECT_TYPE_LABELS } from '@/lib/enums';
 import FadeIn from '@/components/FadeIn';
+import DashboardGreeting from '@/components/DashboardGreeting';
+import { getSession } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 
 export default async function DashboardPage() {
+  const session = await getSession();
+  const userName = session?.name || 'there';
   const [clients, projects, team, activeCount, statusGroups, recentProjects] =
     await Promise.all([
       prisma.client.count(),
@@ -33,21 +37,8 @@ export default async function DashboardPage() {
 
   return (
     <div>
-      <FadeIn>
-        <div className="mb-8 flex items-end justify-between">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight">Welcome back</h1>
-            <p className="mt-1 text-sm text-slate-500">
-              Here’s what’s happening across your agency.
-            </p>
-          </div>
-          <Link
-            href="/onboard"
-            className="hidden rounded-xl bg-brand px-4 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-brand-dark sm:block"
-          >
-            Onboard Client
-          </Link>
-        </div>
+      <FadeIn className="mb-8 block">
+        <DashboardGreeting name={userName} />
       </FadeIn>
 
       {/* Stat cards */}

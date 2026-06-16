@@ -20,6 +20,7 @@ import {
 import { getRatesToCad, toCad } from '@/lib/fx';
 import { sendEmail } from '@/lib/email';
 import { invoiceHtml, receiptHtml } from '@/lib/documents';
+import { getCompany, computeTax } from '@/lib/company';
 import { getSession } from '@/lib/auth';
 import { driveConfigured, uploadToDrive } from '@/lib/drive';
 
@@ -130,6 +131,7 @@ export async function onboardClient(formData: FormData) {
       website: str(formData.get('website')),
       socialLinks: str(formData.get('socialLinks')),
       leadType,
+      taxRegion: str(formData.get('taxRegion')) || null,
       salespersonId: salespersonId || null,
       projects: { create: buildProjectData(formData) },
     },
@@ -430,15 +432,23 @@ export async function emailInvoice(formData: FormData) {
     redirect(`/invoices/${id}?error=${encodeURIComponent('Client has no email on file.')}`);
   }
 
+  const company = await getCompany();
+  const tax = computeTax(invoice!.amount, invoice!.client.taxRegion, company);
   const html = invoiceHtml({
     number: invoice!.number,
+    companyName: company.name,
     clientName: invoice!.client.name,
     projectName: invoice!.project?.name,
-    amount: invoice!.amount,
     currency: invoice!.currency,
     issuedAt: invoice!.issuedAt,
     dueAt: invoice!.dueAt,
     notes: invoice!.notes,
+    subtotal: tax.subtotal,
+    gst: tax.gst,
+    qst: tax.qst,
+    total: tax.total,
+    gstRate: company.gstRate,
+    qstRate: company.qstRate,
   });
 
   const result = await sendEmail({
@@ -471,7 +481,9 @@ export async function emailReceipt(formData: FormData) {
     redirect(`/receipts/${id}?error=${encodeURIComponent('Client has no email on file.')}`);
   }
 
+  const company = await getCompany();
   const html = receiptHtml({
+    companyName: company.name,
     clientName: payment!.client.name,
     projectName: payment!.project?.name,
     amount: payment!.amount,
@@ -589,7 +601,10 @@ export async function backfillInvoices() {
 }
 
 export async function clearDemoData() {
-  await prisma.client.deleteMany({ where: { name: { startsWith: 'Demo —' } } });
+  // Remove demo records AND the original Acme seed.
+  await prisma.client.deleteMany({
+    where: { OR: [{ name: { startsWith: 'Demo —' } }, { name: 'Acme Inc.' }] },
+  });
   await prisma.expense.deleteMany({ where: { title: { startsWith: 'Demo —' } } });
   await prisma.user.deleteMany({ where: { email: 'demo.sales@uaagency.com' } });
   revalidatePath('/');
@@ -713,4 +728,32 @@ export async function deleteOption(formData: FormData) {
   await prisma.optionItem.delete({ where: { id } });
   revalidatePath('/settings');
   redirect('/settings');
+}
+
+// ─── Company settings ────────────────────────────────────────────────────────
+
+export async function saveCompanySettings(formData: FormData) {
+  const num = (v: string | null, d: number) => {
+    const n = v ? Number(v) : NaN;
+    return !Number.isNaN(n) && n >= 0 ? n : d;
+  };
+  const data = {
+    name: str(formData.get('name')) || 'UA Agency',
+    email: str(formData.get('email')),
+    phone: str(formData.get('phone')),
+    website: str(formData.get('website')),
+    address: str(formData.get('address')),
+    gstNumber: str(formData.get('gstNumber')),
+    qstNumber: str(formData.get('qstNumber')),
+    neqNumber: str(formData.get('neqNumber')),
+    gstRate: num(str(formData.get('gstRate')), 5),
+    qstRate: num(str(formData.get('qstRate')), 9.975),
+  };
+  await prisma.companySetting.upsert({
+    where: { id: 'default' },
+    update: data,
+    create: { id: 'default', ...data },
+  });
+  revalidatePath('/settings');
+  redirect('/settings?done=company');
 }
