@@ -21,6 +21,8 @@ import {
   FileText,
   Sparkles,
   Settings,
+  PanelLeftClose,
+  PanelLeftOpen,
   type LucideIcon,
 } from 'lucide-react';
 import CommandPalette from '@/components/CommandPalette';
@@ -65,22 +67,32 @@ const nav: NavItem[] = [
   { href: '/settings', label: 'Settings', icon: Settings },
 ];
 
-function NavContent({ onNavigate, user }: { onNavigate?: () => void; user: SessionUser }) {
+function NavContent({
+  onNavigate,
+  user,
+  collapsed = false,
+  onToggleCollapse,
+}: {
+  onNavigate?: () => void;
+  user: SessionUser;
+  collapsed?: boolean;
+  onToggleCollapse?: () => void;
+}) {
   const pathname = usePathname();
   const isActive = (href: string) =>
     href === '/' ? pathname === '/' : pathname.startsWith(href);
 
   return (
     <>
-      <div className="flex h-16 items-center justify-center border-b border-slate-100 px-4">
+      <div className={`flex h-16 items-center justify-center border-b border-slate-100 ${collapsed ? 'px-2' : 'px-4'}`}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/logo.png" alt="UA Digital" className="h-14 w-auto" />
+        <img src="/logo.png" alt="UA Digital" className={collapsed ? 'h-8 w-auto' : 'h-14 w-auto'} />
       </div>
 
       <nav className="flex-1 space-y-1 px-3 py-4">
-        <p className="px-3 pb-2 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-          Menu
-        </p>
+        {!collapsed && (
+          <p className="px-3 pb-2 text-[11px] font-semibold uppercase tracking-wider text-slate-400">Menu</p>
+        )}
         {nav.map(({ href, label, icon: Icon }) => {
           const active = isActive(href);
           return (
@@ -88,13 +100,14 @@ function NavContent({ onNavigate, user }: { onNavigate?: () => void; user: Sessi
               key={href}
               href={href}
               onClick={onNavigate}
-              whileHover={{ x: 3 }}
+              title={collapsed ? label : undefined}
+              whileHover={{ x: collapsed ? 0 : 3 }}
               whileTap={{ scale: 0.98 }}
               transition={{ type: 'spring', stiffness: 500, damping: 30 }}
-              className={`relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-                active
-                  ? 'bg-brand-light text-brand'
-                  : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+              className={`relative flex items-center rounded-lg py-2 text-sm font-medium transition-colors ${
+                collapsed ? 'justify-center px-2' : 'gap-3 px-3'
+              } ${
+                active ? 'bg-brand-light text-brand' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
               }`}
             >
               {active && (
@@ -105,36 +118,61 @@ function NavContent({ onNavigate, user }: { onNavigate?: () => void; user: Sessi
                 />
               )}
               <Icon size={18} className={active ? 'text-brand' : 'text-slate-400'} />
-              {label}
+              {!collapsed && label}
             </MotionLink>
           );
         })}
 
-        <div className="px-3 pt-4">
+        <div className="px-1 pt-4">
           <Link
             href="/onboard"
             onClick={onNavigate}
-            className="flex items-center justify-center gap-2 rounded-lg bg-brand px-3 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-brand-dark"
+            title={collapsed ? 'Onboard Client' : undefined}
+            className={`flex items-center justify-center gap-2 rounded-lg bg-brand py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-brand-dark ${
+              collapsed ? 'px-2' : 'px-3'
+            }`}
           >
             <UserPlus size={16} />
-            Onboard Client
+            {!collapsed && 'Onboard Client'}
           </Link>
         </div>
       </nav>
 
+      {/* Collapse toggle — desktop only (passed onToggleCollapse) */}
+      {onToggleCollapse && (
+        <div className="border-t border-slate-100 px-3 py-2">
+          <button
+            onClick={onToggleCollapse}
+            title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            className={`flex w-full items-center rounded-lg py-2 text-sm font-medium text-slate-500 transition hover:bg-slate-100 hover:text-slate-800 ${
+              collapsed ? 'justify-center px-2' : 'gap-3 px-3'
+            }`}
+          >
+            {collapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
+            {!collapsed && 'Collapse'}
+          </button>
+        </div>
+      )}
+
       <div className="border-t border-slate-100 p-3">
-        <div className="flex items-center gap-3 px-3 py-2">
-          <span className="grid h-8 w-8 place-items-center rounded-full bg-slate-200 text-xs font-semibold text-slate-600">
+        <div className={`flex items-center py-2 ${collapsed ? 'flex-col gap-2 px-0' : 'gap-3 px-3'}`}>
+          <span
+            title={collapsed ? `${user.name} · ${user.email}` : undefined}
+            className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-slate-200 text-xs font-semibold text-slate-600"
+          >
             {user.name?.[0]?.toUpperCase() ?? 'U'}
           </span>
-          <div className="min-w-0 flex-1 leading-tight">
-            <div className="truncate text-sm font-medium">{user.name}</div>
-            <div className="truncate text-[11px] text-slate-400">{user.email}</div>
-          </div>
+          {!collapsed && (
+            <div className="min-w-0 flex-1 leading-tight">
+              <div className="truncate text-sm font-medium">{user.name}</div>
+              <div className="truncate text-[11px] text-slate-400">{user.email}</div>
+            </div>
+          )}
           <form action={logout}>
             <button
               type="submit"
               aria-label="Sign out"
+              title="Sign out"
               className="grid h-8 w-8 place-items-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-rose-600"
             >
               <LogOut size={16} />
@@ -154,7 +192,24 @@ export default function AppShell({
   children: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
   const pathname = usePathname();
+
+  // Restore the collapsed preference once on mount.
+  useEffect(() => {
+    setCollapsed(localStorage.getItem('ua_sidebar_collapsed') === '1');
+  }, []);
+
+  const toggleCollapsed = () =>
+    setCollapsed((c) => {
+      const next = !c;
+      try {
+        localStorage.setItem('ua_sidebar_collapsed', next ? '1' : '0');
+      } catch {
+        // ignore
+      }
+      return next;
+    });
 
   // Close the mobile drawer whenever the route changes.
   useEffect(() => {
@@ -169,8 +224,12 @@ export default function AppShell({
   return (
     <>
       {/* Desktop sidebar */}
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r border-slate-200 bg-white lg:flex print:hidden">
-        <NavContent user={user} />
+      <aside
+        className={`fixed inset-y-0 left-0 z-30 hidden flex-col border-r border-slate-200 bg-white transition-[width] duration-200 lg:flex print:hidden ${
+          collapsed ? 'w-16' : 'w-60'
+        }`}
+      >
+        <NavContent user={user} collapsed={collapsed} onToggleCollapse={toggleCollapsed} />
       </aside>
 
       {/* Mobile drawer */}
@@ -201,7 +260,7 @@ export default function AppShell({
       </div>
 
       {/* Main column */}
-      <div className="lg:pl-60 print:pl-0">
+      <div className={`transition-[padding] duration-200 print:pl-0 ${collapsed ? 'lg:pl-16' : 'lg:pl-60'}`}>
         <header className="sticky top-0 z-20 flex h-16 items-center gap-3 border-b border-slate-200 bg-white/80 px-4 backdrop-blur sm:px-6 print:hidden">
           <button
             onClick={() => setOpen(true)}
