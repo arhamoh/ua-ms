@@ -142,6 +142,7 @@ export async function onboardClient(formData: FormData) {
   });
 
   await autoInvoice(client.id, client.projects[0]);
+  await logActivity(`Onboarded client “${clientName}”`);
 
   revalidatePath('/clients');
   revalidatePath('/');
@@ -158,6 +159,7 @@ export async function addProjectToClient(formData: FormData) {
   });
 
   await autoInvoice(clientId, project);
+  await logActivity(`Added project “${project.name}”`);
 
   revalidatePath(`/clients/${clientId}`);
   revalidatePath('/clients');
@@ -217,6 +219,7 @@ export async function recordPayment(formData: FormData) {
       projectId: projectId || null,
     },
   });
+  await logActivity(`Recorded a payment of ${amount} ${currency}`);
 
   revalidatePath(`/clients/${clientId}`);
   redirect(`/clients/${clientId}`);
@@ -235,6 +238,11 @@ async function logTaskActivity(summary: string, opts: { taskId?: string; project
   } catch {
     // ignore logging failures
   }
+}
+
+// General activity (non-task) for the checkout "what's been done" summary.
+async function logActivity(summary: string) {
+  await logTaskActivity(summary, {});
 }
 
 export async function createTask(projectId: string, title: string, status: string) {
@@ -378,6 +386,7 @@ export async function addExpense(formData: FormData) {
       reimbursed: paidById ? false : true,
     },
   });
+  await logActivity(`Added expense “${title}”`);
 
   revalidatePath('/finance');
   redirect('/finance?tab=expenses');
@@ -1233,6 +1242,43 @@ export async function deleteLeave(id: string) {
   await prisma.leaveRequest.delete({ where: { id } });
   revalidatePath('/time');
   revalidatePath('/time/report');
+}
+
+// Edit a session's times / tasks / notes. Owner can edit their own; admins any.
+// checkInAt / checkOutAt arrive as ISO strings (converted to UTC on the client).
+export async function updateTimeEntry(formData: FormData) {
+  const s = await getSession();
+  if (!s) return;
+  const id = str(formData.get('id'));
+  if (!id) return;
+  const entry = await prisma.timeEntry.findUnique({ where: { id } });
+  if (!entry) return;
+  if (!isAttendanceAdmin(s) && entry.userId !== s.id) return;
+
+  const inRaw = str(formData.get('checkInAt'));
+  const outRaw = str(formData.get('checkOutAt'));
+  const checkInAt = inRaw ? new Date(inRaw) : entry.checkInAt;
+  const checkOutAt = outRaw ? new Date(outRaw) : null;
+  if (Number.isNaN(checkInAt.getTime())) return;
+
+  let hours: number | null = null;
+  if (checkOutAt && !Number.isNaN(checkOutAt.getTime())) {
+    hours = Math.max(0, Math.round(((checkOutAt.getTime() - checkInAt.getTime()) / 3_600_000) * 100) / 100);
+  }
+
+  await prisma.timeEntry.update({
+    where: { id },
+    data: {
+      checkInAt,
+      checkOutAt: checkOutAt && !Number.isNaN(checkOutAt.getTime()) ? checkOutAt : null,
+      hours,
+      tasks: str(formData.get('tasks')),
+      notes: str(formData.get('notes')),
+    },
+  });
+  revalidatePath('/time');
+  revalidatePath('/time/report');
+  redirect(str(formData.get('from')) || '/time');
 }
 
 // Admin: remove a logged session (e.g. a mistaken check-in).

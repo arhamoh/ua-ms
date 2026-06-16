@@ -99,6 +99,7 @@ export default async function TimePage() {
                       <th className="px-5 py-3 text-right font-medium">Hours</th>
                       <th className="px-5 py-3 text-right font-medium">Active</th>
                       <th className="px-5 py-3 font-medium">Tasks done</th>
+                      <th className="px-5 py-3 text-right font-medium">Edit</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
@@ -125,6 +126,9 @@ export default async function TimePage() {
                         </td>
                         <td className="px-5 py-3 text-xs text-slate-500">
                           {e.tasks ? <span className="whitespace-pre-line">{e.tasks}</span> : '—'}
+                        </td>
+                        <td className="px-5 py-3">
+                          <RowActions editHref={`/time/${e.id}/edit`} label="session" />
                         </td>
                       </tr>
                     ))}

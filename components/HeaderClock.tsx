@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState, useTransition } from 'react';
+import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import { AnimatePresence, motion } from 'motion/react';
 import { LogIn, LogOut, Loader2, Sparkles, X } from 'lucide-react';
@@ -32,7 +33,10 @@ export default function HeaderClock({ initial }: { initial: Status }) {
   const [notes, setNotes] = useState('');
   const [loadingTasks, setLoadingTasks] = useState(false);
   const [idle, setIdle] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const lastActivityRef = useRef(Date.now());
+
+  useEffect(() => setMounted(true), []);
 
   // Keep in sync with the server (updates whenever a route calls router.refresh,
   // e.g. checking in from the Time page).
@@ -142,7 +146,9 @@ export default function HeaderClock({ initial }: { initial: Status }) {
         </button>
       )}
 
-      {/* Checkout prompt — review the day's tasks before checking out */}
+      {/* Checkout prompt — portalled to body so the header's backdrop-blur
+          doesn't trap the fixed-position modal */}
+      {mounted && createPortal(
       <AnimatePresence>
         {modalOpen && (
           <motion.div
@@ -205,7 +211,9 @@ export default function HeaderClock({ initial }: { initial: Status }) {
             </motion.div>
           </motion.div>
         )}
-      </AnimatePresence>
+      </AnimatePresence>,
+      document.body,
+      )}
     </>
   );
 }

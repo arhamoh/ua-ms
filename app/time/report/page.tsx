@@ -282,7 +282,7 @@ export default async function TimeReportPage({ searchParams }: { searchParams: P
                         })()}
                       </td>
                       <td className="px-5 py-3 text-xs text-slate-500"><span className="whitespace-pre-line">{e.tasks || '—'}</span></td>
-                      <td className="px-5 py-3"><RowActions deleteAction={deleteTimeEntry.bind(null, e.id)} label="session" /></td>
+                      <td className="px-5 py-3"><RowActions editHref={`/time/${e.id}/edit?from=/time/report`} deleteAction={deleteTimeEntry.bind(null, e.id)} label="session" /></td>
                     </tr>
                   ))}
                 </tbody>
