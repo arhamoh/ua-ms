@@ -357,9 +357,9 @@ export default async function FinancePage({
         <div>
           <section className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             {[
-              { label: 'Total given out', value: formatMoney(loanGiven, 'CAD'), icon: Landmark, tint: 'bg-slate-100 text-slate-600' },
-              { label: 'Recovered', value: formatMoney(loanRecovered, 'CAD'), icon: RotateCcw, tint: 'bg-emerald-50 text-emerald-600' },
-              { label: 'Outstanding to recover', value: formatMoney(loanOutstanding, 'CAD'), icon: HandCoins, tint: loanOutstanding > 0.5 ? 'bg-rose-50 text-rose-600' : 'bg-slate-100 text-slate-500' },
+              { label: 'Total received', value: formatMoney(loanGiven, 'CAD'), icon: Landmark, tint: 'bg-slate-100 text-slate-600' },
+              { label: 'Paid back', value: formatMoney(loanRecovered, 'CAD'), icon: RotateCcw, tint: 'bg-emerald-50 text-emerald-600' },
+              { label: 'Still to pay back', value: formatMoney(loanOutstanding, 'CAD'), icon: HandCoins, tint: loanOutstanding > 0.5 ? 'bg-rose-50 text-rose-600' : 'bg-slate-100 text-slate-500' },
             ].map((s, i) => (
               <FadeIn key={s.label} delay={0.04 * i}>
                 <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -375,21 +375,22 @@ export default async function FinancePage({
             <FadeIn delay={0.08} className="lg:col-span-2">
               <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
                 <div className="border-b border-slate-100 px-5 py-4">
-                  <h2 className="text-sm font-semibold">Money to recover</h2>
-                  <p className="mt-0.5 text-xs text-slate-400">Advances, loans and opening balances given out that still need to come back.</p>
+                  <h2 className="text-sm font-semibold">Loans into the business</h2>
+                  <p className="mt-0.5 text-xs text-slate-400">Who put money in, how much, what for — and whether they’ve been paid back.</p>
                 </div>
                 {loans.length === 0 ? (
-                  <div className="px-5 py-10 text-center text-sm text-slate-500">Nothing outstanding. Add a loan or advance on the right.</div>
+                  <div className="px-5 py-10 text-center text-sm text-slate-500">No loans recorded. Add one on the right.</div>
                 ) : (
                   <div className="overflow-x-auto">
-                    <table className="w-full min-w-[640px] text-sm">
+                    <table className="w-full min-w-[760px] text-sm">
                       <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
                         <tr>
-                          <th className="px-5 py-3 font-medium">Given to</th>
+                          <th className="px-5 py-3 font-medium">Given by</th>
+                          <th className="px-5 py-3 font-medium">For what</th>
                           <th className="px-5 py-3 font-medium">Date</th>
                           <th className="px-5 py-3 text-right font-medium">Amount</th>
-                          <th className="px-5 py-3 text-right font-medium">Outstanding</th>
-                          <th className="px-5 py-3 font-medium">Record recovery</th>
+                          <th className="px-5 py-3 font-medium">Paid back?</th>
+                          <th className="px-5 py-3 font-medium">Record repayment</th>
                           <th className="px-5 py-3 text-right font-medium">Actions</th>
                         </tr>
                       </thead>
@@ -400,17 +401,26 @@ export default async function FinancePage({
                           const settled = outstanding <= 0.5;
                           return (
                             <tr key={l.id} className="hover:bg-slate-50">
-                              <td className="px-5 py-3">
-                                <div className="font-medium text-slate-800">{l.counterparty}</div>
-                                {l.note && <div className="text-xs text-slate-400">{l.note}</div>}
-                              </td>
+                              <td className="px-5 py-3 font-medium text-slate-800">{l.counterparty}</td>
+                              <td className="px-5 py-3 text-slate-500">{l.note || '—'}</td>
                               <td className="px-5 py-3 tabular-nums text-slate-500">{l.givenAt.toISOString().slice(0, 10)}</td>
                               <td className="px-5 py-3 text-right tabular-nums">
                                 <div className="font-medium">{formatMoney(l.amount, l.currency)}</div>
                                 {l.currency !== 'CAD' && <div className="text-xs text-slate-400">{formatMoney(givenCad, 'CAD')} CAD</div>}
                               </td>
-                              <td className={`px-5 py-3 text-right font-medium tabular-nums ${settled ? 'text-emerald-600' : 'text-rose-600'}`}>
-                                {settled ? 'Settled' : formatMoney(outstanding, 'CAD')}
+                              <td className="px-5 py-3">
+                                {settled ? (
+                                  <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">Paid back</span>
+                                ) : (
+                                  <div className="flex flex-col gap-0.5">
+                                    <span className="rounded-full bg-rose-50 px-2 py-0.5 text-xs font-medium text-rose-700 w-fit">
+                                      {formatMoney(outstanding, 'CAD')} owed
+                                    </span>
+                                    {l.recoveredAmount > 0.5 && (
+                                      <span className="text-xs text-slate-400">{formatMoney(l.recoveredAmount, 'CAD')} paid so far</span>
+                                    )}
+                                  </div>
+                                )}
                               </td>
                               <td className="px-5 py-3">
                                 {settled ? (
@@ -427,7 +437,7 @@ export default async function FinancePage({
                                       placeholder="CAD"
                                       className="w-24 rounded-lg border border-slate-300 px-2 py-1.5 text-sm focus:border-brand focus:outline-none"
                                     />
-                                    <button className="rounded-lg bg-brand px-2.5 py-1.5 text-xs font-medium text-white hover:bg-brand-dark">Add</button>
+                                    <button className="rounded-lg bg-brand px-2.5 py-1.5 text-xs font-medium text-white hover:bg-brand-dark">Pay</button>
                                   </form>
                                 )}
                               </td>
@@ -444,16 +454,16 @@ export default async function FinancePage({
 
             <FadeIn delay={0.12}>
               <form action={addLoan} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                <h2 className="mb-4 flex items-center gap-2 text-sm font-semibold"><Plus size={16} className="text-brand" /> Add loan / advance</h2>
+                <h2 className="mb-4 flex items-center gap-2 text-sm font-semibold"><Plus size={16} className="text-brand" /> Add a loan</h2>
                 <div className="space-y-3">
-                  <label className="block"><span className="mb-1 block text-xs font-medium text-slate-600">Given to *</span><input name="counterparty" required className={inputCls} placeholder="Name or party" /></label>
+                  <label className="block"><span className="mb-1 block text-xs font-medium text-slate-600">Given by *</span><input name="counterparty" required className={inputCls} placeholder="Who put the money in" /></label>
+                  <label className="block"><span className="mb-1 block text-xs font-medium text-slate-600">For what</span><input name="note" className={inputCls} placeholder="e.g. startup costs, equipment" /></label>
                   <div className="grid grid-cols-3 gap-2">
                     <label className="col-span-2 block"><span className="mb-1 block text-xs font-medium text-slate-600">Amount *</span><input name="amount" type="number" min="0" step="any" required className={inputCls} placeholder="1000" /></label>
                     <label className="block"><span className="mb-1 block text-xs font-medium text-slate-600">Cur</span><select name="currency" defaultValue="CAD" className={inputCls}>{currencies.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}</select></label>
                   </div>
-                  <label className="block"><span className="mb-1 block text-xs font-medium text-slate-600">Date given</span><input name="givenAt" type="date" defaultValue={today} className={inputCls} /></label>
-                  <label className="block"><span className="mb-1 block text-xs font-medium text-slate-600">Already recovered (CAD)</span><input name="recoveredAmount" type="number" min="0" step="any" className={inputCls} placeholder="0" /><span className="mt-1 block text-xs text-slate-400">For back-dated loans that are partly paid back.</span></label>
-                  <label className="block"><span className="mb-1 block text-xs font-medium text-slate-600">Note</span><input name="note" className={inputCls} placeholder="What it was for" /></label>
+                  <label className="block"><span className="mb-1 block text-xs font-medium text-slate-600">Date received</span><input name="givenAt" type="date" defaultValue={today} className={inputCls} /></label>
+                  <label className="block"><span className="mb-1 block text-xs font-medium text-slate-600">Already paid back (CAD)</span><input name="recoveredAmount" type="number" min="0" step="any" className={inputCls} placeholder="0" /><span className="mt-1 block text-xs text-slate-400">For older loans that are already partly repaid.</span></label>
                   <button className="w-full rounded-xl bg-brand px-4 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-brand-dark">Add loan</button>
                 </div>
               </form>
