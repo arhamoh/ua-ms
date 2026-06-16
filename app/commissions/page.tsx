@@ -1,12 +1,13 @@
 import Link from 'next/link';
-import { TrendingUp, Wallet, Scale, Plus } from 'lucide-react';
+import { TrendingUp, Wallet, Scale, Plus, Coins } from 'lucide-react';
 import { prisma } from '@/lib/prisma';
 import { recordCommissionPayout } from '@/app/actions';
-import { ROLE_LABELS, SALES_COMMISSION_RATE, formatMoney } from '@/lib/enums';
+import { SALES_COMMISSION_RATE, formatMoney } from '@/lib/enums';
 import { getRatesToCad, toCad } from '@/lib/fx';
 import { getLeadTypeRates } from '@/lib/options';
 import FadeIn from '@/components/FadeIn';
 import RowActions from '@/components/RowActions';
+import AnimatedButton from '@/components/AnimatedButton';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,6 +15,17 @@ const inputCls =
   'w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/10';
 
 const isPipeline = (status: string) => status !== 'COMPLETED' && status !== 'ARCHIVED';
+
+function initials(name: string) {
+  return name.split(' ').map((p) => p[0]).slice(0, 2).join('').toUpperCase();
+}
+
+function roleHint(r: { leads: number; pmProjects: number }) {
+  const bits: string[] = [];
+  if (r.leads > 0) bits.push(`${r.leads} lead${r.leads === 1 ? '' : 's'}`);
+  if (r.pmProjects > 0) bits.push(`PM on ${r.pmProjects}`);
+  return bits.join(' · ') || 'Past payouts';
+}
 
 export default async function CommissionsPage() {
   const [users, rates] = await Promise.all([
@@ -99,7 +111,8 @@ export default async function CommissionsPage() {
   const summary = [
     { label: 'Projected (pipeline)', value: formatMoney(totals.projected, 'CAD'), icon: TrendingUp, tint: 'bg-rose-50 text-rose-600' },
     { label: 'Earned (to date)', value: formatMoney(totals.earned, 'CAD'), icon: Wallet, tint: 'bg-emerald-50 text-emerald-600' },
-    { label: 'Outstanding to pay', value: formatMoney(totals.outstanding, 'CAD'), icon: Scale, tint: totals.outstanding > 0 ? 'bg-rose-50 text-rose-600' : 'bg-slate-100 text-slate-500' },
+    { label: 'Paid out', value: formatMoney(totals.paid, 'CAD'), icon: Coins, tint: 'bg-slate-100 text-slate-500' },
+    { label: 'Outstanding to pay', value: formatMoney(totals.outstanding, 'CAD'), icon: Scale, tint: totals.outstanding > 0.01 ? 'bg-rose-50 text-rose-600' : 'bg-emerald-50 text-emerald-600' },
   ];
 
   const today = new Date().toISOString().split('T')[0];
@@ -110,122 +123,144 @@ export default async function CommissionsPage() {
         <h1 className="text-2xl font-bold tracking-tight">Commissions</h1>
         <p className="mt-1 text-sm text-slate-500">
           Sales &amp; PM commissions in CAD. Projected = % of pipeline project value; earned = % of
-          payments received. Record payouts to track what’s been paid.
+          payments received. Open a member to see the per-project breakdown.
         </p>
       </FadeIn>
 
-      <section className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <section className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
         {summary.map((s, i) => (
           <FadeIn key={s.label} delay={0.04 * i}>
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="h-full rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <span className={`grid h-10 w-10 place-items-center rounded-xl ${s.tint}`}>
                 <s.icon size={20} />
               </span>
-              <div className="mt-4 text-2xl font-semibold tracking-tight">{s.value}</div>
+              <div className="mt-4 text-xl font-semibold tracking-tight sm:text-2xl">{s.value}</div>
               <div className="mt-0.5 text-sm text-slate-500">{s.label}</div>
             </div>
           </FadeIn>
         ))}
       </section>
 
-      <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
-        {/* People table */}
-        <FadeIn delay={0.08} className="lg:col-span-2">
-          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-            <div className="border-b border-slate-100 px-5 py-4">
-              <h2 className="text-sm font-semibold">By team member</h2>
+      {/* People table — full width */}
+      <FadeIn delay={0.1}>
+        <div className="mt-6 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+            <h2 className="text-sm font-semibold">By team member</h2>
+            <span className="text-xs text-slate-400">{people.length} eligible</span>
+          </div>
+          {people.length === 0 ? (
+            <div className="px-5 py-12 text-center text-sm text-slate-500">
+              No commission activity yet. Assign a salesperson + lead type when onboarding a client,
+              and a PM to projects.
             </div>
-            {people.length === 0 ? (
-              <div className="px-5 py-10 text-center text-sm text-slate-500">
-                No commission activity yet. Assign a salesperson + lead type when onboarding a client,
-                and a PM to projects.
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[640px] text-sm">
-                  <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
-                    <tr>
-                      <th className="px-5 py-3 font-medium">Member</th>
-                      <th className="px-5 py-3 text-right font-medium">Projected</th>
-                      <th className="px-5 py-3 text-right font-medium">Earned</th>
-                      <th className="px-5 py-3 text-right font-medium">Paid</th>
-                      <th className="px-5 py-3 text-right font-medium">Outstanding</th>
-                      <th className="px-5 py-3 text-right font-medium">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {people.map((r) => (
-                      <tr key={r.id} className="hover:bg-slate-50">
-                        <td className="px-5 py-3">
-                          <Link href={`/commissions/${r.id}`} className="font-medium text-slate-800 hover:text-brand">
-                            {r.name}
-                          </Link>
-                          <div className="text-xs text-slate-400">
-                            {r.roles.map((x) => ROLE_LABELS[x] ?? x).join(', ') || '—'}
-                            {r.leads > 0 && ` · ${r.leads} lead${r.leads === 1 ? '' : 's'}`}
-                            {r.pmProjects > 0 && ` · PM on ${r.pmProjects}`}
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[720px] text-sm">
+                <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+                  <tr>
+                    <th className="px-5 py-3 font-medium">Member</th>
+                    <th className="px-5 py-3 text-right font-medium">Projected</th>
+                    <th className="px-5 py-3 text-right font-medium">Earned</th>
+                    <th className="px-5 py-3 text-right font-medium">Paid</th>
+                    <th className="px-5 py-3 text-right font-medium">Outstanding</th>
+                    <th className="px-5 py-3 text-right font-medium">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {people.map((r) => {
+                    const pct = r.earned > 0.01 ? Math.min(100, Math.round((r.paid / r.earned) * 100)) : 0;
+                    return (
+                      <tr key={r.id} className="transition hover:bg-slate-50">
+                        <td className="px-5 py-3.5">
+                          <div className="flex items-center gap-3">
+                            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-brand-light text-xs font-semibold text-brand">
+                              {initials(r.name)}
+                            </span>
+                            <div className="min-w-0">
+                              <Link href={`/commissions/${r.id}`} className="font-medium text-slate-800 hover:text-brand">
+                                {r.name}
+                              </Link>
+                              <div className="text-xs text-slate-400">{roleHint(r)}</div>
+                            </div>
                           </div>
                         </td>
-                        <td className="px-5 py-3 text-right tabular-nums text-slate-500">{formatMoney(r.projected, 'CAD')}</td>
-                        <td className="px-5 py-3 text-right font-medium tabular-nums">{formatMoney(r.earned, 'CAD')}</td>
-                        <td className="px-5 py-3 text-right tabular-nums text-slate-500">{formatMoney(r.paid, 'CAD')}</td>
-                        <td className={`px-5 py-3 text-right font-medium tabular-nums ${r.outstanding > 0.01 ? 'text-rose-600' : 'text-emerald-600'}`}>
+                        <td className="px-5 py-3.5 text-right tabular-nums text-slate-500">{formatMoney(r.projected, 'CAD')}</td>
+                        <td className="px-5 py-3.5 text-right font-medium tabular-nums text-slate-800">{formatMoney(r.earned, 'CAD')}</td>
+                        <td className="px-5 py-3.5 text-right">
+                          <div className="tabular-nums text-slate-500">{formatMoney(r.paid, 'CAD')}</div>
+                          <div className="ml-auto mt-1 h-1 w-20 overflow-hidden rounded-full bg-slate-100">
+                            <div className={`h-full rounded-full ${pct >= 100 ? 'bg-emerald-500' : 'bg-brand'}`} style={{ width: `${pct}%` }} />
+                          </div>
+                        </td>
+                        <td className={`px-5 py-3.5 text-right font-semibold tabular-nums ${r.outstanding > 0.01 ? 'text-rose-600' : 'text-emerald-600'}`}>
                           {formatMoney(r.outstanding, 'CAD')}
                         </td>
-                        <td className="px-5 py-3">
+                        <td className="px-5 py-3.5">
                           <RowActions viewHref={`/commissions/${r.id}`} label="member" />
                         </td>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        </FadeIn>
-
-        {/* Record payout */}
-        <FadeIn delay={0.12}>
-          <form action={recordCommissionPayout} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h2 className="mb-4 flex items-center gap-2 text-sm font-semibold">
-              <Plus size={16} className="text-brand" /> Record a payout
-            </h2>
-            <div className="space-y-3">
-              <label className="block">
-                <span className="mb-1 block text-xs font-medium text-slate-600">Team member *</span>
-                <select name="userId" required className={inputCls} defaultValue="">
-                  <option value="" disabled>Select…</option>
-                  {(people.length ? people : rows).map((r) => (
-                    <option key={r.id} value={r.id}>{r.name}</option>
-                  ))}
-                </select>
-              </label>
-              <label className="block">
-                <span className="mb-1 block text-xs font-medium text-slate-600">Amount (CAD) *</span>
-                <input name="amount" type="number" min="0" step="any" required className={inputCls} placeholder="500" />
-              </label>
-              <label className="block">
-                <span className="mb-1 block text-xs font-medium text-slate-600">Date</span>
-                <input name="paidAt" type="date" defaultValue={today} className={inputCls} />
-              </label>
-              <label className="block">
-                <span className="mb-1 block text-xs font-medium text-slate-600">Method</span>
-                <input name="method" className={inputCls} placeholder="Wise, Payoneer, bank…" />
-              </label>
-              <label className="block">
-                <span className="mb-1 block text-xs font-medium text-slate-600">Note</span>
-                <input name="note" className={inputCls} placeholder="e.g. June commission" />
-              </label>
-              <button
-                type="submit"
-                className="w-full rounded-xl bg-brand px-4 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-brand-dark"
-              >
-                Record payout
-              </button>
+                    );
+                  })}
+                </tbody>
+                <tfoot>
+                  <tr className="border-t border-slate-200 bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    <td className="px-5 py-3">Total</td>
+                    <td className="px-5 py-3 text-right tabular-nums">{formatMoney(totals.projected, 'CAD')}</td>
+                    <td className="px-5 py-3 text-right tabular-nums">{formatMoney(totals.earned, 'CAD')}</td>
+                    <td className="px-5 py-3 text-right tabular-nums">{formatMoney(totals.paid, 'CAD')}</td>
+                    <td className="px-5 py-3 text-right tabular-nums">{formatMoney(totals.outstanding, 'CAD')}</td>
+                    <td className="px-5 py-3" />
+                  </tr>
+                </tfoot>
+              </table>
             </div>
-          </form>
-        </FadeIn>
-      </div>
+          )}
+        </div>
+      </FadeIn>
+
+      {/* Record payout — full-width horizontal form */}
+      <FadeIn delay={0.14}>
+        <form action={recordCommissionPayout} className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <h2 className="mb-4 flex items-center gap-2 text-sm font-semibold">
+            <Plus size={16} className="text-brand" /> Record a payout
+          </h2>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
+            <label className="block">
+              <span className="mb-1 block text-xs font-medium text-slate-600">Team member *</span>
+              <select name="userId" required className={inputCls} defaultValue="">
+                <option value="" disabled>Select…</option>
+                {(people.length ? people : rows).map((r) => (
+                  <option key={r.id} value={r.id}>{r.name}</option>
+                ))}
+              </select>
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-xs font-medium text-slate-600">Amount (CAD) *</span>
+              <input name="amount" type="number" min="0" step="any" required className={inputCls} placeholder="500" />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-xs font-medium text-slate-600">Date</span>
+              <input name="paidAt" type="date" defaultValue={today} className={inputCls} />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-xs font-medium text-slate-600">Method</span>
+              <input name="method" className={inputCls} placeholder="Wise, Payoneer, bank…" />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-xs font-medium text-slate-600">Note</span>
+              <input name="note" className={inputCls} placeholder="e.g. June commission" />
+            </label>
+          </div>
+          <div className="mt-4 flex justify-end">
+            <AnimatedButton
+              type="submit"
+              className="rounded-xl bg-brand px-5 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-brand-dark"
+            >
+              Record payout
+            </AnimatedButton>
+          </div>
+        </form>
+      </FadeIn>
     </div>
   );
 }
