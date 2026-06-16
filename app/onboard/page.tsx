@@ -17,7 +17,8 @@ export default async function OnboardPage() {
   const noTeam = users.length === 0;
   const projSecs = await projectSections({ users });
 
-  const clientStep = (
+  // Client info is split into three short steps so no screen is overwhelming.
+  const contactStep = (
     <SectionCard title="Client / Contact">
       <Field label="Client / business name" required>
         <input name="clientName" required className={inputCls} placeholder="Acme Inc." />
@@ -31,6 +32,11 @@ export default async function OnboardPage() {
       <Field label="Client phone">
         <input name="clientPhone" className={inputCls} placeholder="+1 555 123 4567" />
       </Field>
+    </SectionCard>
+  );
+
+  const backgroundStep = (
+    <SectionCard title="Background & Source">
       <Field label="Source" hint="How they found us">
         <select name="source" className={inputCls} defaultValue="">
           <option value="">Select…</option>
@@ -56,6 +62,11 @@ export default async function OnboardPage() {
       <Field label="Social / other links">
         <input name="socialLinks" className={inputCls} placeholder="@acme, linkedin.com/…" />
       </Field>
+    </SectionCard>
+  );
+
+  const salesStep = (
+    <SectionCard title="Sales & Tax">
       <Field label="Salesperson" hint="Who brought this lead in (for commission)">
         <select name="salespersonId" className={inputCls} defaultValue="">
           <option value="">None</option>
@@ -86,7 +97,9 @@ export default async function OnboardPage() {
   );
 
   const steps: WizardStep[] = [
-    { id: 'client', label: 'Client', content: clientStep },
+    { id: 'contact', label: 'Client', content: contactStep },
+    { id: 'background', label: 'Background', content: backgroundStep },
+    { id: 'sales', label: 'Sales', content: salesStep },
     ...projSecs.map((s) => ({ id: s.id, label: s.short, content: s.node })),
   ];
 
