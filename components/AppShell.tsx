@@ -54,17 +54,33 @@ async function hardRefresh() {
 }
 
 type NavItem = { href: string; label: string; icon: LucideIcon };
+type NavSection = { title?: string; items: NavItem[] };
 
-const nav: NavItem[] = [
-  { href: '/', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/clients', label: 'Clients', icon: Briefcase },
-  { href: '/projects', label: 'Projects', icon: FolderKanban },
-  { href: '/commissions', label: 'Commissions', icon: Coins },
-  { href: '/finance', label: 'Finance', icon: PiggyBank },
-  { href: '/invoices', label: 'Invoices', icon: FileText },
-  { href: '/assistant', label: 'Assistant', icon: Sparkles },
-  { href: '/team', label: 'Team', icon: Users },
-  { href: '/settings', label: 'Settings', icon: Settings },
+const navSections: NavSection[] = [
+  { items: [{ href: '/', label: 'Dashboard', icon: LayoutDashboard }] },
+  {
+    title: 'Delivery',
+    items: [
+      { href: '/clients', label: 'Clients', icon: Briefcase },
+      { href: '/projects', label: 'Projects', icon: FolderKanban },
+    ],
+  },
+  {
+    title: 'Money',
+    items: [
+      { href: '/invoices', label: 'Invoices', icon: FileText },
+      { href: '/finance', label: 'Finance', icon: PiggyBank },
+      { href: '/commissions', label: 'Commissions', icon: Coins },
+    ],
+  },
+  {
+    title: 'More',
+    items: [
+      { href: '/assistant', label: 'Assistant', icon: Sparkles },
+      { href: '/team', label: 'Team', icon: Users },
+      { href: '/settings', label: 'Settings', icon: Settings },
+    ],
+  },
 ];
 
 function NavContent({
@@ -90,38 +106,47 @@ function NavContent({
       </div>
 
       <nav className="flex-1 space-y-1 px-3 py-4">
-        {!collapsed && (
-          <p className="px-3 pb-2 text-[11px] font-semibold uppercase tracking-wider text-slate-400">Menu</p>
-        )}
-        {nav.map(({ href, label, icon: Icon }) => {
-          const active = isActive(href);
-          return (
-            <MotionLink
-              key={href}
-              href={href}
-              onClick={onNavigate}
-              title={collapsed ? label : undefined}
-              whileHover={{ x: collapsed ? 0 : 3 }}
-              whileTap={{ scale: 0.98 }}
-              transition={{ type: 'spring', stiffness: 500, damping: 30 }}
-              className={`relative flex items-center rounded-lg py-2 text-sm font-medium transition-colors ${
-                collapsed ? 'justify-center px-2' : 'gap-3 px-3'
-              } ${
-                active ? 'bg-brand-light text-brand' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
-              }`}
-            >
-              {active && (
-                <motion.span
-                  layoutId="nav-active"
-                  className="absolute left-0 top-1/2 h-5 w-1 -translate-y-1/2 rounded-r-full bg-brand"
-                  transition={{ type: 'spring', stiffness: 500, damping: 32 }}
-                />
-              )}
-              <Icon size={18} className={active ? 'text-brand' : 'text-slate-400'} />
-              {!collapsed && label}
-            </MotionLink>
-          );
-        })}
+        {navSections.map((section, si) => (
+          <div key={section.title ?? 'main'} className={si > 0 ? 'pt-3' : ''}>
+            {section.title &&
+              (collapsed ? (
+                <div className="mx-2 mb-1 border-t border-slate-100" />
+              ) : (
+                <p className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                  {section.title}
+                </p>
+              ))}
+            {section.items.map(({ href, label, icon: Icon }) => {
+              const active = isActive(href);
+              return (
+                <MotionLink
+                  key={href}
+                  href={href}
+                  onClick={onNavigate}
+                  title={collapsed ? label : undefined}
+                  whileHover={{ x: collapsed ? 0 : 3 }}
+                  whileTap={{ scale: 0.98 }}
+                  transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+                  className={`relative flex items-center rounded-lg py-2 text-sm font-medium transition-colors ${
+                    collapsed ? 'justify-center px-2' : 'gap-3 px-3'
+                  } ${
+                    active ? 'bg-brand-light text-brand' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                  }`}
+                >
+                  {active && (
+                    <motion.span
+                      layoutId="nav-active"
+                      className="absolute left-0 top-1/2 h-5 w-1 -translate-y-1/2 rounded-r-full bg-brand"
+                      transition={{ type: 'spring', stiffness: 500, damping: 32 }}
+                    />
+                  )}
+                  <Icon size={18} className={active ? 'text-brand' : 'text-slate-400'} />
+                  {!collapsed && label}
+                </MotionLink>
+              );
+            })}
+          </div>
+        ))}
 
         <div className="px-1 pt-4">
           <Link
