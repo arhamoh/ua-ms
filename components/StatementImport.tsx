@@ -3,7 +3,7 @@
 import { useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { UploadCloud, FileSpreadsheet, CheckCircle2, RotateCcw, Loader2 } from 'lucide-react';
+import { UploadCloud, FileSpreadsheet, CheckCircle2, RotateCcw, Loader2, Eye } from 'lucide-react';
 import { importStatementExpenses } from '@/app/actions';
 
 function fileToBase64(file: File): Promise<string> {
@@ -173,6 +173,10 @@ export default function StatementImport({ currencies, categories }: { currencies
   const [overrides, setOverrides] = useState<Record<number, Override>>({});
   const [result, setResult] = useState<number | null>(null);
   const [pending, start] = useTransition();
+  // Preview of the original file (PDF data URL / raw CSV text). Temporary trust
+  // aid — safe to remove this + the panel below once no longer needed.
+  const [sourceData, setSourceData] = useState('');
+  const [showPreview, setShowPreview] = useState(false);
 
   const onFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
@@ -192,6 +196,7 @@ export default function StatementImport({ currencies, categories }: { currencies
       setPdfLoading(true);
       try {
         const dataUrl = await fileToBase64(f);
+        setSourceData(dataUrl);
         const r = await fetch('/api/parse-statement', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -226,6 +231,7 @@ export default function StatementImport({ currencies, categories }: { currencies
     }
 
     const text = await f.text();
+    setSourceData(text);
     const all = parseCsv(text);
     const headerIdx = detectHeaderIndex(all);
     const rows = headerIdx > 0 ? all.slice(headerIdx) : all;
@@ -246,6 +252,8 @@ export default function StatementImport({ currencies, categories }: { currencies
     setFileName('');
     setOverrides({});
     setResult(null);
+    setSourceData('');
+    setShowPreview(false);
   };
 
   const header = useMemo(() => {
@@ -412,9 +420,16 @@ export default function StatementImport({ currencies, categories }: { currencies
               · {mode === 'csv' ? `${hasHeader ? rawRows.length - 1 : rawRows.length} rows` : `${txns.length} transactions`}
             </span>
           </h2>
-          <button onClick={reset} className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-500 hover:text-slate-800">
-            <RotateCcw size={13} /> Choose a different file
-          </button>
+          <div className="flex items-center gap-3">
+            {sourceData && (
+              <button onClick={() => setShowPreview((v) => !v)} className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-500 hover:text-brand">
+                <Eye size={13} /> {showPreview ? 'Hide original' : 'Preview original'}
+              </button>
+            )}
+            <button onClick={reset} className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-500 hover:text-slate-800">
+              <RotateCcw size={13} /> Choose a different file
+            </button>
+          </div>
         </div>
 
         {mode === 'csv' && (
@@ -515,6 +530,23 @@ export default function StatementImport({ currencies, categories }: { currencies
 
       {pdfNotice && (
         <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-xs text-amber-800">{pdfNotice}</div>
+      )}
+
+      {/* Original-file preview (temporary trust aid) */}
+      {showPreview && sourceData && (
+        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <div className="flex items-center justify-between border-b border-slate-100 px-5 py-3">
+            <h2 className="flex items-center gap-2 text-sm font-semibold"><Eye size={15} className="text-slate-400" /> Original file</h2>
+            <button onClick={() => setShowPreview(false)} className="text-xs font-medium text-slate-500 hover:text-slate-800">Hide</button>
+          </div>
+          {mode === 'pdf' ? (
+            <iframe title="Statement preview" src={sourceData} className="h-[70vh] w-full bg-slate-50" />
+          ) : (
+            <pre className="max-h-[480px] overflow-auto whitespace-pre bg-slate-50 p-4 text-xs leading-relaxed text-slate-600">
+              {sourceData.slice(0, 20000)}
+            </pre>
+          )}
+        </div>
       )}
 
       {/* Review table */}
