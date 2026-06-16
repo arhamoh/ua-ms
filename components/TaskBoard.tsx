@@ -9,10 +9,12 @@ import {
   TASK_STATUSES,
   TASK_STATUS_LABELS,
   TASK_STATUS_DOT,
+  TASK_STATUS_BADGE,
   PRIORITIES,
   PRIORITY_LABELS,
-  PRIORITY_DOT,
+  PRIORITY_BADGE,
 } from '@/lib/enums';
+import Pill from '@/components/Pill';
 
 type Tag = { id: string; name: string; color: string };
 type Member = { id: string; name: string };
@@ -77,7 +79,7 @@ function Card({ task, onClick, onDragStart }: { task: BoardTask; onClick: () => 
         </div>
       )}
       <div className="mt-2 flex items-center gap-2">
-        <span className={`h-2 w-2 rounded-full ${PRIORITY_DOT[task.priority] ?? 'bg-slate-300'}`} title={PRIORITY_LABELS[task.priority]} />
+        <Pill className={PRIORITY_BADGE[task.priority] ?? 'bg-slate-100 text-slate-500'}>{PRIORITY_LABELS[task.priority] ?? task.priority}</Pill>
         {task.dueDate && (
           <span className="flex items-center gap-1 text-[11px] text-slate-400">
             <Calendar size={11} /> {task.dueDate.slice(0, 10)}
@@ -289,16 +291,10 @@ function ListView({ tasks, onOpen }: { tasks: BoardTask[]; onOpen: (t: BoardTask
                 <div className="mt-1"><TagChips tags={t.tags} /></div>
               </td>
               <td className="px-5 py-3">
-                <span className="inline-flex items-center gap-1.5 text-slate-600">
-                  <span className={`h-2 w-2 rounded-full ${TASK_STATUS_DOT[t.status]}`} />
-                  {TASK_STATUS_LABELS[t.status]}
-                </span>
+                <Pill className={TASK_STATUS_BADGE[t.status] ?? 'bg-slate-100 text-slate-500'}>{TASK_STATUS_LABELS[t.status]}</Pill>
               </td>
               <td className="px-5 py-3">
-                <span className="inline-flex items-center gap-1.5 text-slate-600">
-                  <span className={`h-2 w-2 rounded-full ${PRIORITY_DOT[t.priority]}`} />
-                  {PRIORITY_LABELS[t.priority]}
-                </span>
+                <Pill className={PRIORITY_BADGE[t.priority] ?? 'bg-slate-100 text-slate-500'}>{PRIORITY_LABELS[t.priority]}</Pill>
               </td>
               <td className="px-5 py-3 text-slate-600">{t.assignee?.name ?? '—'}</td>
               <td className="px-5 py-3 text-slate-500">{t.dueDate ? t.dueDate.slice(0, 10) : '—'}</td>

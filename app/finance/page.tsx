@@ -12,11 +12,13 @@ import {
   recordLoanRecovery,
   deleteLoan,
 } from '@/app/actions';
-import { EXPENSE_CATEGORY_LABELS, formatMoney } from '@/lib/enums';
+import { EXPENSE_CATEGORY_LABELS, EXPENSE_CATEGORY_BADGE, formatMoney } from '@/lib/enums';
 import { getOptions } from '@/lib/options';
 import { getRatesToCad, toCad } from '@/lib/fx';
 import FadeIn from '@/components/FadeIn';
 import RowActions from '@/components/RowActions';
+import Pill from '@/components/Pill';
+import AnimatedButton from '@/components/AnimatedButton';
 
 export const dynamic = 'force-dynamic';
 
@@ -199,7 +201,7 @@ export default async function FinancePage({
                       {expenses.map((e) => (
                         <tr key={e.id} className="hover:bg-slate-50">
                           <td className="px-5 py-3 font-medium text-slate-800">{e.title}</td>
-                          <td className="px-5 py-3 text-slate-500">{EXPENSE_CATEGORY_LABELS[e.category] ?? e.category}</td>
+                          <td className="px-5 py-3"><Pill className={EXPENSE_CATEGORY_BADGE[e.category] ?? 'bg-slate-100 text-slate-500'}>{EXPENSE_CATEGORY_LABELS[e.category] ?? e.category}</Pill></td>
                           <td className="px-5 py-3">
                             {e.paidById ? (
                               <div className="flex flex-col gap-1">
@@ -258,7 +260,7 @@ export default async function FinancePage({
                 </label>
                 <label className="block"><span className="mb-1 block text-xs font-medium text-slate-600">Date</span><input name="date" type="date" defaultValue={today} className={inputCls} /></label>
                 <label className="block"><span className="mb-1 block text-xs font-medium text-slate-600">Note</span><input name="note" className={inputCls} /></label>
-                <button className="w-full rounded-xl bg-brand px-4 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-brand-dark">Add expense</button>
+                <AnimatedButton className="w-full rounded-xl bg-brand px-4 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-brand-dark">Add expense</AnimatedButton>
               </div>
             </form>
           </FadeIn>
@@ -329,7 +331,7 @@ export default async function FinancePage({
                     <label className="block"><span className="mb-1 block text-xs font-medium text-slate-600">Cur</span><select name="currency" defaultValue="CAD" className={inputCls}>{currencies.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}</select></label>
                   </div>
                   <label className="block"><span className="mb-1 block text-xs font-medium text-slate-600">Effective from</span><input name="effectiveFrom" type="date" defaultValue={today} className={inputCls} /></label>
-                  <button className="w-full rounded-xl bg-brand px-4 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-brand-dark">Save salary</button>
+                  <AnimatedButton className="w-full rounded-xl bg-brand px-4 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-brand-dark">Save salary</AnimatedButton>
                 </div>
               </form>
             </FadeIn>
@@ -345,7 +347,7 @@ export default async function FinancePage({
                   </div>
                   <label className="block"><span className="mb-1 block text-xs font-medium text-slate-600">Date</span><input name="paidAt" type="date" defaultValue={today} className={inputCls} /></label>
                   <label className="block"><span className="mb-1 block text-xs font-medium text-slate-600">Method</span><input name="method" className={inputCls} placeholder="Wise, Remitly…" /></label>
-                  <button className="w-full rounded-xl bg-brand px-4 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-brand-dark">Record payment</button>
+                  <AnimatedButton className="w-full rounded-xl bg-brand px-4 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-brand-dark">Record payment</AnimatedButton>
                 </div>
               </form>
             </FadeIn>
@@ -464,7 +466,7 @@ export default async function FinancePage({
                   </div>
                   <label className="block"><span className="mb-1 block text-xs font-medium text-slate-600">Date received</span><input name="givenAt" type="date" defaultValue={today} className={inputCls} /></label>
                   <label className="block"><span className="mb-1 block text-xs font-medium text-slate-600">Already paid back (CAD)</span><input name="recoveredAmount" type="number" min="0" step="any" className={inputCls} placeholder="0" /><span className="mt-1 block text-xs text-slate-400">For older loans that are already partly repaid.</span></label>
-                  <button className="w-full rounded-xl bg-brand px-4 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-brand-dark">Add loan</button>
+                  <AnimatedButton className="w-full rounded-xl bg-brand px-4 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-brand-dark">Add loan</AnimatedButton>
                 </div>
               </form>
             </FadeIn>

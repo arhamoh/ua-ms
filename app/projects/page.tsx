@@ -1,8 +1,17 @@
 import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
-import { PROJECT_STATUS_LABELS, STATUS_BADGE, PROJECT_TYPE_LABELS, formatMoney } from '@/lib/enums';
+import {
+  PROJECT_STATUS_LABELS,
+  STATUS_BADGE,
+  PROJECT_TYPE_LABELS,
+  PROJECT_TYPE_BADGE,
+  PRIORITY_LABELS,
+  PRIORITY_BADGE,
+  formatMoney,
+} from '@/lib/enums';
 import FadeIn from '@/components/FadeIn';
 import RowActions from '@/components/RowActions';
+import Pill from '@/components/Pill';
 import { deleteProject } from '@/app/actions';
 
 export const dynamic = 'force-dynamic';
@@ -50,6 +59,7 @@ export default async function ProjectsPage() {
                     <th className="px-5 py-3 font-medium">Client</th>
                     <th className="px-5 py-3 font-medium">Type</th>
                     <th className="px-5 py-3 font-medium">Status</th>
+                    <th className="px-5 py-3 font-medium">Priority</th>
                     <th className="px-5 py-3 text-right font-medium">Budget</th>
                     <th className="px-5 py-3 font-medium">Deadline</th>
                     <th className="px-5 py-3 font-medium">Progress</th>
@@ -73,11 +83,20 @@ export default async function ProjectsPage() {
                             {p.client.name}
                           </Link>
                         </td>
-                        <td className="px-5 py-3 text-slate-500">{PROJECT_TYPE_LABELS[p.type] ?? p.type}</td>
                         <td className="px-5 py-3">
-                          <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_BADGE[p.status] ?? ''}`}>
+                          <Pill className={PROJECT_TYPE_BADGE[p.type] ?? 'bg-slate-100 text-slate-600'}>
+                            {PROJECT_TYPE_LABELS[p.type] ?? p.type}
+                          </Pill>
+                        </td>
+                        <td className="px-5 py-3">
+                          <Pill className={STATUS_BADGE[p.status] ?? 'bg-slate-100 text-slate-600'}>
                             {PROJECT_STATUS_LABELS[p.status] ?? p.status}
-                          </span>
+                          </Pill>
+                        </td>
+                        <td className="px-5 py-3">
+                          <Pill className={PRIORITY_BADGE[p.priority] ?? 'bg-slate-100 text-slate-500'}>
+                            {PRIORITY_LABELS[p.priority] ?? p.priority}
+                          </Pill>
                         </td>
                         <td className="px-5 py-3 text-right tabular-nums text-slate-700">
                           {p.budgetAmount != null ? formatMoney(p.budgetAmount, p.budgetCurrency ?? 'USD') : '—'}

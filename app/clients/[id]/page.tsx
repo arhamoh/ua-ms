@@ -8,12 +8,15 @@ import {
   PROJECT_STATUS_LABELS,
   STATUS_BADGE,
   PROJECT_TYPE_LABELS,
+  PROJECT_TYPE_BADGE,
   CLIENT_SOURCE_LABELS,
   PAYMENT_METHODS,
   PAYMENT_METHOD_LABELS,
   CURRENCIES,
   formatMoney,
 } from '@/lib/enums';
+import Pill from '@/components/Pill';
+import AnimatedButton from '@/components/AnimatedButton';
 import FadeIn from '@/components/FadeIn';
 import { getRatesToCad, toCad } from '@/lib/fx';
 import { getOptions } from '@/lib/options';
@@ -159,11 +162,15 @@ export default async function ClientProfilePage({
                               {p.name}
                             </Link>
                           </td>
-                          <td className="px-5 py-3 text-slate-500">{PROJECT_TYPE_LABELS[p.type] ?? p.type}</td>
                           <td className="px-5 py-3">
-                            <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_BADGE[p.status] ?? ''}`}>
+                            <Pill className={PROJECT_TYPE_BADGE[p.type] ?? 'bg-slate-100 text-slate-600'}>
+                              {PROJECT_TYPE_LABELS[p.type] ?? p.type}
+                            </Pill>
+                          </td>
+                          <td className="px-5 py-3">
+                            <Pill className={STATUS_BADGE[p.status] ?? 'bg-slate-100 text-slate-600'}>
                               {PROJECT_STATUS_LABELS[p.status] ?? p.status}
-                            </span>
+                            </Pill>
                           </td>
                           <td className="px-5 py-3 text-right font-medium tabular-nums">
                             {p.budgetAmount != null ? formatMoney(p.budgetAmount, p.budgetCurrency ?? 'CAD') : '—'}
@@ -309,12 +316,12 @@ export default async function ClientProfilePage({
                 <input name="note" className={inputCls} placeholder="e.g. 50% deposit" />
               </label>
 
-              <button
+              <AnimatedButton
                 type="submit"
-                className="w-full rounded-xl bg-brand px-4 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-brand-dark"
+                className="w-full rounded-xl bg-brand px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-brand-dark"
               >
                 Record payment
-              </button>
+              </AnimatedButton>
             </div>
           </form>
         </FadeIn>

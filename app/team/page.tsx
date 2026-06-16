@@ -2,6 +2,7 @@ import { prisma } from '@/lib/prisma';
 import { createTeamMember, deleteUser } from '@/app/actions';
 import { ROLES, ROLE_LABELS } from '@/lib/enums';
 import RowActions from '@/components/RowActions';
+import AnimatedButton from '@/components/AnimatedButton';
 
 export const dynamic = 'force-dynamic';
 
@@ -55,12 +56,12 @@ export default async function TeamPage() {
               ))}
             </div>
 
-            <button
+            <AnimatedButton
               type="submit"
               className="w-full rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-dark"
             >
               Add member
-            </button>
+            </AnimatedButton>
           </form>
         </div>
 

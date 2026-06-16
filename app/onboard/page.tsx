@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
 import { onboardClient } from '@/app/actions';
 import ProjectFields, { SectionCard, Field, inputCls } from '@/components/ProjectFields';
+import AnimatedButton from '@/components/AnimatedButton';
 import { getOptions } from '@/lib/options';
 import { TAX_REGIONS } from '@/lib/company';
 
@@ -107,12 +108,12 @@ export default async function OnboardPage() {
           <Link href="/" className="rounded-xl px-4 py-2.5 text-sm text-slate-600 hover:bg-slate-100">
             Cancel
           </Link>
-          <button
+          <AnimatedButton
             type="submit"
-            className="rounded-xl bg-brand px-5 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-brand-dark"
+            className="rounded-xl bg-brand px-5 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-brand-dark"
           >
             Onboard client
-          </button>
+          </AnimatedButton>
         </div>
       </form>
     </div>

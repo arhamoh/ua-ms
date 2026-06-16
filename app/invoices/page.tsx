@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { INVOICE_STATUS_LABELS, INVOICE_STATUS_BADGE, formatMoney } from '@/lib/enums';
 import FadeIn from '@/components/FadeIn';
 import RowActions from '@/components/RowActions';
+import Pill from '@/components/Pill';
 import { deleteInvoice } from '@/app/actions';
 
 export const dynamic = 'force-dynamic';
@@ -52,9 +53,7 @@ export default async function InvoicesPage() {
                       <td className="px-5 py-3 text-slate-600">{inv.client.name}</td>
                       <td className="px-5 py-3 text-slate-500">{inv.project?.name ?? '—'}</td>
                       <td className="px-5 py-3">
-                        <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${INVOICE_STATUS_BADGE[inv.status]}`}>
-                          {INVOICE_STATUS_LABELS[inv.status]}
-                        </span>
+                        <Pill className={INVOICE_STATUS_BADGE[inv.status]}>{INVOICE_STATUS_LABELS[inv.status]}</Pill>
                       </td>
                       <td className="px-5 py-3 text-right font-medium tabular-nums">
                         {formatMoney(inv.amount, inv.currency)}

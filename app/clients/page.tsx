@@ -5,6 +5,7 @@ import { formatMoney } from '@/lib/enums';
 import { getRatesToCad, toCad } from '@/lib/fx';
 import { deleteClient } from '@/app/actions';
 import RowActions from '@/components/RowActions';
+import Pill from '@/components/Pill';
 
 export const dynamic = 'force-dynamic';
 
@@ -75,6 +76,7 @@ export default async function ClientsPage() {
                   <th className="px-5 py-3 text-right font-medium">Lifetime bill</th>
                   <th className="px-5 py-3 text-right font-medium">Paid</th>
                   <th className="px-5 py-3 text-right font-medium">Pending</th>
+                  <th className="px-5 py-3 font-medium">Status</th>
                   <th className="px-5 py-3 text-right font-medium">Actions</th>
                 </tr>
               </thead>
@@ -100,6 +102,15 @@ export default async function ClientsPage() {
                       {formatMoney(pending, 'CAD')}
                     </td>
                     <td className="px-5 py-3">
+                      {billed < 0.5 ? (
+                        <Pill className="bg-slate-100 text-slate-500">No bills</Pill>
+                      ) : pending > 0.5 ? (
+                        <Pill className="bg-rose-100 text-rose-700">Owed</Pill>
+                      ) : (
+                        <Pill className="bg-emerald-100 text-emerald-700">Paid</Pill>
+                      )}
+                    </td>
+                    <td className="px-5 py-3">
                       <RowActions
                         viewHref={`/clients/${c.id}`}
                         editHref={`/clients/${c.id}/edit`}
@@ -120,6 +131,7 @@ export default async function ClientsPage() {
                     {formatMoney(rows.reduce((s, r) => s + r.paid, 0), 'CAD')}
                   </td>
                   <td className="px-5 py-3 text-right tabular-nums">{formatMoney(totalPending, 'CAD')}</td>
+                  <td className="px-5 py-3" />
                   <td className="px-5 py-3" />
                 </tr>
               </tfoot>

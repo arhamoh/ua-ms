@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import { motion } from 'motion/react';
 import {
   LayoutDashboard,
   Users,
@@ -26,6 +27,8 @@ import CommandPalette from '@/components/CommandPalette';
 import AssistantWidget from '@/components/AssistantWidget';
 import { logout } from '@/app/login/actions';
 import type { SessionUser } from '@/lib/auth';
+
+const MotionLink = motion.create(Link);
 
 function openSearch() {
   window.dispatchEvent(new Event('open-command-palette'));
@@ -81,19 +84,29 @@ function NavContent({ onNavigate, user }: { onNavigate?: () => void; user: Sessi
         {nav.map(({ href, label, icon: Icon }) => {
           const active = isActive(href);
           return (
-            <Link
+            <MotionLink
               key={href}
               href={href}
               onClick={onNavigate}
-              className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition ${
+              whileHover={{ x: 3 }}
+              whileTap={{ scale: 0.98 }}
+              transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+              className={`relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
                 active
                   ? 'bg-brand-light text-brand'
                   : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
               }`}
             >
+              {active && (
+                <motion.span
+                  layoutId="nav-active"
+                  className="absolute left-0 top-1/2 h-5 w-1 -translate-y-1/2 rounded-r-full bg-brand"
+                  transition={{ type: 'spring', stiffness: 500, damping: 32 }}
+                />
+              )}
               <Icon size={18} className={active ? 'text-brand' : 'text-slate-400'} />
               {label}
-            </Link>
+            </MotionLink>
           );
         })}
 

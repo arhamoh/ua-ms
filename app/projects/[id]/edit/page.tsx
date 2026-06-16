@@ -4,6 +4,7 @@ import { ArrowLeft } from 'lucide-react';
 import { prisma } from '@/lib/prisma';
 import { updateProject } from '@/app/actions';
 import ProjectFields from '@/components/ProjectFields';
+import AnimatedButton from '@/components/AnimatedButton';
 
 export const dynamic = 'force-dynamic';
 
@@ -48,12 +49,12 @@ export default async function EditProjectPage({ params }: { params: Promise<{ id
           <Link href={`/projects/${project.id}`} className="rounded-xl px-4 py-2.5 text-sm text-slate-600 hover:bg-slate-100">
             Cancel
           </Link>
-          <button
+          <AnimatedButton
             type="submit"
-            className="rounded-xl bg-brand px-5 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-brand-dark"
+            className="rounded-xl bg-brand px-5 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-brand-dark"
           >
             Save changes
-          </button>
+          </AnimatedButton>
         </div>
       </form>
     </div>

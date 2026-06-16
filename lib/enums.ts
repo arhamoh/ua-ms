@@ -157,3 +157,34 @@ export const STATUS_BADGE: Record<string, string> = {
   CANCELLED: 'bg-rose-100 text-rose-700',
   ARCHIVED: 'bg-slate-100 text-slate-400',
 };
+
+export const PRIORITY_BADGE: Record<string, string> = {
+  LOW: 'bg-slate-100 text-slate-500',
+  MEDIUM: 'bg-amber-100 text-amber-700',
+  HIGH: 'bg-rose-100 text-rose-700',
+};
+
+export const TASK_STATUS_BADGE: Record<string, string> = {
+  BACKLOG: 'bg-slate-100 text-slate-500',
+  TODO: 'bg-sky-100 text-sky-700',
+  IN_PROGRESS: 'bg-amber-100 text-amber-700',
+  IN_REVIEW: 'bg-violet-100 text-violet-700',
+  DONE: 'bg-emerald-100 text-emerald-700',
+};
+
+export const PROJECT_TYPE_BADGE: Record<string, string> = {
+  DESIGN: 'bg-violet-100 text-violet-700',
+  DEVELOPMENT: 'bg-sky-100 text-sky-700',
+  SOFTWARE: 'bg-indigo-100 text-indigo-700',
+};
+
+export const EXPENSE_CATEGORY_BADGE: Record<string, string> = {
+  SOFTWARE: 'bg-indigo-100 text-indigo-700',
+  HOSTING: 'bg-sky-100 text-sky-700',
+  MARKETING: 'bg-pink-100 text-pink-700',
+  OFFICE: 'bg-slate-100 text-slate-600',
+  CONTRACTOR: 'bg-amber-100 text-amber-700',
+  EQUIPMENT: 'bg-teal-100 text-teal-700',
+  FEES: 'bg-rose-100 text-rose-700',
+  OTHER: 'bg-slate-100 text-slate-500',
+};
