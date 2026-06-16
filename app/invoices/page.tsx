@@ -2,6 +2,8 @@ import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
 import { INVOICE_STATUS_LABELS, INVOICE_STATUS_BADGE, formatMoney } from '@/lib/enums';
 import FadeIn from '@/components/FadeIn';
+import RowActions from '@/components/RowActions';
+import { deleteInvoice } from '@/app/actions';
 
 export const dynamic = 'force-dynamic';
 
@@ -36,6 +38,7 @@ export default async function InvoicesPage() {
                     <th className="px-5 py-3 font-medium">Project</th>
                     <th className="px-5 py-3 font-medium">Status</th>
                     <th className="px-5 py-3 text-right font-medium">Amount</th>
+                    <th className="px-5 py-3 text-right font-medium">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -55,6 +58,13 @@ export default async function InvoicesPage() {
                       </td>
                       <td className="px-5 py-3 text-right font-medium tabular-nums">
                         {formatMoney(inv.amount, inv.currency)}
+                      </td>
+                      <td className="px-5 py-3">
+                        <RowActions
+                          viewHref={`/invoices/${inv.id}`}
+                          deleteAction={deleteInvoice.bind(null, inv.id)}
+                          label="invoice"
+                        />
                       </td>
                     </tr>
                   ))}

@@ -2,7 +2,8 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ArrowLeft, Receipt, Wallet, Scale, Plus } from 'lucide-react';
 import { prisma } from '@/lib/prisma';
-import { recordPayment } from '@/app/actions';
+import { recordPayment, deletePayment } from '@/app/actions';
+import RowActions from '@/components/RowActions';
 import {
   PROJECT_STATUS_LABELS,
   STATUS_BADGE,
@@ -205,6 +206,7 @@ export default async function ClientProfilePage({
                         <th className="px-5 py-3 font-medium">Method</th>
                         <th className="px-5 py-3 font-medium">Project</th>
                         <th className="px-5 py-3 text-right font-medium">Amount</th>
+                        <th className="px-5 py-3 text-right font-medium">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
@@ -223,6 +225,13 @@ export default async function ClientProfilePage({
                               </div>
                             )}
                           </td>
+                          <td className="px-5 py-3">
+                            <RowActions
+                              viewHref={`/receipts/${p.id}`}
+                              deleteAction={deletePayment.bind(null, p.id)}
+                              label="payment"
+                            />
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -234,6 +243,7 @@ export default async function ClientProfilePage({
                         <td className="px-5 py-3 text-right font-semibold tabular-nums">
                           {formatMoney(paid, 'CAD')}
                         </td>
+                        <td className="px-5 py-3" />
                       </tr>
                     </tfoot>
                   </table>

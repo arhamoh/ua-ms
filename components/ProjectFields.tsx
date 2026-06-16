@@ -42,22 +42,45 @@ export function SectionCard({ title, children }: { title: string; children: Reac
 
 type TeamUser = { id: string; name: string; roles: string[] };
 
-// The project-specific sections, shared by onboarding and "add project to client".
-// Field names match the onboardClient / addProjectToClient server actions.
-export default async function ProjectFields({ users }: { users: TeamUser[] }) {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type ProjectInitial = Record<string, any> | undefined;
+
+function dateValue(d: unknown): string {
+  if (!d) return '';
+  try {
+    return new Date(d as string).toISOString().slice(0, 10);
+  } catch {
+    return '';
+  }
+}
+
+// The project-specific sections, shared by onboarding, "add project to client",
+// and the project edit form. Field names match the onboard/add/update actions.
+// Pass `initial` (an existing project) + `assigned` role id-arrays to prefill.
+export default async function ProjectFields({
+  users,
+  initial,
+  assigned,
+}: {
+  users: TeamUser[];
+  initial?: ProjectInitial;
+  assigned?: { pm: string[]; dev: string[]; designer: string[] };
+}) {
   const [projectTypes, currencies] = await Promise.all([getOptions('projectType'), getOptions('currency')]);
   const pms = users.filter((u) => u.roles.includes('PROJECT_MANAGER'));
   const devs = users.filter((u) => u.roles.includes('DEVELOPER'));
   const designers = users.filter((u) => u.roles.includes('DESIGNER'));
+  const a = assigned ?? { pm: [], dev: [], designer: [] };
+  const v = (k: string): string => (initial?.[k] ?? '') as string;
 
   return (
     <>
       <SectionCard title="Project Overview">
         <Field label="Project name" required>
-          <input name="projectName" required className={inputCls} placeholder="Website redesign" />
+          <input name="projectName" required defaultValue={v('name')} className={inputCls} placeholder="Website redesign" />
         </Field>
         <Field label="Project type" required>
-          <select name="projectType" required className={inputCls} defaultValue="">
+          <select name="projectType" required className={inputCls} defaultValue={v('type')}>
             <option value="" disabled>
               Select…
             </option>
@@ -70,24 +93,24 @@ export default async function ProjectFields({ users }: { users: TeamUser[] }) {
         </Field>
         <div className="sm:col-span-2">
           <Field label="Description / goals">
-            <textarea name="description" rows={3} className={inputCls} placeholder="What are we building and why?" />
+            <textarea name="description" rows={3} defaultValue={v('description')} className={inputCls} placeholder="What are we building and why?" />
           </Field>
         </div>
         <Field label="Target audience">
-          <input name="targetAudience" className={inputCls} placeholder="Who is this for?" />
+          <input name="targetAudience" defaultValue={v('targetAudience')} className={inputCls} placeholder="Who is this for?" />
         </Field>
         <Field label="References / inspiration">
-          <input name="referenceLinks" className={inputCls} placeholder="Links to examples" />
+          <input name="referenceLinks" defaultValue={v('referenceLinks')} className={inputCls} placeholder="Links to examples" />
         </Field>
       </SectionCard>
 
       <SectionCard title="Scope · Budget · Timeline">
         <Field label="Budget amount">
-          <input name="budgetAmount" type="number" min="0" step="any" className={inputCls} placeholder="5000" />
+          <input name="budgetAmount" type="number" min="0" step="any" defaultValue={v('budgetAmount')} className={inputCls} placeholder="5000" />
         </Field>
         <div className="grid grid-cols-2 gap-4">
           <Field label="Currency">
-            <select name="budgetCurrency" className={inputCls} defaultValue="USD">
+            <select name="budgetCurrency" className={inputCls} defaultValue={initial?.budgetCurrency ?? 'USD'}>
               {currencies.map((c) => (
                 <option key={c.value} value={c.value}>
                   {c.label}
@@ -96,7 +119,7 @@ export default async function ProjectFields({ users }: { users: TeamUser[] }) {
             </select>
           </Field>
           <Field label="Budget type">
-            <select name="budgetType" className={inputCls} defaultValue="">
+            <select name="budgetType" className={inputCls} defaultValue={v('budgetType')}>
               <option value="">—</option>
               {BUDGET_TYPES.map((b) => (
                 <option key={b} value={b}>
@@ -107,13 +130,13 @@ export default async function ProjectFields({ users }: { users: TeamUser[] }) {
           </Field>
         </div>
         <Field label="Start date">
-          <input name="startDate" type="date" className={inputCls} />
+          <input name="startDate" type="date" defaultValue={dateValue(initial?.startDate)} className={inputCls} />
         </Field>
         <Field label="Deadline">
-          <input name="deadline" type="date" className={inputCls} />
+          <input name="deadline" type="date" defaultValue={dateValue(initial?.deadline)} className={inputCls} />
         </Field>
         <Field label="Priority">
-          <select name="priority" className={inputCls} defaultValue="MEDIUM">
+          <select name="priority" className={inputCls} defaultValue={initial?.priority ?? 'MEDIUM'}>
             {PRIORITIES.map((p) => (
               <option key={p} value={p}>
                 {PRIORITY_LABELS[p]}
@@ -125,26 +148,26 @@ export default async function ProjectFields({ users }: { users: TeamUser[] }) {
 
       <SectionCard title="Assets & Links">
         <Field label="Figma link" hint="For design / dev projects">
-          <input name="figmaLink" className={inputCls} placeholder="https://figma.com/…" />
+          <input name="figmaLink" defaultValue={v('figmaLink')} className={inputCls} placeholder="https://figma.com/…" />
         </Field>
         <Field label="Brand assets / guidelines">
-          <input name="brandAssetsLink" className={inputCls} placeholder="Link to brand kit" />
+          <input name="brandAssetsLink" defaultValue={v('brandAssetsLink')} className={inputCls} placeholder="Link to brand kit" />
         </Field>
         <div className="sm:col-span-2">
           <Field label="Project files" hint="Paste links (Drive, Dropbox, etc.) — one per line">
-            <textarea name="fileLinks" rows={2} className={inputCls} placeholder="https://drive.google.com/…" />
+            <textarea name="fileLinks" rows={2} defaultValue={v('fileLinks')} className={inputCls} placeholder="https://drive.google.com/…" />
           </Field>
         </div>
         <div className="sm:col-span-2">
           <Field label="Domain / hosting access" hint="For development projects">
-            <input name="domainAccess" className={inputCls} placeholder="Registrar, host, access notes" />
+            <input name="domainAccess" defaultValue={v('domainAccess')} className={inputCls} placeholder="Registrar, host, access notes" />
           </Field>
         </div>
       </SectionCard>
 
       <SectionCard title="Assignment (internal)">
         <Field label="Project Manager(s)" hint="Ctrl/Cmd-click to select multiple">
-          <select name="pmIds" multiple className={`${inputCls} h-28`}>
+          <select name="pmIds" multiple defaultValue={a.pm} className={`${inputCls} h-28`}>
             {pms.map((u) => (
               <option key={u.id} value={u.id}>
                 {u.name}
@@ -153,7 +176,7 @@ export default async function ProjectFields({ users }: { users: TeamUser[] }) {
           </select>
         </Field>
         <Field label="Developer(s)" hint="Ctrl/Cmd-click to select multiple">
-          <select name="devIds" multiple className={`${inputCls} h-28`}>
+          <select name="devIds" multiple defaultValue={a.dev} className={`${inputCls} h-28`}>
             {devs.map((u) => (
               <option key={u.id} value={u.id}>
                 {u.name}
@@ -162,7 +185,7 @@ export default async function ProjectFields({ users }: { users: TeamUser[] }) {
           </select>
         </Field>
         <Field label="Designer(s)" hint="Ctrl/Cmd-click to select multiple">
-          <select name="designerIds" multiple className={`${inputCls} h-28`}>
+          <select name="designerIds" multiple defaultValue={a.designer} className={`${inputCls} h-28`}>
             {designers.map((u) => (
               <option key={u.id} value={u.id}>
                 {u.name}
@@ -171,11 +194,11 @@ export default async function ProjectFields({ users }: { users: TeamUser[] }) {
           </select>
         </Field>
         <Field label="PM commission rate (%)" hint="Of project value / payments, to the PM">
-          <input name="pmCommissionRate" type="number" min="0" step="any" defaultValue={10} className={inputCls} />
+          <input name="pmCommissionRate" type="number" min="0" step="any" defaultValue={initial?.pmCommissionRate ?? 10} className={inputCls} />
         </Field>
         <div className="sm:col-span-2">
           <Field label="Internal notes">
-            <textarea name="internalNotes" rows={2} className={inputCls} placeholder="Anything the team should know" />
+            <textarea name="internalNotes" rows={2} defaultValue={v('internalNotes')} className={inputCls} placeholder="Anything the team should know" />
           </Field>
         </div>
       </SectionCard>

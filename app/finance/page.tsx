@@ -1,11 +1,12 @@
 import Link from 'next/link';
 import { TrendingUp, TrendingDown, Scale, Plus } from 'lucide-react';
 import { prisma } from '@/lib/prisma';
-import { addExpense, setSalary, recordSalaryPayment } from '@/app/actions';
+import { addExpense, setSalary, recordSalaryPayment, deleteExpense, deleteSalaryPayment } from '@/app/actions';
 import { EXPENSE_CATEGORY_LABELS, formatMoney } from '@/lib/enums';
 import { getOptions } from '@/lib/options';
 import { getRatesToCad, toCad } from '@/lib/fx';
 import FadeIn from '@/components/FadeIn';
+import RowActions from '@/components/RowActions';
 
 export const dynamic = 'force-dynamic';
 
@@ -153,7 +154,7 @@ export default async function FinancePage({
                 <div className="overflow-x-auto">
                   <table className="w-full min-w-[560px] text-sm">
                     <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
-                      <tr><th className="px-5 py-3 font-medium">Expense</th><th className="px-5 py-3 font-medium">Category</th><th className="px-5 py-3 font-medium">Date</th><th className="px-5 py-3 text-right font-medium">Amount</th></tr>
+                      <tr><th className="px-5 py-3 font-medium">Expense</th><th className="px-5 py-3 font-medium">Category</th><th className="px-5 py-3 font-medium">Date</th><th className="px-5 py-3 text-right font-medium">Amount</th><th className="px-5 py-3 text-right font-medium">Actions</th></tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                       {expenses.map((e) => (
@@ -165,6 +166,7 @@ export default async function FinancePage({
                             <div className="font-medium">{formatMoney(e.amount, e.currency)}</div>
                             {e.currency !== 'CAD' && <div className="text-xs text-slate-400">{formatMoney(e.amountCad ?? cadOf(e.amount, e.currency), 'CAD')} CAD</div>}
                           </td>
+                          <td className="px-5 py-3"><RowActions deleteAction={deleteExpense.bind(null, e.id)} label="expense" /></td>
                         </tr>
                       ))}
                     </tbody>
@@ -237,6 +239,7 @@ export default async function FinancePage({
                             <td className="px-5 py-3 font-medium text-slate-800">{p.user.name}</td>
                             <td className="px-5 py-3 tabular-nums text-slate-500">{p.paidAt.toISOString().slice(0, 10)}</td>
                             <td className="px-5 py-3 text-right tabular-nums">{formatMoney(p.amount, p.currency)}{p.currency !== 'CAD' && <span className="ml-2 text-xs text-slate-400">{formatMoney(p.amountCad ?? cadOf(p.amount, p.currency), 'CAD')} CAD</span>}</td>
+                            <td className="px-5 py-3"><RowActions deleteAction={deleteSalaryPayment.bind(null, p.id)} label="salary payment" /></td>
                           </tr>
                         ))}
                       </tbody>

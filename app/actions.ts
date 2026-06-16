@@ -766,3 +766,114 @@ export async function saveCompanySettings(formData: FormData) {
   revalidatePath('/settings');
   redirect('/settings?done=company');
 }
+
+// ─── Edit / delete (rows) ────────────────────────────────────────────────────
+
+export async function updateClient(formData: FormData) {
+  const id = str(formData.get('clientId'));
+  if (!id) return;
+  await prisma.client.update({
+    where: { id },
+    data: {
+      name: str(formData.get('name')) || 'Client',
+      contactName: str(formData.get('contactName')),
+      email: str(formData.get('clientEmail')),
+      phone: str(formData.get('clientPhone')),
+      source: str(formData.get('source')) || null,
+      sourceOther: str(formData.get('sourceOther')),
+      industry: str(formData.get('industry')),
+      location: str(formData.get('location')),
+      website: str(formData.get('website')),
+      socialLinks: str(formData.get('socialLinks')),
+      leadType: str(formData.get('leadType')) || null,
+      taxRegion: str(formData.get('taxRegion')) || null,
+      salespersonId: str(formData.get('salespersonId')) || null,
+    },
+  });
+  revalidatePath('/clients');
+  revalidatePath(`/clients/${id}`);
+  redirect(`/clients/${id}`);
+}
+
+export async function deleteClient(id: string) {
+  if (!id) return;
+  await prisma.client.delete({ where: { id } });
+  revalidatePath('/clients');
+  revalidatePath('/projects');
+  revalidatePath('/');
+}
+
+export async function updateUser(formData: FormData) {
+  const id = str(formData.get('userId'));
+  if (!id) return;
+  const roles = formData.getAll('roles').map((r) => r.toString()).filter((r) => ROLES.includes(r)) as any[];
+  await prisma.user.update({
+    where: { id },
+    data: {
+      name: str(formData.get('name')) || 'Member',
+      email: (str(formData.get('email')) || '').toLowerCase(),
+      roles,
+    },
+  });
+  revalidatePath('/team');
+  redirect('/team');
+}
+
+export async function deleteUser(id: string) {
+  if (!id) return;
+  await prisma.user.delete({ where: { id } });
+  revalidatePath('/team');
+}
+
+export async function updateProject(formData: FormData) {
+  const id = str(formData.get('projectId'));
+  if (!id) return;
+  const data: any = buildProjectData(formData);
+  const { members, ...scalars } = data;
+  await prisma.project.update({ where: { id }, data: scalars });
+  await prisma.projectMember.deleteMany({ where: { projectId: id } });
+  if (members?.create?.length) {
+    await prisma.projectMember.createMany({
+      data: members.create.map((m: any) => ({ projectId: id, userId: m.userId, role: m.role })),
+    });
+  }
+  revalidatePath(`/projects/${id}`);
+  revalidatePath('/projects');
+  revalidatePath('/clients');
+  redirect(`/projects/${id}`);
+}
+
+export async function deleteProject(id: string) {
+  if (!id) return;
+  await prisma.project.delete({ where: { id } });
+  revalidatePath('/projects');
+  revalidatePath('/clients');
+  revalidatePath('/');
+}
+
+export async function deleteInvoice(id: string) {
+  if (!id) return;
+  await prisma.invoice.delete({ where: { id } });
+  revalidatePath('/invoices');
+}
+
+export async function deletePayment(id: string) {
+  if (!id) return;
+  const p = await prisma.payment.findUnique({ where: { id }, select: { clientId: true } });
+  await prisma.payment.delete({ where: { id } });
+  if (p) revalidatePath(`/clients/${p.clientId}`);
+  revalidatePath('/finance');
+  revalidatePath('/');
+}
+
+export async function deleteExpense(id: string) {
+  if (!id) return;
+  await prisma.expense.delete({ where: { id } });
+  revalidatePath('/finance');
+}
+
+export async function deleteSalaryPayment(id: string) {
+  if (!id) return;
+  await prisma.salaryPayment.delete({ where: { id } });
+  revalidatePath('/finance');
+}

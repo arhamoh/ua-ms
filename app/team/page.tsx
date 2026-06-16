@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma';
-import { createTeamMember } from '@/app/actions';
+import { createTeamMember, deleteUser } from '@/app/actions';
 import { ROLES, ROLE_LABELS } from '@/lib/enums';
+import RowActions from '@/components/RowActions';
 
 export const dynamic = 'force-dynamic';
 
@@ -77,6 +78,7 @@ export default async function TeamPage() {
                     <th className="px-4 py-3 font-medium">Name</th>
                     <th className="px-4 py-3 font-medium">Email</th>
                     <th className="px-4 py-3 font-medium">Roles</th>
+                    <th className="px-4 py-3 text-right font-medium">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -99,6 +101,13 @@ export default async function TeamPage() {
                             ))
                           )}
                         </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <RowActions
+                          editHref={`/team/${m.id}/edit`}
+                          deleteAction={deleteUser.bind(null, m.id)}
+                          label="member"
+                        />
                       </td>
                     </tr>
                   ))}

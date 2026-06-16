@@ -2,6 +2,8 @@ import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
 import { PROJECT_STATUS_LABELS, STATUS_BADGE, PROJECT_TYPE_LABELS, formatMoney } from '@/lib/enums';
 import FadeIn from '@/components/FadeIn';
+import RowActions from '@/components/RowActions';
+import { deleteProject } from '@/app/actions';
 
 export const dynamic = 'force-dynamic';
 
@@ -51,6 +53,7 @@ export default async function ProjectsPage() {
                     <th className="px-5 py-3 text-right font-medium">Budget</th>
                     <th className="px-5 py-3 font-medium">Deadline</th>
                     <th className="px-5 py-3 font-medium">Progress</th>
+                    <th className="px-5 py-3 text-right font-medium">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -92,6 +95,14 @@ export default async function ProjectsPage() {
                               {total ? `${done}/${total}` : '—'}
                             </span>
                           </div>
+                        </td>
+                        <td className="px-5 py-3">
+                          <RowActions
+                            viewHref={`/projects/${p.id}`}
+                            editHref={`/projects/${p.id}/edit`}
+                            deleteAction={deleteProject.bind(null, p.id)}
+                            label="project"
+                          />
                         </td>
                       </tr>
                     );
