@@ -73,11 +73,10 @@ export default function DriveUploadForm({
         }, 1400);
       } else {
         setPhase('error');
-        setError(
-          res?.error === 'not_configured'
-            ? 'Google Drive is not configured.'
-            : `Upload failed${res?.error ? `: ${res.error}` : ''}.`,
-        );
+        // Prefer the server's JSON error; otherwise show the HTTP status + a
+        // snippet of the raw response so failures are diagnosable.
+        const raw = (xhr.responseText || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 160);
+        setError(res?.error || `Upload failed (HTTP ${xhr.status || 0})${raw ? `: ${raw}` : ''}`);
       }
     };
     xhr.onerror = () => {
