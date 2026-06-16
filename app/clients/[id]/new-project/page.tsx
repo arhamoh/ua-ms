@@ -3,7 +3,8 @@ import { notFound } from 'next/navigation';
 import { ArrowLeft } from 'lucide-react';
 import { prisma } from '@/lib/prisma';
 import { addProjectToClient } from '@/app/actions';
-import ProjectFields from '@/components/ProjectFields';
+import { projectSections } from '@/components/ProjectFields';
+import OnboardWizard, { type WizardStep } from '@/components/OnboardWizard';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,6 +21,9 @@ export default async function NewProjectPage({
 
   if (!client) notFound();
 
+  const projSecs = await projectSections({ users });
+  const steps: WizardStep[] = projSecs.map((s) => ({ id: s.id, label: s.short, content: s.node }));
+
   return (
     <div>
       <Link
@@ -32,28 +36,13 @@ export default async function NewProjectPage({
         <h1 className="text-2xl font-bold tracking-tight">New project</h1>
         <p className="mt-1 text-sm text-slate-500">
           Added to <span className="font-medium text-slate-700">{client.name}</span> and their
-          billing history.
+          billing history — one step at a time.
         </p>
       </div>
 
-      <form action={addProjectToClient} className="space-y-6">
+      <form action={addProjectToClient}>
         <input type="hidden" name="clientId" value={client.id} />
-        <ProjectFields users={users} />
-
-        <div className="flex items-center justify-end gap-3">
-          <Link
-            href={`/clients/${client.id}`}
-            className="rounded-xl px-4 py-2.5 text-sm text-slate-600 hover:bg-slate-100"
-          >
-            Cancel
-          </Link>
-          <button
-            type="submit"
-            className="rounded-xl bg-brand px-5 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-brand-dark"
-          >
-            Create project
-          </button>
-        </div>
+        <OnboardWizard steps={steps} submitLabel="Create project" cancelHref={`/clients/${client.id}`} />
       </form>
     </div>
   );
