@@ -28,6 +28,7 @@ import CommandPalette from '@/components/CommandPalette';
 import AssistantWidget from '@/components/AssistantWidget';
 import AssistantIcon from '@/components/AssistantIcon';
 import HeaderClock from '@/components/HeaderClock';
+import MigrationButton from '@/components/MigrationButton';
 import { logout } from '@/app/login/actions';
 import type { SessionUser } from '@/lib/auth';
 
@@ -308,6 +309,7 @@ export default function AppShell({
 
           <div className="ml-auto flex items-center gap-2 sm:gap-3">
             <HeaderClock initial={attendance ?? { open: false, checkInAt: null }} />
+            {user?.roles?.includes('SUPER_ADMIN') && <MigrationButton variant="header" />}
             <button
               onClick={hardRefresh}
               className="grid h-9 w-9 place-items-center rounded-xl border border-slate-200 text-slate-500 transition hover:bg-slate-50 hover:text-brand active:rotate-180"

@@ -1261,6 +1261,31 @@ export async function clearAssistantHistory() {
   redirect('/assistant');
 }
 
+// ─── Database maintenance (super admin) ──────────────────────────────────────
+
+// Applies any pending Prisma migrations (`prisma migrate deploy`) on demand, so
+// a schema change can be activated without waiting for a redeploy. Only applies
+// already-committed migrations — never resets or generates. Super-admin only.
+export async function runMigrations(): Promise<{ ok: boolean; output: string }> {
+  const s = await getSession();
+  if (!s?.roles?.includes('SUPER_ADMIN')) return { ok: false, output: 'Not authorized — super admin only.' };
+  try {
+    const { execFile } = await import('child_process');
+    const { promisify } = await import('util');
+    const run = promisify(execFile);
+    const { stdout, stderr } = await run(
+      process.execPath,
+      ['node_modules/prisma/build/index.js', 'migrate', 'deploy'],
+      { cwd: process.cwd(), env: process.env, timeout: 120_000, maxBuffer: 8 * 1024 * 1024 },
+    );
+    const out = `${stdout}\n${stderr}`.trim();
+    return { ok: true, output: out.slice(-4000) || 'No pending migrations — database is up to date.' };
+  } catch (e: any) {
+    const out = `${e?.stdout ?? ''}\n${e?.stderr ?? ''}\n${e?.message ?? ''}`.trim();
+    return { ok: false, output: out.slice(-4000) || 'Migration failed.' };
+  }
+}
+
 // ─── Attendance (check in / out) & leave ─────────────────────────────────────
 
 const ATTENDANCE_ADMIN_ROLES = ['SUPER_ADMIN', 'MANAGER'];

@@ -4,9 +4,11 @@ import { seedDemoData, backfillInvoices, clearDemoData, addOption, deleteOption,
 import { ensureOptionsSeeded, ensureOptionDefaults, OPTION_KINDS } from '@/lib/options';
 import { getIntegrations } from '@/lib/integrations';
 import { getCompany } from '@/lib/company';
+import { getSession } from '@/lib/auth';
 import FadeIn from '@/components/FadeIn';
 import IntegrationsPanel from '@/components/IntegrationsPanel';
-import SettingsTabs from '@/components/SettingsTabs';
+import SettingsTabs, { type SettingsTab } from '@/components/SettingsTabs';
+import MigrationButton from '@/components/MigrationButton';
 
 export const dynamic = 'force-dynamic';
 
@@ -34,6 +36,30 @@ export default async function SettingsPage({
   for (const o of allOptions) (byKind[o.kind] ??= []).push(o);
   const company = await getCompany();
   const integrations = await getIntegrations();
+  const session = await getSession();
+  const isSuperAdmin = !!session?.roles?.includes('SUPER_ADMIN');
+
+  const databaseTab: SettingsTab = {
+    id: 'database',
+    label: 'Database',
+    icon: <Database size={15} />,
+    content: (
+      <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="flex items-center gap-2">
+          <Database size={18} className="text-brand" />
+          <h2 className="text-sm font-semibold">Database migrations</h2>
+        </div>
+        <p className="mt-1 max-w-xl text-sm text-slate-500">
+          Applies any pending schema migrations to the live database (`prisma migrate deploy`).
+          Deploys run this automatically — use this if a new feature&apos;s table isn&apos;t there yet,
+          without waiting for a redeploy. It only applies committed migrations; it never resets data.
+        </p>
+        <div className="mt-4">
+          <MigrationButton variant="full" />
+        </div>
+      </div>
+    ),
+  };
 
   return (
     <div className="max-w-4xl">
@@ -203,6 +229,7 @@ export default async function SettingsPage({
               </div>
             ),
           },
+          ...(isSuperAdmin ? [databaseTab] : []),
         ]}
       />
     </div>
