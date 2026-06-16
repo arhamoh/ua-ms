@@ -13,6 +13,7 @@ import {
   TASK_STATUSES,
   LEAD_TYPES,
   EXPENSE_CATEGORIES,
+  CURRENCIES,
   PAYMENT_METHOD_LABELS,
   FILE_CATEGORIES,
   FILE_CATEGORY_LABELS,
@@ -902,6 +903,61 @@ export async function deleteCommissionPayout(id: string) {
   await prisma.commissionPayout.delete({ where: { id } });
   revalidatePath('/commissions');
   if (p) revalidatePath(`/commissions/${p.userId}`);
+}
+
+// ─── Statement import → expenses ─────────────────────────────────────────────
+
+type ImportItem = {
+  title?: string;
+  category?: string;
+  amount?: number | string;
+  currency?: string;
+  date?: string;
+  note?: string;
+};
+
+// Bulk-create expenses from a parsed bank / credit-card statement. Any line
+// whose description reads as interest is relabelled "Additional credit card fee".
+export async function importStatementExpenses(items: ImportItem[]): Promise<{ count: number }> {
+  if (!Array.isArray(items) || items.length === 0) return { count: 0 };
+
+  const rates = await getRatesToCad();
+  const data = items
+    .map((it) => {
+      const amount = typeof it.amount === 'string' ? Number(it.amount) : it.amount ?? 0;
+      if (!amount || Number.isNaN(amount) || amount <= 0) return null;
+
+      let title = (it.title ?? '').trim() || 'Expense';
+      let category = EXPENSE_CATEGORIES.includes(it.category ?? '') ? (it.category as string) : 'OTHER';
+      // The interest → fee rule, enforced server-side regardless of the client.
+      if (/interest/i.test(title)) {
+        title = 'Additional credit card fee';
+        category = 'FEES';
+      }
+
+      const currency = CURRENCIES.includes(it.currency ?? '') ? (it.currency as string) : 'CAD';
+      const fxRate = currency === 'CAD' ? 1 : rates[currency] ?? null;
+      const amountCad = toCad(amount, currency, rates);
+      const date = it.date ? new Date(it.date) : new Date();
+      if (Number.isNaN(date.getTime())) return null;
+
+      return {
+        title,
+        category,
+        amount,
+        currency,
+        amountCad,
+        fxRate,
+        date,
+        note: (it.note ?? '').trim() || 'Imported from statement',
+        reimbursed: true, // company-paid
+      };
+    })
+    .filter((d): d is NonNullable<typeof d> => d !== null);
+
+  if (data.length) await prisma.expense.createMany({ data });
+  revalidatePath('/finance');
+  return { count: data.length };
 }
 
 // ─── Loans / money to recover ────────────────────────────────────────────────
