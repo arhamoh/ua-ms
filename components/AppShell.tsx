@@ -21,6 +21,7 @@ import {
   FileText,
   Sparkles,
   Settings,
+  Clock,
   PanelLeftClose,
   PanelLeftOpen,
   type LucideIcon,
@@ -74,10 +75,16 @@ const navSections: NavSection[] = [
     ],
   },
   {
+    title: 'Team',
+    items: [
+      { href: '/time', label: 'Time', icon: Clock },
+      { href: '/team', label: 'Members', icon: Users },
+    ],
+  },
+  {
     title: 'More',
     items: [
       { href: '/assistant', label: 'Assistant', icon: Sparkles },
-      { href: '/team', label: 'Team', icon: Users },
       { href: '/settings', label: 'Settings', icon: Settings },
     ],
   },

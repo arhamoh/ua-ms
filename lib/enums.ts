@@ -183,6 +183,32 @@ export const PROJECT_TYPE_BADGE: Record<string, string> = {
   SOFTWARE: 'bg-indigo-100 text-indigo-700',
 };
 
+export const LEAVE_TYPE_LABELS: Record<string, string> = {
+  VACATION: 'Vacation',
+  SICK: 'Sick',
+  ABSENT: 'Absent',
+  UNPAID: 'Unpaid',
+  OTHER: 'Other',
+};
+export const LEAVE_TYPES = Object.keys(LEAVE_TYPE_LABELS);
+export const LEAVE_TYPE_BADGE: Record<string, string> = {
+  VACATION: 'bg-sky-100 text-sky-700',
+  SICK: 'bg-violet-100 text-violet-700',
+  ABSENT: 'bg-rose-100 text-rose-700',
+  UNPAID: 'bg-slate-100 text-slate-600',
+  OTHER: 'bg-slate-100 text-slate-500',
+};
+export const LEAVE_STATUS_LABELS: Record<string, string> = {
+  PENDING: 'Pending',
+  APPROVED: 'Approved',
+  REJECTED: 'Rejected',
+};
+export const LEAVE_STATUS_BADGE: Record<string, string> = {
+  PENDING: 'bg-amber-100 text-amber-700',
+  APPROVED: 'bg-emerald-100 text-emerald-700',
+  REJECTED: 'bg-rose-100 text-rose-700',
+};
+
 export const EXPENSE_CATEGORY_BADGE: Record<string, string> = {
   SOFTWARE: 'bg-indigo-100 text-indigo-700',
   SUBSCRIPTION: 'bg-violet-100 text-violet-700',

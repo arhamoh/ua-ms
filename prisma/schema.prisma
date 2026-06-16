@@ -83,6 +83,7 @@ model User {
   salaries          Salary[]
   salaryPayments    SalaryPayment[]
   expensesPaid      Expense[]          @relation("ExpensePaidBy")
+  leaveRequests     LeaveRequest[]     @relation("UserLeave")
   uploadedFiles     FileAsset[]        @relation("UploadedFiles")
   fileComments      FileComment[]      @relation("FileComments")
 
@@ -388,14 +389,16 @@ model SalaryPayment {
   @@index([userId])
 }
 
+// A check-in / check-out session. checkOutAt null = still checked in (open).
 model TimeEntry {
-  id         String   @id @default(cuid())
+  id         String    @id @default(cuid())
   checkInAt  DateTime
-  checkOutAt DateTime
-  hours      Float
+  checkOutAt DateTime?
+  hours      Float?
   tasks      String?
   notes      String?
-  createdAt  DateTime @default(now())
+  source     String    @default("SELF") // SELF | ADMIN
+  createdAt  DateTime  @default(now())
 
   userId String
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -405,6 +408,40 @@ model TimeEntry {
 
   @@index([userId])
   @@index([projectId])
+}
+
+// Vacation / sick / absence. Members request (PENDING); admins approve/reject,
+// or add an absence directly (created APPROVED).
+model LeaveRequest {
+  id          String    @id @default(cuid())
+  type        String    @default("VACATION") // VACATION | SICK | ABSENT | UNPAID | OTHER
+  startDate   DateTime
+  endDate     DateTime
+  reason      String?
+  status      String    @default("PENDING") // PENDING | APPROVED | REJECTED
+  createdById String?
+  decidedById String?
+  decidedAt   DateTime?
+  createdAt   DateTime  @default(now())
+
+  userId String
+  user   User   @relation("UserLeave", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+}
+
+// Lightweight audit of task changes, used to auto-fill "tasks done" at checkout.
+// Stored as denormalized snapshots so it survives task/project deletion.
+model TaskActivity {
+  id        String   @id @default(cuid())
+  userId    String?
+  taskId    String?
+  projectId String?
+  summary   String
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
 }
 
 // A payment received from a client (optionally tied to a specific project).

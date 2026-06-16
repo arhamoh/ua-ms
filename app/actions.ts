@@ -11,6 +11,7 @@ import {
   PRIORITIES,
   PAYMENT_METHODS,
   TASK_STATUSES,
+  TASK_STATUS_LABELS,
   LEAD_TYPES,
   EXPENSE_CATEGORIES,
   CURRENCIES,
@@ -223,16 +224,30 @@ export async function recordPayment(formData: FormData) {
 
 // ─── Tasks (project board) ───────────────────────────────────────────────────
 
+// Records a task change for the acting user, so checkout can auto-fill the day's
+// work. Best-effort: never blocks the underlying task action.
+async function logTaskActivity(summary: string, opts: { taskId?: string; projectId?: string }) {
+  try {
+    const s = await getSession();
+    await prisma.taskActivity.create({
+      data: { userId: s?.id ?? null, summary, taskId: opts.taskId ?? null, projectId: opts.projectId ?? null },
+    });
+  } catch {
+    // ignore logging failures
+  }
+}
+
 export async function createTask(projectId: string, title: string, status: string) {
   const t = title.trim();
   if (!projectId || !t) return;
-  await prisma.task.create({
+  const created = await prisma.task.create({
     data: {
       projectId,
       title: t,
       status: TASK_STATUSES.includes(status) ? (status as any) : 'TODO',
     },
   });
+  await logTaskActivity(`Created “${t}”`, { taskId: created.id, projectId });
   revalidatePath(`/projects/${projectId}`);
 }
 
@@ -246,7 +261,9 @@ export async function setProjectStatus(projectId: string, status: string) {
 
 export async function moveTask(taskId: string, status: string, projectId: string) {
   if (!taskId || !TASK_STATUSES.includes(status)) return;
+  const task = await prisma.task.findUnique({ where: { id: taskId }, select: { title: true } });
   await prisma.task.update({ where: { id: taskId }, data: { status: status as any } });
+  await logTaskActivity(`Moved “${task?.title ?? 'task'}” to ${TASK_STATUS_LABELS[status] ?? status}`, { taskId, projectId });
   revalidatePath(`/projects/${projectId}`);
 }
 
@@ -284,6 +301,8 @@ export async function updateTask(
       },
     },
   });
+  const statusLabel = TASK_STATUS_LABELS[data.status] ?? data.status;
+  await logTaskActivity(`Updated “${title}” (${statusLabel})`, { taskId, projectId });
   revalidatePath(`/projects/${projectId}`);
 }
 
@@ -1018,4 +1037,150 @@ export async function deleteLoan(id: string) {
   if (!id) return;
   await prisma.loan.delete({ where: { id } });
   revalidatePath('/finance');
+}
+
+// ─── Attendance (check in / out) & leave ─────────────────────────────────────
+
+const ATTENDANCE_ADMIN_ROLES = ['SUPER_ADMIN', 'MANAGER'];
+const LEAVE_TYPES = ['VACATION', 'SICK', 'ABSENT', 'UNPAID', 'OTHER'];
+
+function isAttendanceAdmin(s: { roles?: string[] } | null) {
+  return !!s?.roles?.some((r) => ATTENDANCE_ADMIN_ROLES.includes(r));
+}
+
+export async function checkIn() {
+  const s = await getSession();
+  if (!s) return;
+  const open = await prisma.timeEntry.findFirst({ where: { userId: s.id, checkOutAt: null } });
+  if (open) return; // already checked in
+  await prisma.timeEntry.create({ data: { userId: s.id, checkInAt: new Date(), source: 'SELF' } });
+  revalidatePath('/time');
+}
+
+// Builds the "tasks done" draft from task activity since the open check-in.
+export async function getCheckoutTasks(): Promise<string> {
+  const s = await getSession();
+  if (!s) return '';
+  const open = await prisma.timeEntry.findFirst({
+    where: { userId: s.id, checkOutAt: null },
+    orderBy: { checkInAt: 'desc' },
+  });
+  if (!open) return '';
+  const acts = await prisma.taskActivity.findMany({
+    where: { userId: s.id, createdAt: { gte: open.checkInAt } },
+    orderBy: { createdAt: 'asc' },
+  });
+  const seen = new Set<string>();
+  const lines: string[] = [];
+  for (const a of acts) {
+    if (!seen.has(a.summary)) {
+      seen.add(a.summary);
+      lines.push(`• ${a.summary}`);
+    }
+  }
+  return lines.join('\n');
+}
+
+export async function checkOut(formData: FormData) {
+  const s = await getSession();
+  if (!s) return;
+  const open = await prisma.timeEntry.findFirst({
+    where: { userId: s.id, checkOutAt: null },
+    orderBy: { checkInAt: 'desc' },
+  });
+  if (!open) return;
+  const now = new Date();
+  const hours = Math.max(0, (now.getTime() - open.checkInAt.getTime()) / 3_600_000);
+  await prisma.timeEntry.update({
+    where: { id: open.id },
+    data: {
+      checkOutAt: now,
+      hours: Math.round(hours * 100) / 100,
+      tasks: str(formData.get('tasks')),
+      notes: str(formData.get('notes')),
+    },
+  });
+  revalidatePath('/time');
+  revalidatePath('/time/report');
+}
+
+export async function requestLeave(formData: FormData) {
+  const s = await getSession();
+  if (!s) return;
+  const type = LEAVE_TYPES.includes(str(formData.get('type')) ?? '') ? (str(formData.get('type')) as string) : 'VACATION';
+  const startRaw = str(formData.get('startDate'));
+  if (!startRaw) throw new Error('Start date is required.');
+  const endRaw = str(formData.get('endDate')) || startRaw;
+  await prisma.leaveRequest.create({
+    data: {
+      userId: s.id,
+      type,
+      startDate: new Date(startRaw),
+      endDate: new Date(endRaw),
+      reason: str(formData.get('reason')),
+      status: 'PENDING',
+      createdById: s.id,
+    },
+  });
+  revalidatePath('/time');
+  revalidatePath('/time/report');
+}
+
+export async function decideLeave(id: string, decision: 'APPROVED' | 'REJECTED') {
+  const s = await getSession();
+  if (!isAttendanceAdmin(s) || !id || !['APPROVED', 'REJECTED'].includes(decision)) return;
+  await prisma.leaveRequest.update({
+    where: { id },
+    data: { status: decision, decidedById: s!.id, decidedAt: new Date() },
+  });
+  revalidatePath('/time');
+  revalidatePath('/time/report');
+}
+
+// Admin: record an absence (or any leave) directly, already approved.
+export async function addAbsence(formData: FormData) {
+  const s = await getSession();
+  if (!isAttendanceAdmin(s)) return;
+  const userId = str(formData.get('userId'));
+  if (!userId) return;
+  const type = LEAVE_TYPES.includes(str(formData.get('type')) ?? '') ? (str(formData.get('type')) as string) : 'ABSENT';
+  const startRaw = str(formData.get('startDate'));
+  if (!startRaw) return;
+  const endRaw = str(formData.get('endDate')) || startRaw;
+  await prisma.leaveRequest.create({
+    data: {
+      userId,
+      type,
+      startDate: new Date(startRaw),
+      endDate: new Date(endRaw),
+      reason: str(formData.get('reason')),
+      status: 'APPROVED',
+      createdById: s!.id,
+      decidedById: s!.id,
+      decidedAt: new Date(),
+    },
+  });
+  revalidatePath('/time/report');
+  revalidatePath('/time');
+}
+
+export async function deleteLeave(id: string) {
+  const s = await getSession();
+  if (!s || !id) return;
+  const lr = await prisma.leaveRequest.findUnique({ where: { id } });
+  if (!lr) return;
+  // Admins can delete any; members can cancel their own pending request.
+  if (!isAttendanceAdmin(s) && !(lr.userId === s.id && lr.status === 'PENDING')) return;
+  await prisma.leaveRequest.delete({ where: { id } });
+  revalidatePath('/time');
+  revalidatePath('/time/report');
+}
+
+// Admin: remove a logged session (e.g. a mistaken check-in).
+export async function deleteTimeEntry(id: string) {
+  const s = await getSession();
+  if (!isAttendanceAdmin(s) || !id) return;
+  await prisma.timeEntry.delete({ where: { id } });
+  revalidatePath('/time');
+  revalidatePath('/time/report');
 }
