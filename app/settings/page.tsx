@@ -68,48 +68,65 @@ export default async function SettingsPage({
 
       {/* Dropdown options */}
       <FadeIn delay={0.05}>
-        <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <div className="flex items-center gap-2">
+        <div className="mt-6">
+          <div className="mb-3 flex items-center gap-2">
             <SlidersHorizontal size={18} className="text-brand" />
             <h2 className="text-sm font-semibold">Dropdown options</h2>
+            <span className="text-xs text-slate-400">Customize the choices used across the app</span>
           </div>
-          <p className="mt-1 text-sm text-slate-500">
-            Customize the choices that appear in dropdowns across the app. Add or remove items freely.
-          </p>
 
-          <div className="mt-5 space-y-6">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             {OPTION_KINDS.map((k) => {
               const items = byKind[k.kind] ?? [];
               return (
-                <div key={k.kind}>
-                  <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">{k.label}</h3>
-                  <div className="flex flex-wrap gap-2">
+                <div key={k.kind} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                  <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">{k.label}</h3>
+
+                  <div className="mt-2.5 flex flex-wrap gap-1.5">
+                    {items.length === 0 && <span className="text-xs text-slate-400">None yet</span>}
                     {items.map((it) => (
-                      <span key={it.id} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 py-1 pl-2.5 pr-1 text-sm">
+                      <span
+                        key={it.id}
+                        className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 py-1 pl-2.5 pr-1 text-xs text-slate-700"
+                      >
                         {it.label}
-                        {it.rate != null && <span className="text-xs text-slate-400">{it.rate}%</span>}
+                        {it.rate != null && <span className="text-slate-400">· {it.rate}%</span>}
                         <form action={deleteOption}>
                           <input type="hidden" name="id" value={it.id} />
-                          <button className="grid h-5 w-5 place-items-center rounded text-slate-400 hover:bg-slate-200 hover:text-rose-600" aria-label={`Remove ${it.label}`}>
-                            <X size={12} />
+                          <button
+                            className="grid h-4 w-4 place-items-center rounded-full text-slate-300 transition hover:bg-rose-100 hover:text-rose-600"
+                            aria-label={`Remove ${it.label}`}
+                          >
+                            <X size={11} />
                           </button>
                         </form>
                       </span>
                     ))}
                   </div>
-                  <form action={addOption} className="mt-2 flex flex-wrap items-center gap-2">
+
+                  <form action={addOption} className="mt-3 flex items-center gap-1.5">
                     <input type="hidden" name="kind" value={k.kind} />
                     <input
                       name="label"
                       required
-                      placeholder={k.kind === 'currency' ? 'Code (e.g. JPY)' : 'New option…'}
-                      className={`${inputCls} w-44`}
+                      placeholder={k.kind === 'currency' ? 'Add code…' : 'Add option…'}
+                      className="min-w-0 flex-1 rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/10"
                     />
                     {k.hasRate && (
-                      <input name="rate" type="number" step="any" min="0" placeholder="%" className={`${inputCls} w-20`} />
+                      <input
+                        name="rate"
+                        type="number"
+                        step="any"
+                        min="0"
+                        placeholder="%"
+                        className="w-14 shrink-0 rounded-lg border border-slate-300 px-2 py-1.5 text-sm focus:border-brand focus:outline-none"
+                      />
                     )}
-                    <button className="inline-flex items-center gap-1 rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
-                      <Plus size={14} /> Add
+                    <button
+                      className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-brand text-white transition hover:bg-brand-dark"
+                      aria-label="Add"
+                    >
+                      <Plus size={15} />
                     </button>
                   </form>
                 </div>
