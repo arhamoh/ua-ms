@@ -219,9 +219,11 @@ function NavContent({
 
 export default function AppShell({
   user,
+  attendance,
   children,
 }: {
   user: SessionUser | null;
+  attendance?: { open: boolean; checkInAt: string | null };
   children: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
@@ -315,7 +317,7 @@ export default function AppShell({
           </button>
 
           <div className="ml-auto flex items-center gap-2 sm:gap-3">
-            <HeaderClock />
+            <HeaderClock initial={attendance ?? { open: false, checkInAt: null }} />
             <button
               onClick={openSearch}
               className="grid h-9 w-9 place-items-center rounded-xl border border-slate-200 text-slate-500 hover:bg-slate-50 sm:hidden"
