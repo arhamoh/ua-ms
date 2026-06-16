@@ -18,6 +18,7 @@ import {
   RefreshCw,
   PiggyBank,
   FileText,
+  Sparkles,
   Settings,
   Clock,
   PanelLeftClose,
@@ -26,7 +27,6 @@ import {
 } from 'lucide-react';
 import CommandPalette from '@/components/CommandPalette';
 import AssistantWidget from '@/components/AssistantWidget';
-import AssistantIcon from '@/components/AssistantIcon';
 import HeaderClock from '@/components/HeaderClock';
 import { logout } from '@/app/login/actions';
 import type { SessionUser } from '@/lib/auth';
@@ -80,7 +80,7 @@ const navSections: NavSection[] = [
   {
     title: 'More',
     items: [
-      { href: '/assistant', label: 'Assistant', icon: AssistantIcon as unknown as LucideIcon },
+      { href: '/assistant', label: 'Assistant', icon: Sparkles },
       { href: '/settings', label: 'Settings', icon: Settings },
     ],
   },
