@@ -67,14 +67,9 @@ function NavContent({ onNavigate, user }: { onNavigate?: () => void; user: Sessi
 
   return (
     <>
-      <div className="flex h-16 items-center gap-2.5 border-b border-slate-100 px-5">
-        <span className="grid h-8 w-8 place-items-center rounded-lg bg-gradient-to-br from-brand-dark to-rose-400 text-sm font-bold text-white">
-          UA
-        </span>
-        <div className="leading-tight">
-          <div className="text-sm font-semibold">Agency Platform</div>
-          <div className="text-[11px] text-slate-400">Project management</div>
-        </div>
+      <div className="flex h-16 items-center border-b border-slate-100 px-5">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/logo.png" alt="UA Digital" className="h-11 w-auto" />
       </div>
 
       <nav className="flex-1 space-y-1 px-3 py-4">

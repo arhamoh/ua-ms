@@ -2,8 +2,8 @@ import type { MetadataRoute } from 'next';
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'UA Agency Platform',
-    short_name: 'UA Agency',
+    name: 'UA Digital',
+    short_name: 'UA Digital',
     description: 'Agency project management, billing, and commissions.',
     start_url: '/',
     display: 'standalone',
@@ -11,9 +11,9 @@ export default function manifest(): MetadataRoute.Manifest {
     theme_color: '#E11D48',
     icons: [
       {
-        src: '/icon.svg',
-        sizes: 'any',
-        type: 'image/svg+xml',
+        src: '/logo.png',
+        sizes: '512x512',
+        type: 'image/png',
         purpose: 'any',
       },
       {

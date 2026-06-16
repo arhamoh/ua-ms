@@ -7,11 +7,12 @@ import { getSession } from '@/lib/auth';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'UA Agency Platform',
+  title: 'UA Digital',
   description: 'Project management platform for the agency',
+  icons: { icon: '/logo.png', apple: '/logo.png' },
   appleWebApp: {
     capable: true,
-    title: 'UA Agency',
+    title: 'UA Digital',
     statusBarStyle: 'default',
   },
 };
