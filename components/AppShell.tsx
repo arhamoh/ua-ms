@@ -17,9 +17,11 @@ import {
   RefreshCw,
   PiggyBank,
   FileText,
+  Sparkles,
   type LucideIcon,
 } from 'lucide-react';
 import CommandPalette from '@/components/CommandPalette';
+import AssistantWidget from '@/components/AssistantWidget';
 import { logout } from '@/app/login/actions';
 import type { SessionUser } from '@/lib/auth';
 
@@ -52,6 +54,7 @@ const nav: NavItem[] = [
   { href: '/commissions', label: 'Commissions', icon: Coins },
   { href: '/finance', label: 'Finance', icon: PiggyBank },
   { href: '/invoices', label: 'Invoices', icon: FileText },
+  { href: '/assistant', label: 'Assistant', icon: Sparkles },
   { href: '/team', label: 'Team', icon: Users },
 ];
 
@@ -239,6 +242,7 @@ export default function AppShell({
       </div>
 
       <CommandPalette />
+      <AssistantWidget />
     </>
   );
 }
