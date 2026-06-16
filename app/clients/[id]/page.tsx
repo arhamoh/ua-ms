@@ -76,17 +76,27 @@ export default async function ClientProfilePage({
         >
           <ArrowLeft size={14} /> Clients
         </Link>
-        <div className="mt-2 flex flex-wrap items-center gap-3">
-          <h1 className="text-2xl font-bold tracking-tight">{client.name}</h1>
-          {client.source && (
-            <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600">
-              {CLIENT_SOURCE_LABELS[client.source]}
-            </span>
-          )}
+        <div className="mt-2 flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <div className="flex flex-wrap items-center gap-3">
+              <h1 className="text-2xl font-bold tracking-tight">{client.name}</h1>
+              {client.source && (
+                <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600">
+                  {CLIENT_SOURCE_LABELS[client.source]}
+                </span>
+              )}
+            </div>
+            <p className="mt-1 text-sm text-slate-500">
+              {[client.contactName, client.email, client.phone].filter(Boolean).join(' · ') || 'No contact details'}
+            </p>
+          </div>
+          <Link
+            href={`/clients/${client.id}/new-project`}
+            className="inline-flex items-center gap-1.5 rounded-xl bg-brand px-4 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-brand-dark"
+          >
+            <Plus size={16} /> New project
+          </Link>
         </div>
-        <p className="mt-1 text-sm text-slate-500">
-          {[client.contactName, client.email, client.phone].filter(Boolean).join(' · ') || 'No contact details'}
-        </p>
       </FadeIn>
 
       {/* Billing summary */}
@@ -115,7 +125,10 @@ export default async function ClientProfilePage({
               </div>
               {client.projects.length === 0 ? (
                 <div className="px-5 py-10 text-center text-sm text-slate-500">
-                  No projects yet.
+                  No projects yet.{' '}
+                  <Link href={`/clients/${client.id}/new-project`} className="font-medium text-brand hover:underline">
+                    Add one
+                  </Link>
                 </div>
               ) : (
                 <div className="overflow-x-auto">
