@@ -86,8 +86,26 @@ model User {
   leaveRequests     LeaveRequest[]     @relation("UserLeave")
   uploadedFiles     FileAsset[]        @relation("UploadedFiles")
   fileComments      FileComment[]      @relation("FileComments")
+  assistantMessages AssistantMessage[] @relation("AssistantMessages")
 
   @@index([email])
+}
+
+// Persisted analytics-assistant chat, per user. Token/cost columns power the
+// super-admin "credits used" view; everyone can read their own history.
+model AssistantMessage {
+  id               String   @id @default(cuid())
+  userId           String
+  user             User     @relation("AssistantMessages", fields: [userId], references: [id], onDelete: Cascade)
+  role             String // 'user' | 'assistant'
+  content          String
+  promptTokens     Int      @default(0)
+  completionTokens Int      @default(0)
+  costUsd          Float    @default(0)
+  model            String?
+  createdAt        DateTime @default(now())
+
+  @@index([userId, createdAt])
 }
 
 model Client {

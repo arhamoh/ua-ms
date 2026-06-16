@@ -41,7 +41,7 @@ export default function AssistantWidget() {
                 <Maximize2 size={15} />
               </Link>
             </div>
-            <AssistantChat className="min-h-0 flex-1" />
+            <AssistantChat className="min-h-0 flex-1" compact />
           </motion.div>
         )}
       </AnimatePresence>

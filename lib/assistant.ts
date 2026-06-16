@@ -60,3 +60,81 @@ export async function buildAssistantContext(): Promise<string> {
 
   return JSON.stringify(snapshot);
 }
+
+// ─── Chat history + usage (for the assistant page) ───────────────────────────
+
+export type AssistantMsg = { role: 'user' | 'assistant'; content: string };
+
+// A user's own saved chat history (most recent `limit`, returned oldest-first).
+export async function getAssistantHistory(userId: string, limit = 100): Promise<AssistantMsg[]> {
+  const rows = await prisma.assistantMessage.findMany({
+    where: { userId },
+    orderBy: { createdAt: 'desc' },
+    take: limit,
+    select: { role: true, content: true },
+  });
+  return rows
+    .reverse()
+    .map((r) => ({ role: r.role === 'assistant' ? 'assistant' : 'user', content: r.content }));
+}
+
+export type AssistantUsage = {
+  totalCostUsd: number;
+  totalTokens: number;
+  messageCount: number;
+  perUser: { name: string; messages: number; tokens: number; costUsd: number }[];
+  remainingUsd: number | null;
+};
+
+// Platform-wide assistant usage, for the super-admin credits view.
+export async function getAssistantUsage(): Promise<AssistantUsage> {
+  const [agg, grouped] = await Promise.all([
+    prisma.assistantMessage.aggregate({
+      _sum: { costUsd: true, promptTokens: true, completionTokens: true },
+      _count: true,
+    }),
+    prisma.assistantMessage.groupBy({
+      by: ['userId'],
+      _sum: { costUsd: true, promptTokens: true, completionTokens: true },
+      _count: true,
+    }),
+  ]);
+
+  const userIds = grouped.map((g) => g.userId);
+  const users = await prisma.user.findMany({ where: { id: { in: userIds } }, select: { id: true, name: true } });
+  const nameOf = new Map(users.map((u) => [u.id, u.name]));
+
+  const perUser = grouped
+    .map((g) => ({
+      name: nameOf.get(g.userId) ?? 'Unknown',
+      messages: g._count,
+      tokens: (g._sum.promptTokens ?? 0) + (g._sum.completionTokens ?? 0),
+      costUsd: g._sum.costUsd ?? 0,
+    }))
+    .sort((a, b) => b.costUsd - a.costUsd || b.tokens - a.tokens);
+
+  // Best-effort: OpenRouter remaining credit (limit - usage), if the key allows it.
+  let remainingUsd: number | null = null;
+  const key = process.env.OPENROUTER_API_KEY;
+  if (key) {
+    try {
+      const res = await fetch('https://openrouter.ai/api/v1/key', { headers: { Authorization: `Bearer ${key}` } });
+      if (res.ok) {
+        const data: any = await res.json();
+        const limit = data?.data?.limit;
+        const usage = data?.data?.usage;
+        if (typeof limit === 'number') remainingUsd = Math.max(0, limit - (usage ?? 0));
+      }
+    } catch {
+      /* ignore — remaining stays null */
+    }
+  }
+
+  return {
+    totalCostUsd: agg._sum.costUsd ?? 0,
+    totalTokens: (agg._sum.promptTokens ?? 0) + (agg._sum.completionTokens ?? 0),
+    messageCount: agg._count,
+    perUser,
+    remainingUsd,
+  };
+}

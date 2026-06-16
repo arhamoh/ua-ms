@@ -1250,6 +1250,17 @@ export async function deleteLoan(id: string) {
   revalidatePath('/finance');
 }
 
+// ─── Assistant ───────────────────────────────────────────────────────────────
+
+// Clears the signed-in user's own saved assistant chat history.
+export async function clearAssistantHistory() {
+  const s = await getSession();
+  if (!s) return;
+  await prisma.assistantMessage.deleteMany({ where: { userId: s.id } });
+  revalidatePath('/assistant');
+  redirect('/assistant');
+}
+
 // ─── Attendance (check in / out) & leave ─────────────────────────────────────
 
 const ATTENDANCE_ADMIN_ROLES = ['SUPER_ADMIN', 'MANAGER'];
