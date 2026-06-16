@@ -15,6 +15,7 @@ import {
 } from '@/lib/enums';
 import FadeIn from '@/components/FadeIn';
 import { getRatesToCad, toCad } from '@/lib/fx';
+import { getOptions } from '@/lib/options';
 
 export const dynamic = 'force-dynamic';
 
@@ -48,6 +49,7 @@ export default async function ClientProfilePage({
   // All totals are normalized to CAD using live rates (payments lock in the
   // rate captured when recorded; projects/budgets convert at the current rate).
   const rates = await getRatesToCad();
+  const [currencies, methods] = await Promise.all([getOptions('currency'), getOptions('paymentMethod')]);
   const billed = client.projects.reduce(
     (sum, p) => sum + (p.budgetAmount != null ? toCad(p.budgetAmount, p.budgetCurrency, rates) : 0),
     0,
@@ -86,7 +88,7 @@ export default async function ClientProfilePage({
               <h1 className="text-2xl font-bold tracking-tight">{client.name}</h1>
               {client.source && (
                 <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600">
-                  {CLIENT_SOURCE_LABELS[client.source]}
+                  {CLIENT_SOURCE_LABELS[client.source] ?? client.source}
                 </span>
               )}
             </div>
@@ -261,8 +263,8 @@ export default async function ClientProfilePage({
                 <label className="block">
                   <span className="mb-1 block text-xs font-medium text-slate-600">Currency</span>
                   <select name="currency" defaultValue="USD" className={inputCls}>
-                    {CURRENCIES.map((c) => (
-                      <option key={c} value={c}>{c}</option>
+                    {currencies.map((c) => (
+                      <option key={c.value} value={c.value}>{c.label}</option>
                     ))}
                   </select>
                 </label>
@@ -271,8 +273,8 @@ export default async function ClientProfilePage({
               <label className="block">
                 <span className="mb-1 block text-xs font-medium text-slate-600">Method</span>
                 <select name="method" defaultValue="BANK_TRANSFER" className={inputCls}>
-                  {PAYMENT_METHODS.map((m) => (
-                    <option key={m} value={m}>{PAYMENT_METHOD_LABELS[m]}</option>
+                  {methods.map((m) => (
+                    <option key={m.value} value={m.value}>{m.label}</option>
                   ))}
                 </select>
               </label>

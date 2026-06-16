@@ -1,13 +1,17 @@
 import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
 import { onboardClient } from '@/app/actions';
-import { CLIENT_SOURCES, CLIENT_SOURCE_LABELS, LEAD_TYPES, LEAD_TYPE_LABELS } from '@/lib/enums';
 import ProjectFields, { SectionCard, Field, inputCls } from '@/components/ProjectFields';
+import { getOptions } from '@/lib/options';
 
 export const dynamic = 'force-dynamic';
 
 export default async function OnboardPage() {
-  const users = await prisma.user.findMany({ orderBy: { name: 'asc' } });
+  const [users, sources, leadTypes] = await Promise.all([
+    prisma.user.findMany({ orderBy: { name: 'asc' } }),
+    getOptions('clientSource'),
+    getOptions('leadType'),
+  ]);
   const noTeam = users.length === 0;
 
   return (
@@ -46,9 +50,9 @@ export default async function OnboardPage() {
           <Field label="Source" hint="How they found us">
             <select name="source" className={inputCls} defaultValue="">
               <option value="">Select…</option>
-              {CLIENT_SOURCES.map((s) => (
-                <option key={s} value={s}>
-                  {CLIENT_SOURCE_LABELS[s]}
+              {sources.map((s) => (
+                <option key={s.value} value={s.value}>
+                  {s.label}
                 </option>
               ))}
             </select>
@@ -79,8 +83,10 @@ export default async function OnboardPage() {
           <Field label="Lead type" hint="Sets the sales commission rate">
             <select name="leadType" className={inputCls} defaultValue="">
               <option value="">—</option>
-              {LEAD_TYPES.map((l) => (
-                <option key={l} value={l}>{LEAD_TYPE_LABELS[l]}</option>
+              {leadTypes.map((l) => (
+                <option key={l.value} value={l.value}>
+                  {l.label}{l.rate != null ? ` (${l.rate}%)` : ''}
+                </option>
               ))}
             </select>
           </Field>

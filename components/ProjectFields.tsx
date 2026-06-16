@@ -1,12 +1,10 @@
 import {
-  PROJECT_TYPES,
-  PROJECT_TYPE_LABELS,
   BUDGET_TYPES,
   BUDGET_TYPE_LABELS,
   PRIORITIES,
   PRIORITY_LABELS,
-  CURRENCIES,
 } from '@/lib/enums';
+import { getOptions } from '@/lib/options';
 
 export const inputCls =
   'w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/10';
@@ -46,7 +44,8 @@ type TeamUser = { id: string; name: string; roles: string[] };
 
 // The project-specific sections, shared by onboarding and "add project to client".
 // Field names match the onboardClient / addProjectToClient server actions.
-export default function ProjectFields({ users }: { users: TeamUser[] }) {
+export default async function ProjectFields({ users }: { users: TeamUser[] }) {
+  const [projectTypes, currencies] = await Promise.all([getOptions('projectType'), getOptions('currency')]);
   const pms = users.filter((u) => u.roles.includes('PROJECT_MANAGER'));
   const devs = users.filter((u) => u.roles.includes('DEVELOPER'));
   const designers = users.filter((u) => u.roles.includes('DESIGNER'));
@@ -62,9 +61,9 @@ export default function ProjectFields({ users }: { users: TeamUser[] }) {
             <option value="" disabled>
               Select…
             </option>
-            {PROJECT_TYPES.map((t) => (
-              <option key={t} value={t}>
-                {PROJECT_TYPE_LABELS[t]}
+            {projectTypes.map((t) => (
+              <option key={t.value} value={t.value}>
+                {t.label}
               </option>
             ))}
           </select>
@@ -89,9 +88,9 @@ export default function ProjectFields({ users }: { users: TeamUser[] }) {
         <div className="grid grid-cols-2 gap-4">
           <Field label="Currency">
             <select name="budgetCurrency" className={inputCls} defaultValue="USD">
-              {CURRENCIES.map((c) => (
-                <option key={c} value={c}>
-                  {c}
+              {currencies.map((c) => (
+                <option key={c.value} value={c.value}>
+                  {c.label}
                 </option>
               ))}
             </select>

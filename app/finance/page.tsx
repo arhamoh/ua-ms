@@ -2,12 +2,8 @@ import Link from 'next/link';
 import { TrendingUp, TrendingDown, Scale, Plus } from 'lucide-react';
 import { prisma } from '@/lib/prisma';
 import { addExpense, setSalary, recordSalaryPayment } from '@/app/actions';
-import {
-  EXPENSE_CATEGORIES,
-  EXPENSE_CATEGORY_LABELS,
-  CURRENCIES,
-  formatMoney,
-} from '@/lib/enums';
+import { EXPENSE_CATEGORY_LABELS, formatMoney } from '@/lib/enums';
+import { getOptions } from '@/lib/options';
 import { getRatesToCad, toCad } from '@/lib/fx';
 import FadeIn from '@/components/FadeIn';
 
@@ -35,13 +31,15 @@ export default async function FinancePage({
   const monthLabel = start.toLocaleString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' });
   const today = now.toISOString().split('T')[0];
 
-  const [rates, payments, expenses, salaryPays, commPays, users] = await Promise.all([
+  const [rates, payments, expenses, salaryPays, commPays, users, expenseCats, currencies] = await Promise.all([
     getRatesToCad(),
     prisma.payment.findMany({ where: { paidAt: { gte: start, lt: end } } }),
     prisma.expense.findMany({ where: { date: { gte: start, lt: end } }, orderBy: { date: 'desc' } }),
     prisma.salaryPayment.findMany({ where: { paidAt: { gte: start, lt: end } }, include: { user: true }, orderBy: { paidAt: 'desc' } }),
     prisma.commissionPayout.findMany({ where: { paidAt: { gte: start, lt: end } } }),
     prisma.user.findMany({ orderBy: { name: 'asc' }, include: { salaries: { orderBy: { effectiveFrom: 'desc' }, take: 1 } } }),
+    getOptions('expenseCategory'),
+    getOptions('currency'),
   ]);
 
   const cadOf = (amt: number, cur: string) => toCad(amt, cur, rates);
@@ -161,7 +159,7 @@ export default async function FinancePage({
                       {expenses.map((e) => (
                         <tr key={e.id} className="hover:bg-slate-50">
                           <td className="px-5 py-3 font-medium text-slate-800">{e.title}</td>
-                          <td className="px-5 py-3 text-slate-500">{EXPENSE_CATEGORY_LABELS[e.category]}</td>
+                          <td className="px-5 py-3 text-slate-500">{EXPENSE_CATEGORY_LABELS[e.category] ?? e.category}</td>
                           <td className="px-5 py-3 tabular-nums text-slate-500">{e.date.toISOString().slice(0, 10)}</td>
                           <td className="px-5 py-3 text-right tabular-nums">
                             <div className="font-medium">{formatMoney(e.amount, e.currency)}</div>
@@ -182,11 +180,11 @@ export default async function FinancePage({
               <div className="space-y-3">
                 <label className="block"><span className="mb-1 block text-xs font-medium text-slate-600">Title *</span><input name="title" required className={inputCls} placeholder="Adobe CC" /></label>
                 <label className="block"><span className="mb-1 block text-xs font-medium text-slate-600">Category</span>
-                  <select name="category" className={inputCls} defaultValue="OTHER">{EXPENSE_CATEGORIES.map((c) => <option key={c} value={c}>{EXPENSE_CATEGORY_LABELS[c]}</option>)}</select>
+                  <select name="category" className={inputCls} defaultValue="OTHER">{expenseCats.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}</select>
                 </label>
                 <div className="grid grid-cols-3 gap-2">
                   <label className="col-span-2 block"><span className="mb-1 block text-xs font-medium text-slate-600">Amount *</span><input name="amount" type="number" min="0" step="any" required className={inputCls} placeholder="50" /></label>
-                  <label className="block"><span className="mb-1 block text-xs font-medium text-slate-600">Currency</span><select name="currency" defaultValue="CAD" className={inputCls}>{CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}</select></label>
+                  <label className="block"><span className="mb-1 block text-xs font-medium text-slate-600">Currency</span><select name="currency" defaultValue="CAD" className={inputCls}>{currencies.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}</select></label>
                 </div>
                 <label className="block"><span className="mb-1 block text-xs font-medium text-slate-600">Date</span><input name="date" type="date" defaultValue={today} className={inputCls} /></label>
                 <label className="block"><span className="mb-1 block text-xs font-medium text-slate-600">Note</span><input name="note" className={inputCls} /></label>
@@ -257,7 +255,7 @@ export default async function FinancePage({
                   <label className="block"><span className="mb-1 block text-xs font-medium text-slate-600">Member *</span><select name="userId" required defaultValue="" className={inputCls}><option value="" disabled>Select…</option>{users.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}</select></label>
                   <div className="grid grid-cols-3 gap-2">
                     <label className="col-span-2 block"><span className="mb-1 block text-xs font-medium text-slate-600">Monthly *</span><input name="amount" type="number" min="0" step="any" required className={inputCls} placeholder="1500" /></label>
-                    <label className="block"><span className="mb-1 block text-xs font-medium text-slate-600">Cur</span><select name="currency" defaultValue="CAD" className={inputCls}>{CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}</select></label>
+                    <label className="block"><span className="mb-1 block text-xs font-medium text-slate-600">Cur</span><select name="currency" defaultValue="CAD" className={inputCls}>{currencies.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}</select></label>
                   </div>
                   <label className="block"><span className="mb-1 block text-xs font-medium text-slate-600">Effective from</span><input name="effectiveFrom" type="date" defaultValue={today} className={inputCls} /></label>
                   <button className="w-full rounded-xl bg-brand px-4 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-brand-dark">Save salary</button>
@@ -272,7 +270,7 @@ export default async function FinancePage({
                   <label className="block"><span className="mb-1 block text-xs font-medium text-slate-600">Member *</span><select name="userId" required defaultValue="" className={inputCls}><option value="" disabled>Select…</option>{users.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}</select></label>
                   <div className="grid grid-cols-3 gap-2">
                     <label className="col-span-2 block"><span className="mb-1 block text-xs font-medium text-slate-600">Amount *</span><input name="amount" type="number" min="0" step="any" required className={inputCls} placeholder="1500" /></label>
-                    <label className="block"><span className="mb-1 block text-xs font-medium text-slate-600">Cur</span><select name="currency" defaultValue="CAD" className={inputCls}>{CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}</select></label>
+                    <label className="block"><span className="mb-1 block text-xs font-medium text-slate-600">Cur</span><select name="currency" defaultValue="CAD" className={inputCls}>{currencies.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}</select></label>
                   </div>
                   <label className="block"><span className="mb-1 block text-xs font-medium text-slate-600">Date</span><input name="paidAt" type="date" defaultValue={today} className={inputCls} /></label>
                   <label className="block"><span className="mb-1 block text-xs font-medium text-slate-600">Method</span><input name="method" className={inputCls} placeholder="Wise, Remitly…" /></label>

@@ -1,6 +1,7 @@
 import { FileUp, ExternalLink, Trash2, MessageSquare } from 'lucide-react';
 import { uploadProjectFile, addFileComment, deleteFileAsset } from '@/app/actions';
-import { FILE_CATEGORIES, FILE_CATEGORY_LABELS } from '@/lib/enums';
+import { FILE_CATEGORY_LABELS } from '@/lib/enums';
+import { getOptions } from '@/lib/options';
 
 const inputCls =
   'w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/10';
@@ -27,7 +28,7 @@ function renderBody(body: string) {
   );
 }
 
-export default function ProjectFiles({
+export default async function ProjectFiles({
   projectId,
   files,
   driveOk,
@@ -36,6 +37,7 @@ export default function ProjectFiles({
   files: FileAsset[];
   driveOk: boolean;
 }) {
+  const fileCategories = await getOptions('fileCategory');
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
       <div className="lg:col-span-2">
@@ -52,7 +54,7 @@ export default function ProjectFiles({
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
                       <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium uppercase text-slate-500">
-                        {FILE_CATEGORY_LABELS[file.category]}
+                        {FILE_CATEGORY_LABELS[file.category] ?? file.category}
                       </span>
                       {file.webViewLink ? (
                         <a href={file.webViewLink} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 truncate font-medium text-brand hover:underline">
@@ -110,8 +112,8 @@ export default function ProjectFiles({
               <label className="block">
                 <span className="mb-1 block text-xs font-medium text-slate-600">Type</span>
                 <select name="category" className={inputCls} defaultValue="OTHER">
-                  {FILE_CATEGORIES.map((c) => (
-                    <option key={c} value={c}>{FILE_CATEGORY_LABELS[c]}</option>
+                  {fileCategories.map((c) => (
+                    <option key={c.value} value={c.value}>{c.label}</option>
                   ))}
                 </select>
               </label>

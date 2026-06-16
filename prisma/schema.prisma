@@ -21,29 +21,11 @@ enum Role {
   SALES
 }
 
-enum LeadType {
-  INVITE
-  GENERATED
-}
-
 // Which discipline a user serves in on a specific project.
 enum ProjectRole {
   PROJECT_MANAGER
   DEVELOPER
   DESIGNER
-}
-
-enum ClientSource {
-  UPWORK
-  AGENCY
-  REFERRAL
-  OTHER
-}
-
-enum ProjectType {
-  DESIGN
-  DEVELOPMENT
-  SOFTWARE
 }
 
 enum BudgetType {
@@ -74,40 +56,11 @@ enum TaskStatus {
   DONE
 }
 
-enum PaymentMethod {
-  BANK_TRANSFER
-  CARD
-  PAYPAL
-  CASH
-  CRYPTO
-  OTHER
-}
-
-enum ExpenseCategory {
-  SOFTWARE
-  HOSTING
-  MARKETING
-  OFFICE
-  CONTRACTOR
-  EQUIPMENT
-  FEES
-  OTHER
-}
-
 enum InvoiceStatus {
   DRAFT
   SENT
   PAID
   VOID
-}
-
-enum FileCategory {
-  LOGO
-  DESIGN
-  DOCUMENT
-  CONTRACT
-  ASSET
-  OTHER
 }
 
 // ─── Models ──────────────────────────────────────────────────────────────────
@@ -141,7 +94,7 @@ model Client {
   contactName  String?       // primary contact person
   email        String?
   phone        String?
-  source       ClientSource?
+  source       String?
   sourceOther  String?       // when source = OTHER
   industry     String?
   location     String?       // optional geographic location
@@ -149,7 +102,7 @@ model Client {
   socialLinks  String?       // free text / links
   notes        String?
   // Lead attribution for sales commission
-  leadType      LeadType?
+  leadType      String?
   salespersonId String?
   salesperson   User?     @relation("SalesLeads", fields: [salespersonId], references: [id], onDelete: SetNull)
   createdAt    DateTime      @default(now())
@@ -165,7 +118,7 @@ model Client {
 model Project {
   id              String        @id @default(cuid())
   name            String
-  type            ProjectType
+  type            String
   description     String?
   targetAudience  String?
   referenceLinks  String?
@@ -255,6 +208,22 @@ model Tag {
   tasks Task[]
 }
 
+// User-editable dropdown options. `kind` groups them (projectType, clientSource,
+// expenseCategory, fileCategory, paymentMethod, currency, leadType). `value` is
+// the stored string; `label` is shown; `rate` is the commission % for leadType.
+model OptionItem {
+  id        String   @id @default(cuid())
+  kind      String
+  value     String
+  label     String
+  rate      Float?
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@unique([kind, value])
+  @@index([kind])
+}
+
 // A recorded commission payout to a team member (sales or PM). Amount in CAD.
 model CommissionPayout {
   id        String   @id @default(cuid())
@@ -274,7 +243,7 @@ model CommissionPayout {
 model FileAsset {
   id          String       @id @default(cuid())
   name        String
-  category    FileCategory @default(OTHER)
+  category    String       @default("OTHER")
   driveFileId String
   webViewLink String?
   mimeType    String?
@@ -333,7 +302,7 @@ model Invoice {
 model Expense {
   id        String          @id @default(cuid())
   title     String
-  category  ExpenseCategory @default(OTHER)
+  category  String          @default("OTHER")
   amount    Float
   currency  String          @default("CAD")
   amountCad Float?
@@ -403,7 +372,7 @@ model Payment {
   currency  String        @default("USD")
   amountCad Float?        // amount converted to CAD at the rate when recorded
   fxRate    Float?        // currency -> CAD rate used at record time
-  method    PaymentMethod @default(BANK_TRANSFER)
+  method    String        @default("BANK_TRANSFER")
   paidAt    DateTime
   note      String?
   createdAt DateTime      @default(now())

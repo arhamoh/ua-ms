@@ -60,7 +60,7 @@ function buildProjectData(formData: FormData) {
   if (!projectName) throw new Error('Project name is required.');
 
   const rawType = str(formData.get('projectType'));
-  const projectType = PROJECT_TYPES.includes(rawType ?? '') ? rawType! : 'DESIGN';
+  const projectType = rawType || 'DESIGN';
 
   const rawBudgetType = str(formData.get('budgetType'));
   const budgetType = BUDGET_TYPES.includes(rawBudgetType ?? '') ? (rawBudgetType as any) : null;
@@ -113,11 +113,8 @@ export async function onboardClient(formData: FormData) {
   const clientName = str(formData.get('clientName'));
   if (!clientName) throw new Error('Client name is required.');
 
-  const rawSource = str(formData.get('source'));
-  const source = CLIENT_SOURCES.includes(rawSource ?? '') ? (rawSource as any) : null;
-
-  const rawLeadType = str(formData.get('leadType'));
-  const leadType = LEAD_TYPES.includes(rawLeadType ?? '') ? (rawLeadType as any) : null;
+  const source = str(formData.get('source')) || null;
+  const leadType = str(formData.get('leadType')) || null;
   const salespersonId = str(formData.get('salespersonId'));
 
   const client = await prisma.client.create({
@@ -191,10 +188,7 @@ export async function recordPayment(formData: FormData) {
     throw new Error('A valid payment amount is required.');
   }
 
-  const rawMethod = str(formData.get('method'));
-  const method = PAYMENT_METHODS.includes(rawMethod ?? '')
-    ? (rawMethod as any)
-    : 'BANK_TRANSFER';
+  const method = str(formData.get('method')) || 'BANK_TRANSFER';
 
   const paidRaw = str(formData.get('paidAt'));
   const projectId = str(formData.get('projectId'));
@@ -327,8 +321,7 @@ export async function addExpense(formData: FormData) {
     throw new Error('A valid amount is required.');
   }
 
-  const rawCat = str(formData.get('category'));
-  const category = EXPENSE_CATEGORIES.includes(rawCat ?? '') ? (rawCat as any) : 'OTHER';
+  const category = str(formData.get('category')) || 'OTHER';
   const currency = str(formData.get('currency')) ?? 'CAD';
   const dateRaw = str(formData.get('date'));
 
@@ -516,8 +509,7 @@ export async function uploadProjectFile(formData: FormData) {
   }
 
   const f = file as File;
-  const rawCat = str(formData.get('category'));
-  const category = FILE_CATEGORIES.includes(rawCat ?? '') ? (rawCat as any) : 'OTHER';
+  const category = str(formData.get('category')) || 'OTHER';
 
   const project = await prisma.project.findUnique({ where: { id: projectId }, include: { client: true } });
   if (!project) redirect('/clients');
@@ -529,7 +521,7 @@ export async function uploadProjectFile(formData: FormData) {
     const { fileId, webViewLink } = await uploadToDrive({
       clientName: project!.client.name,
       projectName: project!.name,
-      categoryLabel: FILE_CATEGORY_LABELS[category],
+      categoryLabel: FILE_CATEGORY_LABELS[category] ?? category,
       fileName: f.name,
       mimeType: f.type || 'application/octet-stream',
       buffer,
@@ -693,4 +685,32 @@ export async function seedDemoData() {
 
   revalidatePath('/');
   redirect('/settings?done=seeded');
+}
+
+// ─── Dropdown options ────────────────────────────────────────────────────────
+
+export async function addOption(formData: FormData) {
+  const kind = str(formData.get('kind'));
+  const label = str(formData.get('label'));
+  if (!kind || !label) return;
+  const value = (str(formData.get('value')) || label).trim();
+  const rateRaw = str(formData.get('rate'));
+  const rate = rateRaw && !Number.isNaN(Number(rateRaw)) ? Number(rateRaw) : null;
+  const max = await prisma.optionItem.aggregate({ where: { kind }, _max: { order: true } });
+
+  await prisma.optionItem.upsert({
+    where: { kind_value: { kind, value } },
+    update: { label, rate },
+    create: { kind, value, label, rate, order: (max._max.order ?? 0) + 1 },
+  });
+  revalidatePath('/settings');
+  redirect('/settings');
+}
+
+export async function deleteOption(formData: FormData) {
+  const id = str(formData.get('id'));
+  if (!id) return;
+  await prisma.optionItem.delete({ where: { id } });
+  revalidatePath('/settings');
+  redirect('/settings');
 }

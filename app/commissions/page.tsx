@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { recordCommissionPayout } from '@/app/actions';
 import { ROLE_LABELS, SALES_COMMISSION_RATE, formatMoney } from '@/lib/enums';
 import { getRatesToCad, toCad } from '@/lib/fx';
+import { getLeadTypeRates } from '@/lib/options';
 import FadeIn from '@/components/FadeIn';
 
 export const dynamic = 'force-dynamic';
@@ -31,6 +32,7 @@ export default async function CommissionsPage() {
     }),
     getRatesToCad(),
   ]);
+  const leadRates = await getLeadTypeRates();
 
   const cad = (amt: number | null, cur: string | null) => toCad(amt ?? 0, cur, rates);
 
@@ -38,7 +40,8 @@ export default async function CommissionsPage() {
     let salesProjected = 0;
     let salesEarned = 0;
     for (const client of u.salesLeads) {
-      const rate = (SALES_COMMISSION_RATE[client.leadType ?? ''] ?? 0) / 100;
+      const lt = client.leadType ?? '';
+      const rate = (leadRates[lt] ?? SALES_COMMISSION_RATE[lt] ?? 0) / 100;
       for (const p of client.projects) {
         if (isPipeline(p.status)) salesProjected += cad(p.budgetAmount, p.budgetCurrency) * rate;
       }
