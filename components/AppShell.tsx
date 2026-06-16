@@ -8,14 +8,16 @@ import {
   Users,
   Briefcase,
   UserPlus,
-  Settings,
   Search,
   Bell,
   Menu,
   X,
+  LogOut,
   type LucideIcon,
 } from 'lucide-react';
 import CommandPalette from '@/components/CommandPalette';
+import { logout } from '@/app/login/actions';
+import type { SessionUser } from '@/lib/auth';
 
 function openSearch() {
   window.dispatchEvent(new Event('open-command-palette'));
@@ -29,7 +31,7 @@ const nav: NavItem[] = [
   { href: '/team', label: 'Team', icon: Users },
 ];
 
-function NavContent({ onNavigate }: { onNavigate?: () => void }) {
+function NavContent({ onNavigate, user }: { onNavigate?: () => void; user: SessionUser }) {
   const pathname = usePathname();
   const isActive = (href: string) =>
     href === '/' ? pathname === '/' : pathname.startsWith(href);
@@ -82,22 +84,36 @@ function NavContent({ onNavigate }: { onNavigate?: () => void }) {
       </nav>
 
       <div className="border-t border-slate-100 p-3">
-        <div className="flex items-center gap-3 rounded-lg px-3 py-2 hover:bg-slate-50">
+        <div className="flex items-center gap-3 px-3 py-2">
           <span className="grid h-8 w-8 place-items-center rounded-full bg-slate-200 text-xs font-semibold text-slate-600">
-            UA
+            {user.name?.[0]?.toUpperCase() ?? 'U'}
           </span>
           <div className="min-w-0 flex-1 leading-tight">
-            <div className="truncate text-sm font-medium">UA Agency</div>
-            <div className="truncate text-[11px] text-slate-400">Signed out</div>
+            <div className="truncate text-sm font-medium">{user.name}</div>
+            <div className="truncate text-[11px] text-slate-400">{user.email}</div>
           </div>
-          <Settings size={16} className="text-slate-400" />
+          <form action={logout}>
+            <button
+              type="submit"
+              aria-label="Sign out"
+              className="grid h-8 w-8 place-items-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-rose-600"
+            >
+              <LogOut size={16} />
+            </button>
+          </form>
         </div>
       </div>
     </>
   );
 }
 
-export default function AppShell({ children }: { children: React.ReactNode }) {
+export default function AppShell({
+  user,
+  children,
+}: {
+  user: SessionUser | null;
+  children: React.ReactNode;
+}) {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
 
@@ -106,11 +122,16 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     setOpen(false);
   }, [pathname]);
 
+  // Unauthenticated routes (login, forgot-password) render bare, no chrome.
+  if (!user) {
+    return <>{children}</>;
+  }
+
   return (
     <>
       {/* Desktop sidebar */}
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r border-slate-200 bg-white lg:flex">
-        <NavContent />
+        <NavContent user={user} />
       </aside>
 
       {/* Mobile drawer */}
@@ -136,7 +157,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           >
             <X size={18} />
           </button>
-          <NavContent onNavigate={() => setOpen(false)} />
+          <NavContent onNavigate={() => setOpen(false)} user={user} />
         </aside>
       </div>
 
