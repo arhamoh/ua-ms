@@ -171,6 +171,9 @@ export default function ProjectFields({ users }: { users: TeamUser[] }) {
             ))}
           </select>
         </Field>
+        <Field label="PM commission rate (%)" hint="Of project value / payments, to the PM">
+          <input name="pmCommissionRate" type="number" min="0" step="any" defaultValue={10} className={inputCls} />
+        </Field>
         <div className="sm:col-span-2">
           <Field label="Internal notes">
             <textarea name="internalNotes" rows={2} className={inputCls} placeholder="Anything the team should know" />

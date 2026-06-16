@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
 import { onboardClient } from '@/app/actions';
-import { CLIENT_SOURCES, CLIENT_SOURCE_LABELS } from '@/lib/enums';
+import { CLIENT_SOURCES, CLIENT_SOURCE_LABELS, LEAD_TYPES, LEAD_TYPE_LABELS } from '@/lib/enums';
 import ProjectFields, { SectionCard, Field, inputCls } from '@/components/ProjectFields';
 
 export const dynamic = 'force-dynamic';
@@ -67,6 +67,22 @@ export default async function OnboardPage() {
           </Field>
           <Field label="Social / other links">
             <input name="socialLinks" className={inputCls} placeholder="@acme, linkedin.com/…" />
+          </Field>
+          <Field label="Salesperson" hint="Who brought this lead in (for commission)">
+            <select name="salespersonId" className={inputCls} defaultValue="">
+              <option value="">None</option>
+              {users.map((u) => (
+                <option key={u.id} value={u.id}>{u.name}</option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Lead type" hint="Sets the sales commission rate">
+            <select name="leadType" className={inputCls} defaultValue="">
+              <option value="">—</option>
+              {LEAD_TYPES.map((l) => (
+                <option key={l} value={l}>{LEAD_TYPE_LABELS[l]}</option>
+              ))}
+            </select>
           </Field>
         </SectionCard>
 

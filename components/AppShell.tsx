@@ -13,6 +13,7 @@ import {
   Menu,
   X,
   LogOut,
+  Coins,
   type LucideIcon,
 } from 'lucide-react';
 import CommandPalette from '@/components/CommandPalette';
@@ -28,6 +29,7 @@ type NavItem = { href: string; label: string; icon: LucideIcon };
 const nav: NavItem[] = [
   { href: '/', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/clients', label: 'Clients', icon: Briefcase },
+  { href: '/commissions', label: 'Commissions', icon: Coins },
   { href: '/team', label: 'Team', icon: Users },
 ];
 

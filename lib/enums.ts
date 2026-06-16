@@ -6,8 +6,20 @@ export const ROLE_LABELS: Record<string, string> = {
   PROJECT_MANAGER: 'Project Manager',
   DEVELOPER: 'Developer',
   DESIGNER: 'Designer',
+  SALES: 'Sales',
 };
 export const ROLES = Object.keys(ROLE_LABELS);
+
+// Lead attribution → sales commission rate (%)
+export const LEAD_TYPE_LABELS: Record<string, string> = {
+  INVITE: 'Invite (5%)',
+  GENERATED: 'Generated lead (10%)',
+};
+export const LEAD_TYPES = Object.keys(LEAD_TYPE_LABELS);
+export const SALES_COMMISSION_RATE: Record<string, number> = {
+  INVITE: 5,
+  GENERATED: 10,
+};
 
 export const PROJECT_ROLE_LABELS: Record<string, string> = {
   PROJECT_MANAGER: 'Project Manager',

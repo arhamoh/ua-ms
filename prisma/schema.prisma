@@ -18,6 +18,12 @@ enum Role {
   PROJECT_MANAGER
   DEVELOPER
   DESIGNER
+  SALES
+}
+
+enum LeadType {
+  INVITE
+  GENERATED
 }
 
 // Which discipline a user serves in on a specific project.
@@ -88,9 +94,11 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  assignedTasks    Task[]          @relation("TaskAssignee")
-  timeEntries      TimeEntry[]
-  projectMembers   ProjectMember[]
+  assignedTasks     Task[]             @relation("TaskAssignee")
+  timeEntries       TimeEntry[]
+  projectMembers    ProjectMember[]
+  salesLeads        Client[]           @relation("SalesLeads")
+  commissionPayouts CommissionPayout[]
 
   @@index([email])
 }
@@ -109,11 +117,17 @@ model Client {
   website      String?       // current website
   socialLinks  String?       // free text / links
   notes        String?
+  // Lead attribution for sales commission
+  leadType      LeadType?
+  salespersonId String?
+  salesperson   User?     @relation("SalesLeads", fields: [salespersonId], references: [id], onDelete: SetNull)
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
 
   projects Project[]
   payments Payment[]
+
+  @@index([salespersonId])
 }
 
 model Project {
@@ -142,6 +156,7 @@ model Project {
 
   status          ProjectStatus @default(ONBOARDING)
   internalNotes   String?
+  pmCommissionRate Float        @default(10) // % of project value / payments to the PM
 
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
@@ -204,6 +219,21 @@ model Tag {
   createdAt DateTime @default(now())
 
   tasks Task[]
+}
+
+// A recorded commission payout to a team member (sales or PM). Amount in CAD.
+model CommissionPayout {
+  id        String   @id @default(cuid())
+  amount    Float
+  paidAt    DateTime
+  method    String?
+  note      String?
+  createdAt DateTime @default(now())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 model TimeEntry {

@@ -11,6 +11,7 @@ import {
   PRIORITIES,
   PAYMENT_METHODS,
   TASK_STATUSES,
+  LEAD_TYPES,
 } from '@/lib/enums';
 import { getRatesToCad, toCad } from '@/lib/fx';
 
@@ -91,6 +92,11 @@ function buildProjectData(formData: FormData) {
     brandAssetsLink: str(formData.get('brandAssetsLink')),
     domainAccess: str(formData.get('domainAccess')),
     internalNotes: str(formData.get('internalNotes')),
+    pmCommissionRate: (() => {
+      const r = str(formData.get('pmCommissionRate'));
+      const n = r ? Number(r) : NaN;
+      return !Number.isNaN(n) && n >= 0 ? n : 10;
+    })(),
     members: members.length ? { create: members.map((m) => ({ userId: m.userId, role: m.role })) } : undefined,
   };
 }
@@ -101,6 +107,10 @@ export async function onboardClient(formData: FormData) {
 
   const rawSource = str(formData.get('source'));
   const source = CLIENT_SOURCES.includes(rawSource ?? '') ? (rawSource as any) : null;
+
+  const rawLeadType = str(formData.get('leadType'));
+  const leadType = LEAD_TYPES.includes(rawLeadType ?? '') ? (rawLeadType as any) : null;
+  const salespersonId = str(formData.get('salespersonId'));
 
   const client = await prisma.client.create({
     data: {
@@ -114,6 +124,8 @@ export async function onboardClient(formData: FormData) {
       location: str(formData.get('location')),
       website: str(formData.get('website')),
       socialLinks: str(formData.get('socialLinks')),
+      leadType,
+      salespersonId: salespersonId || null,
       projects: { create: buildProjectData(formData) },
     },
     include: { projects: true },
@@ -245,4 +257,32 @@ export async function deleteTask(taskId: string, projectId: string) {
   if (!taskId) return;
   await prisma.task.delete({ where: { id: taskId } });
   revalidatePath(`/projects/${projectId}`);
+}
+
+// ─── Commission payouts ──────────────────────────────────────────────────────
+
+export async function recordCommissionPayout(formData: FormData) {
+  const userId = str(formData.get('userId'));
+  if (!userId) throw new Error('Missing recipient.');
+
+  const amountRaw = str(formData.get('amount'));
+  const amount = amountRaw ? Number(amountRaw) : NaN;
+  if (!amountRaw || Number.isNaN(amount) || amount <= 0) {
+    throw new Error('A valid payout amount is required.');
+  }
+
+  const paidRaw = str(formData.get('paidAt'));
+
+  await prisma.commissionPayout.create({
+    data: {
+      userId,
+      amount, // CAD
+      paidAt: paidRaw ? new Date(paidRaw) : new Date(),
+      method: str(formData.get('method')),
+      note: str(formData.get('note')),
+    },
+  });
+
+  revalidatePath('/commissions');
+  redirect('/commissions');
 }
