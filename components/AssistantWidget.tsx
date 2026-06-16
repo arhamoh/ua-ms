@@ -3,8 +3,9 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { AnimatePresence, motion } from 'motion/react';
-import { Sparkles, X, Maximize2 } from 'lucide-react';
+import { X, Maximize2 } from 'lucide-react';
 import AssistantChat from './AssistantChat';
+import AssistantIcon from './AssistantIcon';
 
 export default function AssistantWidget() {
   const [open, setOpen] = useState(false);
@@ -13,15 +14,10 @@ export default function AssistantWidget() {
     <>
       <button
         onClick={() => setOpen((o) => !o)}
-        className="fixed bottom-5 right-5 z-40 grid h-12 w-12 place-items-center overflow-hidden rounded-full bg-brand text-white shadow-lg transition hover:opacity-90 print:hidden"
+        className="fixed bottom-5 right-5 z-40 grid h-12 w-12 place-items-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-lg transition hover:shadow-xl print:hidden"
         aria-label="Analytics assistant"
       >
-        {open ? (
-          <X size={20} />
-        ) : (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src="/icon.svg" alt="" className="h-full w-full object-cover" />
-        )}
+        {open ? <X size={20} /> : <AssistantIcon size={34} />}
       </button>
 
       <AnimatePresence>
@@ -34,7 +30,7 @@ export default function AssistantWidget() {
             className="fixed bottom-20 right-5 z-40 flex h-[60vh] max-h-[560px] w-[90vw] max-w-sm flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl print:hidden"
           >
             <div className="flex items-center gap-2 border-b border-slate-100 px-4 py-3">
-              <Sparkles size={16} className="text-brand" />
+              <AssistantIcon size={18} />
               <span className="text-sm font-semibold">Analytics Assistant</span>
               <Link
                 href="/assistant"
