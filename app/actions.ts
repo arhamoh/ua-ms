@@ -701,12 +701,16 @@ export async function backfillInvoices() {
 }
 
 export async function clearDemoData() {
-  // Remove demo records AND the original Acme seed.
+  // Remove demo records AND the original Acme seed. Deleting demo clients cascades
+  // their projects/tasks/invoices/payments; deleting demo users cascades their
+  // memberships/salaries/payments/commissions (Task.assignee is set null).
   await prisma.client.deleteMany({
     where: { OR: [{ name: { startsWith: 'Demo —' } }, { name: 'Acme Inc.' }] },
   });
   await prisma.expense.deleteMany({ where: { title: { startsWith: 'Demo —' } } });
-  await prisma.user.deleteMany({ where: { email: 'demo.sales@uaagency.com' } });
+  await prisma.user.deleteMany({
+    where: { OR: [{ email: { endsWith: '@uademo.test' } }, { email: 'demo.sales@uaagency.com' }] },
+  });
   revalidatePath('/');
   redirect('/settings?done=cleared');
 }
@@ -715,88 +719,225 @@ export async function seedDemoData() {
   const rates = await getRatesToCad();
   const cadOf = (a: number, c: string) => toCad(a, c, rates);
   const admin = await prisma.user.findFirst({ where: { roles: { has: 'SUPER_ADMIN' as any } } });
-  const sales = await prisma.user.upsert({
-    where: { email: 'demo.sales@uaagency.com' },
-    update: { roles: ['SALES'] as any },
-    create: { email: 'demo.sales@uaagency.com', name: 'Demo Salesperson', roles: ['SALES'] as any },
-  });
+  const daysAgo = (n: number) => new Date(Date.now() - n * 86_400_000);
 
-  const defs = [
-    { client: 'Demo — Brightline', lead: 'GENERATED', project: 'Brightline Website', type: 'DEVELOPMENT', budget: 12000, cur: 'USD', status: 'ACTIVE', pay: 6000, payCur: 'USD' },
-    { client: 'Demo — Nova Foods', lead: 'INVITE', project: 'Nova Branding', type: 'DESIGN', budget: 4000, cur: 'CAD', status: 'ACTIVE', pay: 4000, payCur: 'CAD' },
-    { client: 'Demo — Karachi Tech', lead: 'GENERATED', project: 'KT Mobile App', type: 'SOFTWARE', budget: 8000, cur: 'USD', status: 'ONBOARDING', pay: 2000, payCur: 'USD' },
+  // ── Demo team (6 members across roles) — emails on @uademo.test so cleanup is exact ──
+  const MEMBERS = [
+    { name: 'Aisha Khan', role: 'PROJECT_MANAGER', salary: 2200 },
+    { name: 'Daniel Cruz', role: 'PROJECT_MANAGER', salary: 2100 },
+    { name: 'Sam Lee', role: 'DEVELOPER', salary: 1800 },
+    { name: 'Omar Farooq', role: 'DEVELOPER', salary: 1700 },
+    { name: 'Priya Patel', role: 'DESIGNER', salary: 1600 },
+    { name: 'Bilal Ahmed', role: 'SALES', salary: 1400 },
+  ];
+  const team: { id: string; role: string; salary: number }[] = [];
+  for (const m of MEMBERS) {
+    const email = `${m.name.toLowerCase().replace(/\s+/g, '.')}@uademo.test`;
+    const u = await prisma.user.upsert({
+      where: { email },
+      update: { roles: [m.role] as any },
+      create: { email, name: m.name, roles: [m.role] as any },
+    });
+    team.push({ id: u.id, role: m.role, salary: m.salary });
+  }
+  const pms = team.filter((t) => t.role === 'PROJECT_MANAGER');
+  const developers = team.filter((t) => t.role === 'DEVELOPER');
+  const designers = team.filter((t) => t.role === 'DESIGNER');
+  const salesperson = team.find((t) => t.role === 'SALES') ?? team[0];
+  const assignable = [...team, ...(admin ? [{ id: admin.id }] : [])];
+
+  // ── Clients, each with 2–3 projects (~26 projects total) ──
+  const SOURCES = ['UPWORK', 'AGENCY', 'REFERRAL', 'OTHER'];
+  const CLIENTS: {
+    name: string;
+    cur: string;
+    lead: string;
+    projects: { name: string; type: string; budget: number; status: string }[];
+  }[] = [
+    { name: 'Brightline', cur: 'USD', lead: 'GENERATED', projects: [
+      { name: 'Brightline Website', type: 'DEVELOPMENT', budget: 12000, status: 'ACTIVE' },
+      { name: 'Brightline Brand Refresh', type: 'DESIGN', budget: 4500, status: 'COMPLETED' },
+    ] },
+    { name: 'Nova Foods', cur: 'CAD', lead: 'INVITE', projects: [
+      { name: 'Nova Branding', type: 'DESIGN', budget: 4000, status: 'ACTIVE' },
+      { name: 'Nova E-commerce', type: 'DEVELOPMENT', budget: 15000, status: 'ONBOARDING' },
+      { name: 'Nova Mobile App', type: 'SOFTWARE', budget: 22000, status: 'ACTIVE' },
+    ] },
+    { name: 'Karachi Tech', cur: 'USD', lead: 'GENERATED', projects: [
+      { name: 'KT Mobile App', type: 'SOFTWARE', budget: 8000, status: 'ACTIVE' },
+      { name: 'KT Marketing Site', type: 'DEVELOPMENT', budget: 5000, status: 'ON_HOLD' },
+    ] },
+    { name: 'Maple & Co', cur: 'CAD', lead: 'INVITE', projects: [
+      { name: 'Maple Identity', type: 'DESIGN', budget: 3500, status: 'COMPLETED' },
+      { name: 'Maple Storefront', type: 'DEVELOPMENT', budget: 9000, status: 'ACTIVE' },
+    ] },
+    { name: 'Skyline Realty', cur: 'USD', lead: 'GENERATED', projects: [
+      { name: 'Skyline Portal', type: 'SOFTWARE', budget: 18000, status: 'ACTIVE' },
+      { name: 'Skyline Listings Redesign', type: 'DESIGN', budget: 6000, status: 'ACTIVE' },
+    ] },
+    { name: 'Greenleaf', cur: 'EUR', lead: 'GENERATED', projects: [
+      { name: 'Greenleaf Website', type: 'DEVELOPMENT', budget: 11000, status: 'ACTIVE' },
+      { name: 'Greenleaf Packaging', type: 'DESIGN', budget: 5200, status: 'ONBOARDING' },
+    ] },
+    { name: 'Orbit Labs', cur: 'USD', lead: 'GENERATED', projects: [
+      { name: 'Orbit SaaS Dashboard', type: 'SOFTWARE', budget: 26000, status: 'ACTIVE' },
+      { name: 'Orbit Docs Site', type: 'DEVELOPMENT', budget: 7000, status: 'COMPLETED' },
+    ] },
+    { name: 'Lumen Media', cur: 'CAD', lead: 'INVITE', projects: [
+      { name: 'Lumen Campaign Site', type: 'DEVELOPMENT', budget: 8500, status: 'ACTIVE' },
+      { name: 'Lumen Social Kit', type: 'DESIGN', budget: 3000, status: 'ACTIVE' },
+    ] },
+    { name: 'Harbor Bank', cur: 'USD', lead: 'GENERATED', projects: [
+      { name: 'Harbor Onboarding Flow', type: 'SOFTWARE', budget: 30000, status: 'ACTIVE' },
+      { name: 'Harbor Brand Guidelines', type: 'DESIGN', budget: 6500, status: 'COMPLETED' },
+    ] },
+    { name: 'Pixel Forge', cur: 'USD', lead: 'GENERATED', projects: [
+      { name: 'Pixel Forge Studio Site', type: 'DEVELOPMENT', budget: 9500, status: 'ACTIVE' },
+      { name: 'Pixel Forge Game UI', type: 'DESIGN', budget: 7800, status: 'ON_HOLD' },
+    ] },
+    { name: 'Verde Coffee', cur: 'CAD', lead: 'INVITE', projects: [
+      { name: 'Verde Online Store', type: 'DEVELOPMENT', budget: 6800, status: 'ACTIVE' },
+      { name: 'Verde Rebrand', type: 'DESIGN', budget: 4200, status: 'COMPLETED' },
+    ] },
+    { name: 'Atlas Logistics', cur: 'USD', lead: 'GENERATED', projects: [
+      { name: 'Atlas Tracking Portal', type: 'SOFTWARE', budget: 24000, status: 'ACTIVE' },
+      { name: 'Atlas Marketing Site', type: 'DEVELOPMENT', budget: 8000, status: 'ONBOARDING' },
+    ] },
   ];
 
-  const statuses = ['BACKLOG', 'TODO', 'IN_PROGRESS', 'IN_REVIEW', 'DONE'];
-  const prios = ['LOW', 'MEDIUM', 'HIGH'];
+  const TASK_VERBS = ['Design', 'Build', 'Wireframe', 'Implement', 'Test', 'Review', 'Refactor', 'Integrate', 'Document', 'Polish', 'Fix', 'Optimize', 'Deploy', 'Research', 'Set up'];
+  const TASK_NOUNS = ['homepage', 'auth flow', 'dashboard', 'API endpoints', 'checkout', 'onboarding', 'settings page', 'navigation', 'database schema', 'landing page', 'email templates', 'reports', 'search', 'profile page', 'payment flow', 'mobile layout', 'analytics', 'notifications', 'file uploads', 'admin panel'];
+  const TASK_STATUSES = ['BACKLOG', 'TODO', 'IN_PROGRESS', 'IN_REVIEW', 'DONE'];
+  const PRIOS = ['LOW', 'MEDIUM', 'HIGH'];
+  const METHODS = ['BANK_TRANSFER', 'WISE', 'REMITLY', 'PAYONEER', 'PAYPAL'];
 
-  for (const d of defs) {
+  let projIdx = 0;
+  for (let ci = 0; ci < CLIENTS.length; ci++) {
+    const c = CLIENTS[ci];
     const client = await prisma.client.create({
       data: {
-        name: d.client,
-        email: `hello@${d.client.replace('Demo — ', '').toLowerCase().replace(/\s+/g, '')}.com`,
-        source: 'UPWORK' as any,
-        leadType: d.lead as any,
-        salespersonId: sales.id,
-        projects: {
-          create: {
-            name: d.project,
-            type: d.type as any,
-            budgetAmount: d.budget,
-            budgetCurrency: d.cur,
-            budgetType: 'FIXED' as any,
-            status: d.status as any,
-            priority: 'MEDIUM' as any,
-            pmCommissionRate: 10,
-            members: admin ? { create: { userId: admin.id, role: 'PROJECT_MANAGER' as any } } : undefined,
-          },
-        },
+        name: `Demo — ${c.name}`,
+        email: `hello@${c.name.toLowerCase().replace(/\s+/g, '')}.com`,
+        source: SOURCES[ci % SOURCES.length] as any,
+        leadType: c.lead as any,
+        salespersonId: salesperson.id,
       },
-      include: { projects: true },
     });
-    const project = client.projects[0];
 
-    await prisma.invoice.create({
-      data: { clientId: client.id, projectId: project.id, amount: d.budget, currency: d.cur, status: 'SENT' as any },
-    });
-    await prisma.payment.create({
-      data: {
-        clientId: client.id,
-        projectId: project.id,
-        amount: d.pay,
-        currency: d.payCur,
-        amountCad: cadOf(d.pay, d.payCur),
-        method: 'BANK_TRANSFER' as any,
-        paidAt: new Date(),
-      },
-    });
-    for (let i = 0; i < 5; i++) {
-      await prisma.task.create({
+    for (const p of c.projects) {
+      const pm = pms[projIdx % pms.length];
+      const dev = developers[projIdx % developers.length];
+      const des = designers[projIdx % designers.length];
+      const memberRows = [
+        { userId: pm.id, role: 'PROJECT_MANAGER' as any },
+        ...(dev ? [{ userId: dev.id, role: 'DEVELOPER' as any }] : []),
+        ...(des ? [{ userId: des.id, role: 'DESIGNER' as any }] : []),
+      ];
+      const seenMember = new Set<string>();
+      const members = memberRows.filter((m) => {
+        const k = `${m.userId}-${m.role}`;
+        if (seenMember.has(k)) return false;
+        seenMember.add(k);
+        return true;
+      });
+
+      const project = await prisma.project.create({
         data: {
-          projectId: project.id,
-          title: `Demo task ${i + 1}`,
-          status: statuses[i] as any,
-          priority: prios[i % 3] as any,
-          assigneeId: admin?.id ?? null,
+          clientId: client.id,
+          name: p.name,
+          type: p.type as any,
+          budgetAmount: p.budget,
+          budgetCurrency: c.cur,
+          budgetType: 'FIXED' as any,
+          status: p.status as any,
+          priority: PRIOS[projIdx % 3] as any,
+          pmCommissionRate: 10,
+          members: { create: members },
         },
+      });
+
+      // 20 tasks per project, spread across statuses/priorities/assignees
+      const tasks = Array.from({ length: 20 }, (_, i) => {
+        const a = assignable[(projIdx + i) % assignable.length];
+        return {
+          projectId: project.id,
+          title: `${TASK_VERBS[(projIdx + i) % TASK_VERBS.length]} ${TASK_NOUNS[i % TASK_NOUNS.length]}`,
+          status: TASK_STATUSES[i % TASK_STATUSES.length] as any,
+          priority: PRIOS[i % 3] as any,
+          assigneeId: a?.id ?? null,
+        };
+      });
+      await prisma.task.createMany({ data: tasks });
+
+      await prisma.invoice.create({
+        data: { clientId: client.id, projectId: project.id, amount: p.budget, currency: c.cur, status: 'SENT' as any },
+      });
+
+      // 1–3 payments (deposit + milestones), dated across the last few months
+      const fractions = p.status === 'COMPLETED' ? [0.4, 0.3, 0.3] : projIdx % 2 === 0 ? [0.5, 0.25] : [0.4];
+      let fi = 0;
+      for (const fr of fractions) {
+        const amt = Math.round(p.budget * fr);
+        await prisma.payment.create({
+          data: {
+            clientId: client.id,
+            projectId: project.id,
+            amount: amt,
+            currency: c.cur,
+            amountCad: cadOf(amt, c.cur),
+            method: METHODS[(projIdx + fi) % METHODS.length],
+            paidAt: daysAgo(12 * (projIdx % 9) + fi * 18 + 3),
+          },
+        });
+        fi++;
+      }
+
+      projIdx++;
+    }
+  }
+
+  // ── Expenses (varied categories / currencies / dates) ──
+  const EXPENSES = [
+    { t: 'Demo — Adobe Creative Cloud', a: 60, c: 'USD', cat: 'SOFTWARE' },
+    { t: 'Demo — Figma seats', a: 45, c: 'USD', cat: 'SOFTWARE' },
+    { t: 'Demo — Vercel hosting', a: 20, c: 'USD', cat: 'HOSTING' },
+    { t: 'Demo — Railway hosting', a: 25, c: 'USD', cat: 'HOSTING' },
+    { t: 'Demo — Office rent (Karachi)', a: 60000, c: 'PKR', cat: 'OFFICE' },
+    { t: 'Demo — Internet & utilities', a: 12000, c: 'PKR', cat: 'UTILITIES' },
+    { t: 'Demo — Google Workspace', a: 36, c: 'USD', cat: 'SUBSCRIPTION' },
+    { t: 'Demo — Meta Ads', a: 300, c: 'USD', cat: 'MARKETING' },
+    { t: 'Demo — Team lunch', a: 140, c: 'CAD', cat: 'MEALS' },
+    { t: 'Demo — Client visit travel', a: 420, c: 'CAD', cat: 'TRAVEL' },
+    { t: 'Demo — New monitor', a: 380, c: 'CAD', cat: 'EQUIPMENT' },
+    { t: 'Demo — Contractor (icons)', a: 250, c: 'USD', cat: 'CONTRACTOR' },
+    { t: 'Demo — Domain renewals', a: 80, c: 'USD', cat: 'SOFTWARE' },
+    { t: 'Demo — Bank fees', a: 35, c: 'CAD', cat: 'FEES' },
+  ];
+  for (let i = 0; i < EXPENSES.length; i++) {
+    const e = EXPENSES[i];
+    await prisma.expense.create({
+      data: { title: e.t, category: e.cat as any, amount: e.a, currency: e.c, amountCad: cadOf(e.a, e.c), date: daysAgo(8 * i + 5) },
+    });
+  }
+
+  // ── Salaries + salary payments for each team member ──
+  for (let i = 0; i < team.length; i++) {
+    const m = team[i];
+    await prisma.salary.create({ data: { userId: m.id, amount: m.salary, currency: 'CAD', effectiveFrom: daysAgo(180) } });
+    for (const mo of [60, 30]) {
+      await prisma.salaryPayment.create({
+        data: { userId: m.id, amount: m.salary, currency: 'CAD', amountCad: m.salary, paidAt: daysAgo(mo), method: METHODS[i % METHODS.length] },
       });
     }
   }
 
-  const exp = [
-    { t: 'Demo — Adobe CC', a: 60, c: 'USD', cat: 'SOFTWARE' },
-    { t: 'Demo — Office (Karachi)', a: 50000, c: 'PKR', cat: 'OFFICE' },
-    { t: 'Demo — Hosting', a: 20, c: 'USD', cat: 'HOSTING' },
-  ];
-  for (const e of exp) {
-    await prisma.expense.create({
-      data: { title: e.t, category: e.cat as any, amount: e.a, currency: e.c, amountCad: cadOf(e.a, e.c), date: new Date() },
+  // ── Commission payouts (sales + PMs) ──
+  const payoutPeople = [salesperson, ...pms];
+  for (let i = 0; i < payoutPeople.length; i++) {
+    await prisma.commissionPayout.create({
+      data: { userId: payoutPeople[i].id, amount: 300 + i * 120, paidAt: daysAgo(20 + i * 15), method: METHODS[i % METHODS.length], note: 'Demo payout' },
     });
   }
-
-  await prisma.salary.create({ data: { userId: sales.id, amount: 1500, currency: 'CAD', effectiveFrom: new Date() } });
-  await prisma.salaryPayment.create({ data: { userId: sales.id, amount: 1500, currency: 'CAD', amountCad: 1500, paidAt: new Date(), method: 'Wise' } });
-  await prisma.commissionPayout.create({ data: { userId: sales.id, amount: 200, paidAt: new Date(), method: 'Wise', note: 'Demo payout' } });
 
   revalidatePath('/');
   redirect('/settings?done=seeded');
