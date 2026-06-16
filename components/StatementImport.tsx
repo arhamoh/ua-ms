@@ -3,8 +3,17 @@
 import { useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { UploadCloud, FileSpreadsheet, CheckCircle2, RotateCcw } from 'lucide-react';
+import { UploadCloud, FileSpreadsheet, CheckCircle2, RotateCcw, Loader2 } from 'lucide-react';
 import { importStatementExpenses } from '@/app/actions';
+
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
 
 type Opt = { value: string; label: string };
 
@@ -151,10 +160,14 @@ type Override = { include?: boolean; title?: string; category?: string; date?: s
 
 export default function StatementImport({ currencies, categories }: { currencies: Opt[]; categories: Opt[] }) {
   const router = useRouter();
+  const [mode, setMode] = useState<'csv' | 'pdf' | null>(null);
   const [fileName, setFileName] = useState('');
   const [rawRows, setRawRows] = useState<string[][]>([]);
   const [hasHeader, setHasHeader] = useState(true);
   const [mapping, setMapping] = useState<Mapping | null>(null);
+  const [pdfRows, setPdfRows] = useState<{ date: string; desc: string; outflow: number; inflow: number; category: string }[] | null>(null);
+  const [pdfLoading, setPdfLoading] = useState(false);
+  const [pdfNotice, setPdfNotice] = useState<string | null>(null);
   const [currency, setCurrency] = useState('CAD');
   const [note, setNote] = useState('');
   const [overrides, setOverrides] = useState<Record<number, Override>>({});
@@ -163,69 +176,136 @@ export default function StatementImport({ currencies, categories }: { currencies
 
   const onFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
+    e.target.value = '';
     if (!f) return;
+    const isPdf = f.type === 'application/pdf' || /\.pdf$/i.test(f.name);
+    setFileName(f.name);
+    setOverrides({});
+    setResult(null);
+    setPdfNotice(null);
+
+    if (isPdf) {
+      setMode('pdf');
+      setRawRows([]);
+      setMapping(null);
+      setPdfRows(null);
+      setPdfLoading(true);
+      try {
+        const dataUrl = await fileToBase64(f);
+        const r = await fetch('/api/parse-statement', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ pdf: dataUrl }),
+        });
+        const res = await r.json();
+        if (res?.ok && Array.isArray(res.transactions)) {
+          if (res.currency && currencies.some((c) => c.value === res.currency)) setCurrency(res.currency);
+          setPdfRows(
+            res.transactions.map((t: any) => ({
+              date: t.date || '',
+              desc: t.description || '',
+              outflow: t.direction === 'credit' ? 0 : Number(t.amount) || 0,
+              inflow: t.direction === 'credit' ? Number(t.amount) || 0 : 0,
+              category: t.category || 'OTHER',
+            })),
+          );
+          if (!res.transactions.length) setPdfNotice('No transactions were found in this PDF.');
+        } else if (res?.error === 'not_configured') {
+          setPdfNotice('Reading PDFs needs OPENROUTER_API_KEY set in Railway. You can upload a CSV in the meantime.');
+        } else if (res?.error === 'no_text') {
+          setPdfNotice('This looks like a scanned image PDF (no selectable text). Try your bank’s CSV export, or a text PDF.');
+        } else {
+          setPdfNotice(`Couldn’t read the PDF${res?.detail ? ` (${res.detail})` : ''}. Try a CSV export instead.`);
+        }
+      } catch {
+        setPdfNotice('PDF read failed. Try again, or use a CSV export.');
+      } finally {
+        setPdfLoading(false);
+      }
+      return;
+    }
+
     const text = await f.text();
     const all = parseCsv(text);
     const headerIdx = detectHeaderIndex(all);
     const rows = headerIdx > 0 ? all.slice(headerIdx) : all;
-    setFileName(f.name);
+    setMode('csv');
+    setPdfRows(null);
     setRawRows(rows);
-    setOverrides({});
-    setResult(null);
     setHasHeader(true);
     setMapping(detectMapping(rows[0] ?? []));
   };
 
   const reset = () => {
+    setMode(null);
     setRawRows([]);
     setMapping(null);
+    setPdfRows(null);
+    setPdfNotice(null);
+    setPdfLoading(false);
     setFileName('');
     setOverrides({});
     setResult(null);
   };
 
   const header = useMemo(() => {
-    if (!rawRows.length) return [];
+    if (mode !== 'csv' || !rawRows.length) return [];
     return hasHeader ? rawRows[0] : rawRows[0].map((_, i) => `Column ${i + 1}`);
-  }, [rawRows, hasHeader]);
+  }, [mode, rawRows, hasHeader]);
 
   const columnOpts = header.map((h, i) => ({ value: i, label: h?.trim() || `Column ${i + 1}` }));
 
-  const txns = useMemo(() => {
-    if (!mapping) return [];
-    const dataRows = hasHeader ? rawRows.slice(1) : rawRows;
-    return dataRows.map((cols, i) => {
-      const rawDesc = (cols[mapping.desc] ?? '').trim();
-      let outflow = 0;
-      let inflow = 0;
-      if (mapping.mode === 'split') {
-        outflow = Math.abs(num(cols[mapping.debit] ?? ''));
-        inflow = Math.abs(num(cols[mapping.credit] ?? ''));
-      } else {
-        const v = num(cols[mapping.amount] ?? '');
-        if (mapping.expenseSign === 'neg') { if (v < 0) outflow = -v; else inflow = v; }
-        else if (v > 0) outflow = v; else inflow = -v;
-      }
-      const isExpense = outflow > 0;
-      const interest = /interest/i.test(rawDesc);
-      const defTitle = interest ? 'Additional credit card fee' : rawDesc || 'Expense';
-      const defCat = interest ? 'FEES' : guessCategory(rawDesc);
-      const defDate = normalizeDate(cols[mapping.date] ?? '', mapping.dateOrder);
-      const o = overrides[i] ?? {};
-      const baseAmt = outflow || inflow;
-      return {
-        i,
-        rawDesc,
-        isExpense,
-        interest,
-        include: o.include ?? isExpense,
-        title: o.title ?? defTitle,
-        category: o.category ?? defCat,
-        date: o.date ?? defDate,
-        amount: o.amount ?? (baseAmt ? baseAmt.toFixed(2) : '0'),
-      };
-    });
-  }, [rawRows, hasHeader, mapping, overrides]);
+  // Normalized rows from either CSV (mapping) or PDF (model); the review layer
+  // (interest rename, category guess, edits) sits on top of this.
+  const base = useMemo(() => {
+    if (mode === 'pdf') {
+      return (pdfRows ?? []).map((r) => ({
+        date: r.date, desc: r.desc, outflow: r.outflow, inflow: r.inflow, category: r.category as string | undefined,
+      }));
+    }
+    if (mode === 'csv' && mapping) {
+      const dataRows = hasHeader ? rawRows.slice(1) : rawRows;
+      return dataRows.map((cols) => {
+        const desc = (cols[mapping.desc] ?? '').trim();
+        let outflow = 0;
+        let inflow = 0;
+        if (mapping.mode === 'split') {
+          outflow = Math.abs(num(cols[mapping.debit] ?? ''));
+          inflow = Math.abs(num(cols[mapping.credit] ?? ''));
+        } else {
+          const v = num(cols[mapping.amount] ?? '');
+          if (mapping.expenseSign === 'neg') { if (v < 0) outflow = -v; else inflow = v; }
+          else if (v > 0) outflow = v; else inflow = -v;
+        }
+        return { date: normalizeDate(cols[mapping.date] ?? '', mapping.dateOrder), desc, outflow, inflow, category: undefined as string | undefined };
+      });
+    }
+    return [];
+  }, [mode, pdfRows, rawRows, hasHeader, mapping]);
+
+  const txns = useMemo(
+    () =>
+      base.map((b, i) => {
+        const isExpense = b.outflow > 0;
+        const interest = /interest/i.test(b.desc);
+        const defTitle = interest ? 'Additional credit card fee' : b.desc || 'Expense';
+        const defCat = interest ? 'FEES' : b.category || guessCategory(b.desc);
+        const o = overrides[i] ?? {};
+        const baseAmt = b.outflow || b.inflow;
+        return {
+          i,
+          rawDesc: b.desc,
+          isExpense,
+          interest,
+          include: o.include ?? isExpense,
+          title: o.title ?? defTitle,
+          category: o.category ?? defCat,
+          date: o.date ?? b.date,
+          amount: o.amount ?? (baseAmt ? baseAmt.toFixed(2) : '0'),
+        };
+      }),
+    [base, overrides],
+  );
 
   const included = txns.filter((t) => t.include && Number(t.amount) > 0);
   const includedTotal = included.reduce((s, t) => s + Number(t.amount), 0);
@@ -251,26 +331,6 @@ export default function StatementImport({ currencies, categories }: { currencies
     });
   };
 
-  // ── Empty state: file picker ──
-  if (!rawRows.length) {
-    return (
-      <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center shadow-sm">
-        <span className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-brand-light text-brand">
-          <UploadCloud size={24} />
-        </span>
-        <h2 className="mt-4 text-sm font-semibold">Upload a statement (CSV)</h2>
-        <p className="mx-auto mt-1 max-w-md text-sm text-slate-500">
-          Export your bank or credit-card statement as CSV and drop it here. You’ll review every line
-          before anything is added. Lines that say “interest” are relabelled “Additional credit card fee”.
-        </p>
-        <label className="mt-5 inline-flex cursor-pointer items-center gap-2 rounded-xl bg-brand px-4 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-brand-dark">
-          <FileSpreadsheet size={16} /> Choose CSV file
-          <input type="file" accept=".csv,text/csv" className="hidden" onChange={onFile} />
-        </label>
-      </div>
-    );
-  }
-
   // ── Success state ──
   if (result !== null) {
     return (
@@ -294,21 +354,70 @@ export default function StatementImport({ currencies, categories }: { currencies
     );
   }
 
+  // ── No file chosen yet ──
+  if (!mode) {
+    return (
+      <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center shadow-sm">
+        <span className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-brand-light text-brand">
+          <UploadCloud size={24} />
+        </span>
+        <h2 className="mt-4 text-sm font-semibold">Upload a statement (CSV or PDF)</h2>
+        <p className="mx-auto mt-1 max-w-md text-sm text-slate-500">
+          Drop your bank or credit-card statement here. CSVs are mapped automatically; PDFs are read for you.
+          You’ll review every line before anything is added, and “interest” lines become “Additional credit card fee”.
+        </p>
+        <label className="mt-5 inline-flex cursor-pointer items-center gap-2 rounded-xl bg-brand px-4 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-brand-dark">
+          <FileSpreadsheet size={16} /> Choose CSV or PDF
+          <input type="file" accept=".csv,text/csv,.pdf,application/pdf" className="hidden" onChange={onFile} />
+        </label>
+      </div>
+    );
+  }
+
+  // ── PDF being read ──
+  if (mode === 'pdf' && pdfLoading) {
+    return (
+      <div className="rounded-2xl border border-slate-200 bg-white p-10 text-center shadow-sm">
+        <span className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-brand-light text-brand">
+          <Loader2 size={24} className="animate-spin" />
+        </span>
+        <h2 className="mt-4 text-sm font-semibold">Reading {fileName}…</h2>
+        <p className="mt-1 text-sm text-slate-500">Extracting and structuring the transactions — this can take a few seconds.</p>
+      </div>
+    );
+  }
+
+  // ── PDF read but nothing usable ──
+  if (mode === 'pdf' && (!pdfRows || pdfRows.length === 0)) {
+    return (
+      <div className="rounded-2xl border border-amber-200 bg-amber-50 p-8 text-center shadow-sm">
+        <h2 className="text-sm font-semibold text-amber-900">Couldn’t pull transactions from this PDF</h2>
+        <p className="mx-auto mt-1 max-w-md text-sm text-amber-800">{pdfNotice ?? 'No transactions were found.'}</p>
+        <button onClick={reset} className="mt-4 rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50">
+          Try another file
+        </button>
+      </div>
+    );
+  }
+
   // ── Mapping + review ──
   return (
     <div className="space-y-6">
-      {/* Mapping controls */}
+      {/* Source controls */}
       <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
           <h2 className="flex items-center gap-2 text-sm font-semibold">
             <FileSpreadsheet size={16} className="text-brand" /> {fileName}
-            <span className="text-xs font-normal text-slate-400">· {(hasHeader ? rawRows.length - 1 : rawRows.length)} rows</span>
+            <span className="text-xs font-normal text-slate-400">
+              · {mode === 'csv' ? `${hasHeader ? rawRows.length - 1 : rawRows.length} rows` : `${txns.length} transactions`}
+            </span>
           </h2>
           <button onClick={reset} className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-500 hover:text-slate-800">
             <RotateCcw size={13} /> Choose a different file
           </button>
         </div>
 
+        {mode === 'csv' && (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
           <label className="block">
             <span className="mb-1 block text-xs font-medium text-slate-600">Date column</span>
@@ -385,7 +494,28 @@ export default function StatementImport({ currencies, categories }: { currencies
             First row is a header
           </label>
         </div>
+        )}
+
+        {mode === 'pdf' && (
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <label className="block">
+              <span className="mb-1 block text-xs font-medium text-slate-600">Statement currency</span>
+              <select className={miniCls} value={currency} onChange={(e) => setCurrency(e.target.value)}>
+                {currencies.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+              </select>
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-xs font-medium text-slate-600">Note on each expense</span>
+              <input className={miniCls} value={note} onChange={(e) => setNote(e.target.value)} placeholder="e.g. Visa ••1234 — June" />
+            </label>
+            <div className="flex items-end pb-1.5 text-xs text-slate-400">Read automatically from the PDF — review every line below.</div>
+          </div>
+        )}
       </div>
+
+      {pdfNotice && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-xs text-amber-800">{pdfNotice}</div>
+      )}
 
       {/* Review table */}
       <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">

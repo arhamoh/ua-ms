@@ -21,7 +21,7 @@ export default async function ImportStatementPage() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Import statement</h1>
           <p className="mt-1 text-sm text-slate-500">
-            Upload a bank or credit-card CSV, review the lines, and add them to expenses.
+            Upload a bank or credit-card statement — CSV or PDF — review the lines, and add them to expenses.
           </p>
         </div>
         <Link href="/finance/bill" className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50 hover:text-brand">
