@@ -1,5 +1,6 @@
 // Minimal service worker: network-first, falls back to cache when offline.
-const CACHE = 'ua-agency-v1';
+// API responses are never cached (always live data).
+const CACHE = 'ua-agency-v2';
 
 self.addEventListener('install', () => {
   self.skipWaiting();
@@ -19,6 +20,10 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   if (request.method !== 'GET') return;
+
+  // Never cache API responses — always go to the network.
+  const url = new URL(request.url);
+  if (url.pathname.startsWith('/api/')) return;
 
   event.respondWith(
     fetch(request)

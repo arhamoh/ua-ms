@@ -23,9 +23,12 @@ export async function GET() {
     }),
   ]);
 
-  return NextResponse.json({
-    clients: clients.map((c) => ({ id: c.id, name: c.name })),
-    projects: projects.map((p) => ({ id: p.id, name: p.name, sub: p.client.name })),
-    team: team.map((u) => ({ id: u.id, name: u.name, sub: u.email })),
-  });
+  return NextResponse.json(
+    {
+      clients: clients.map((c) => ({ id: c.id, name: c.name })),
+      projects: projects.map((p) => ({ id: p.id, name: p.name, sub: p.client.name })),
+      team: team.map((u) => ({ id: u.id, name: u.name, sub: u.email })),
+    },
+    { headers: { 'Cache-Control': 'no-store' } },
+  );
 }

@@ -71,7 +71,7 @@ export default function CommandPalette() {
   // Lazy-load the search index when first opened.
   useEffect(() => {
     if (open && !data) {
-      fetch('/api/search')
+      fetch('/api/search', { cache: 'no-store' })
         .then((r) => r.json())
         .then(setData)
         .catch(() => setData({ clients: [], projects: [], team: [] }));
