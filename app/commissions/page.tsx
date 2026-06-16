@@ -95,7 +95,7 @@ export default async function CommissionsPage() {
   );
 
   const summary = [
-    { label: 'Projected (pipeline)', value: formatMoney(totals.projected, 'CAD'), icon: TrendingUp, tint: 'bg-indigo-50 text-indigo-600' },
+    { label: 'Projected (pipeline)', value: formatMoney(totals.projected, 'CAD'), icon: TrendingUp, tint: 'bg-rose-50 text-rose-600' },
     { label: 'Earned (to date)', value: formatMoney(totals.earned, 'CAD'), icon: Wallet, tint: 'bg-emerald-50 text-emerald-600' },
     { label: 'Outstanding to pay', value: formatMoney(totals.outstanding, 'CAD'), icon: Scale, tint: totals.outstanding > 0 ? 'bg-rose-50 text-rose-600' : 'bg-slate-100 text-slate-500' },
   ];

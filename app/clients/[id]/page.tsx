@@ -61,7 +61,7 @@ export default async function ClientProfilePage({
   const balance = billed - paid;
 
   const summary = [
-    { label: 'Total billed', value: formatMoney(billed, 'CAD'), icon: Receipt, tint: 'bg-indigo-50 text-indigo-600' },
+    { label: 'Total billed', value: formatMoney(billed, 'CAD'), icon: Receipt, tint: 'bg-rose-50 text-rose-600' },
     { label: 'Total paid', value: formatMoney(paid, 'CAD'), icon: Wallet, tint: 'bg-emerald-50 text-emerald-600' },
     {
       label: 'Outstanding',

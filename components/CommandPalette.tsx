@@ -11,6 +11,11 @@ import {
   UserPlus,
   FolderKanban,
   CornerDownLeft,
+  Coins,
+  PiggyBank,
+  FileText,
+  Sparkles,
+  Settings,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -26,7 +31,12 @@ type Item = {
 const PAGES: Item[] = [
   { id: 'p-dash', label: 'Dashboard', href: '/', group: 'Pages', icon: LayoutDashboard },
   { id: 'p-clients', label: 'Clients', href: '/clients', group: 'Pages', icon: Briefcase },
+  { id: 'p-commissions', label: 'Commissions', href: '/commissions', group: 'Pages', icon: Coins },
+  { id: 'p-finance', label: 'Finance', href: '/finance', group: 'Pages', icon: PiggyBank },
+  { id: 'p-invoices', label: 'Invoices', href: '/invoices', group: 'Pages', icon: FileText },
+  { id: 'p-assistant', label: 'Analytics Assistant', href: '/assistant', group: 'Pages', icon: Sparkles },
   { id: 'p-team', label: 'Team', href: '/team', group: 'Pages', icon: Users },
+  { id: 'p-settings', label: 'Settings', href: '/settings', group: 'Pages', icon: Settings },
   { id: 'p-onboard', label: 'Onboard a client', href: '/onboard', group: 'Pages', icon: UserPlus },
 ];
 

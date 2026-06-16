@@ -93,7 +93,7 @@ export default async function FinancePage({
             {[
               { label: `Income — ${monthLabel}`, value: formatMoney(income, 'CAD'), icon: TrendingUp, tint: 'bg-emerald-50 text-emerald-600' },
               { label: 'Expenses', value: formatMoney(outgoings, 'CAD'), icon: TrendingDown, tint: 'bg-rose-50 text-rose-600' },
-              { label: 'Net', value: formatMoney(net, 'CAD'), icon: Scale, tint: net >= 0 ? 'bg-indigo-50 text-indigo-600' : 'bg-rose-50 text-rose-600' },
+              { label: 'Net', value: formatMoney(net, 'CAD'), icon: Scale, tint: net >= 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600' },
             ].map((s, i) => (
               <FadeIn key={s.label} delay={0.04 * i}>
                 <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">

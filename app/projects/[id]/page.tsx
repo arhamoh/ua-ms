@@ -138,7 +138,7 @@ export default async function ProjectDetailPage({
       ) : (
         <div className="space-y-6">
           <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-            <span className="grid h-9 w-9 place-items-center rounded-lg bg-indigo-50 text-indigo-600">
+            <span className="grid h-9 w-9 place-items-center rounded-lg bg-rose-50 text-rose-600">
               <FileText size={18} />
             </span>
             {project.invoices[0] ? (

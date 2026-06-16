@@ -26,8 +26,8 @@ export default async function DashboardPage() {
     ]);
 
   const stats = [
-    { label: 'Clients', value: clients, icon: Briefcase, tint: 'bg-indigo-50 text-indigo-600', href: '/clients' },
-    { label: 'Total projects', value: projects, icon: FolderKanban, tint: 'bg-violet-50 text-violet-600', href: '/clients' },
+    { label: 'Clients', value: clients, icon: Briefcase, tint: 'bg-rose-50 text-rose-600', href: '/clients' },
+    { label: 'Total projects', value: projects, icon: FolderKanban, tint: 'bg-sky-50 text-sky-600', href: '/clients' },
     { label: 'Active projects', value: activeCount, icon: Activity, tint: 'bg-emerald-50 text-emerald-600', href: '/clients' },
     { label: 'Team members', value: team, icon: Users, tint: 'bg-amber-50 text-amber-600', href: '/team' },
   ];

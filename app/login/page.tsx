@@ -13,7 +13,7 @@ export default async function LoginPage() {
     <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
       <div className="w-full max-w-sm">
         <div className="mb-6 flex flex-col items-center">
-          <span className="grid h-11 w-11 place-items-center rounded-2xl bg-brand text-base font-bold text-white">
+          <span className="grid h-11 w-11 place-items-center rounded-2xl bg-gradient-to-br from-brand-dark to-rose-400 text-base font-bold text-white">
             UA
           </span>
           <h1 className="mt-3 text-xl font-bold tracking-tight">Agency Platform</h1>
