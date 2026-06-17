@@ -87,9 +87,7 @@ export default function AssistantChat({
     return (
       <div className={`flex flex-col ${className}`}>
         <div className="flex flex-1 flex-col items-center justify-center px-4 py-8 text-center">
-          <span className={`grid place-items-center rounded-2xl bg-brand-light text-brand ${compact ? 'h-12 w-12' : 'h-16 w-16'}`}>
-            <AssistantIcon size={compact ? 26 : 34} />
-          </span>
+          <AssistantIcon size={compact ? 48 : 60} className="shadow-sm" />
           <h2 className={`mt-4 font-semibold tracking-tight text-slate-900 ${compact ? 'text-lg' : 'text-2xl'}`}>
             What can I help you analyze?
           </h2>

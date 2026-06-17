@@ -17,7 +17,7 @@ export default function AssistantWidget() {
         className="fixed bottom-5 right-5 z-40 grid h-12 w-12 place-items-center rounded-full bg-brand text-white shadow-lg transition hover:bg-brand-dark print:hidden"
         aria-label="Analytics assistant"
       >
-        {open ? <X size={20} /> : <AssistantIcon size={22} />}
+        {open ? <X size={20} /> : <AssistantIcon size={24} bare />}
       </button>
 
       <AnimatePresence>
