@@ -10,7 +10,6 @@ import {
   Briefcase,
   FolderKanban,
   UserPlus,
-  Bell,
   Menu,
   X,
   LogOut,
@@ -27,6 +26,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import CommandPalette from '@/components/CommandPalette';
+import NotificationBell from '@/components/NotificationBell';
 import AssistantWidget from '@/components/AssistantWidget';
 import HeaderClock from '@/components/HeaderClock';
 import MigrationButton from '@/components/MigrationButton';
@@ -320,12 +320,7 @@ export default function AppShell({
             >
               <RefreshCw size={17} />
             </button>
-            <button
-              className="hidden h-9 w-9 place-items-center rounded-xl border border-slate-200 text-slate-500 hover:bg-slate-50 sm:grid"
-              aria-label="Notifications"
-            >
-              <Bell size={18} />
-            </button>
+            <NotificationBell />
             <span className="grid h-9 w-9 place-items-center rounded-full bg-brand text-xs font-semibold text-white">
               UA
             </span>

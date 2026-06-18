@@ -32,6 +32,7 @@ import { getSession } from '@/lib/auth';
 import { driveConfigured, uploadToDrive, testDriveConnection } from '@/lib/drive';
 import { testOpenRouter } from '@/lib/integrations';
 import { encryptSecret, decryptSecret } from '@/lib/crypto';
+import { notifyUsers, resolveMentions } from '@/lib/notify';
 
 function str(v: FormDataEntryValue | null): string | null {
   const s = (v ?? '').toString().trim();
@@ -254,6 +255,23 @@ async function logActivity(summary: string) {
 // Approval gate: developers/designers can't push a task into a gated
 // (client-facing) status. Their attempt is downgraded to "In Review" — i.e.
 // submitted for PM/admin approval instead of completed.
+// Notify a project's PMs that a task is awaiting their approval.
+async function notifyProjectApprovers(projectId: string, taskTitle: string, actorId?: string) {
+  const pms = await prisma.projectMember.findMany({
+    where: { projectId, role: 'PROJECT_MANAGER' as any },
+    select: { userId: true },
+  });
+  await notifyUsers(
+    pms.map((p) => p.userId).filter((id) => id !== actorId),
+    {
+      type: 'task_approval',
+      title: 'Task awaiting your approval',
+      body: taskTitle,
+      href: `/projects/${projectId}?tab=tasks`,
+    },
+  );
+}
+
 function gateStatus(
   requested: string,
   roles?: string[],
@@ -306,6 +324,7 @@ export async function moveTask(taskId: string, status: string, projectId: string
   const title = task?.title ?? 'task';
   if (gated) {
     await logTaskActivity(`Submitted “${title}” for approval`, { taskId, projectId });
+    await notifyProjectApprovers(projectId, title, s?.id);
   } else if (target === 'DONE' && task?.status === TASK_REVIEW_STATUS) {
     await logTaskActivity(`Approved “${title}” → Done`, { taskId, projectId });
   } else {
@@ -357,6 +376,7 @@ export async function updateTask(
     gated ? `Submitted “${title}” for approval` : `Updated “${title}” (${statusLabel})`,
     { taskId, projectId },
   );
+  if (gated) await notifyProjectApprovers(projectId, title, s?.id);
   revalidatePath(`/projects/${projectId}`);
 }
 
@@ -668,6 +688,16 @@ export async function addFileComment(formData: FormData) {
   if (!fileId || !body) return;
   const session = await getSession();
   await prisma.fileComment.create({ data: { fileId, body, authorId: session?.id ?? null } });
+
+  // Notify anyone @mentioned in the comment (excluding the author).
+  const mentioned = (await resolveMentions(body)).filter((id) => id !== session?.id);
+  await notifyUsers(mentioned, {
+    type: 'mention',
+    title: `${session?.name ?? 'Someone'} mentioned you`,
+    body: body.slice(0, 160),
+    href: `/projects/${projectId}?tab=files`,
+  });
+
   revalidatePath(`/projects/${projectId}`);
   redirect(`/projects/${projectId}?tab=files`);
 }
@@ -1276,7 +1306,7 @@ export async function createLogin(formData: FormData) {
   const name = str(formData.get('name'));
   if (!name) return;
   const shareUserIds = formData.getAll('shareUserIds').map(String).filter(Boolean);
-  await prisma.login.create({
+  const created = await prisma.login.create({
     data: {
       name,
       url: str(formData.get('url')),
@@ -1287,6 +1317,10 @@ export async function createLogin(formData: FormData) {
       shares: shareUserIds.length ? { create: shareUserIds.map((userId) => ({ userId })) } : undefined,
     },
   });
+  await notifyUsers(
+    shareUserIds.filter((id) => id !== s.id),
+    { type: 'login_shared', title: 'A login was shared with you', body: name, href: `/logins?focus=${created.id}` },
+  );
   revalidatePath('/logins');
 }
 
@@ -1307,6 +1341,8 @@ export async function updateLogin(formData: FormData) {
   await prisma.login.update({ where: { id }, data });
 
   const shareUserIds = formData.getAll('shareUserIds').map(String).filter(Boolean);
+  const prior = await prisma.loginShare.findMany({ where: { loginId: id }, select: { userId: true } });
+  const priorIds = new Set(prior.map((p) => p.userId));
   await prisma.loginShare.deleteMany({ where: { loginId: id } });
   if (shareUserIds.length) {
     await prisma.loginShare.createMany({
@@ -1314,6 +1350,11 @@ export async function updateLogin(formData: FormData) {
       skipDuplicates: true,
     });
   }
+  // Notify only people newly granted access.
+  await notifyUsers(
+    shareUserIds.filter((uid) => !priorIds.has(uid) && uid !== s.id),
+    { type: 'login_shared', title: 'A login was shared with you', body: name, href: `/logins?focus=${id}` },
+  );
   revalidatePath('/logins');
 }
 
@@ -1552,6 +1593,20 @@ export async function requestLeave(formData: FormData) {
       createdById: s.id,
     },
   });
+  // Notify attendance admins (super admin / manager) of the new request.
+  const admins = await prisma.user.findMany({
+    where: { roles: { hasSome: ATTENDANCE_ADMIN_ROLES as any } },
+    select: { id: true },
+  });
+  await notifyUsers(
+    admins.map((a) => a.id).filter((id) => id !== s.id),
+    {
+      type: 'leave',
+      title: `Leave request from ${s.name}`,
+      body: `${type}${endRaw && endRaw !== startRaw ? ` · ${startRaw} → ${endRaw}` : ` · ${startRaw}`}`,
+      href: '/time/report',
+    },
+  );
   revalidatePath('/time');
   revalidatePath('/time/report');
 }

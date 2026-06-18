@@ -89,8 +89,25 @@ model User {
   assistantMessages AssistantMessage[] @relation("AssistantMessages")
   loginsCreated     Login[]            @relation("LoginCreatedBy")
   loginShares       LoginShare[]       @relation("LoginShares")
+  notifications     Notification[]     @relation("Notifications")
 
   @@index([email])
+}
+
+// In-app notifications (mentions, approvals, shares, leave requests, …).
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation("Notifications", fields: [userId], references: [id], onDelete: Cascade)
+  type      String
+  title     String
+  body      String?
+  href      String?
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId, read])
+  @@index([userId, createdAt])
 }
 
 // Shared login credentials (a small team vault). Passwords are stored encrypted
