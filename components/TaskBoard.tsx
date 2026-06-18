@@ -3,7 +3,8 @@
 import { useState, useEffect, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'motion/react';
-import { Plus, X, LayoutGrid, List as ListIcon, Calendar, Trash2, Lock } from 'lucide-react';
+import { Plus, X, LayoutGrid, List as ListIcon, Calendar, Trash2, Lock, MessageCircle } from 'lucide-react';
+import CommentThreads from '@/components/CommentThreads';
 import { createTask, moveTask, updateTask, deleteTask } from '@/app/actions';
 import {
   TASK_STATUSES,
@@ -253,12 +254,16 @@ export default function TaskBoard({
   members,
   canApprove,
   allTags,
+  meId,
+  isAdmin,
 }: {
   projectId: string;
   initialTasks: BoardTask[];
   members: Member[];
   canApprove: boolean;
   allTags: TagOption[];
+  meId: string;
+  isAdmin: boolean;
 }) {
   const router = useRouter();
   const [tasks, setTasks] = useState<BoardTask[]>(initialTasks);
@@ -382,6 +387,8 @@ export default function TaskBoard({
             projectId={projectId}
             canApprove={canApprove}
             allTags={allTags}
+            meId={meId}
+            isAdmin={isAdmin}
             onClose={() => setEditing(null)}
             onSaved={() => {
               setEditing(null);
@@ -443,6 +450,8 @@ function TaskModal({
   projectId,
   canApprove,
   allTags,
+  meId,
+  isAdmin,
   onClose,
   onSaved,
 }: {
@@ -451,6 +460,8 @@ function TaskModal({
   projectId: string;
   canApprove: boolean;
   allTags: TagOption[];
+  meId: string;
+  isAdmin: boolean;
   onClose: () => void;
   onSaved: () => void;
 }) {
@@ -496,7 +507,7 @@ function TaskModal({
     >
       <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={onClose} />
       <motion.div
-        className="relative w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl"
+        className="relative max-h-[84vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl"
         initial={{ opacity: 0, scale: 0.97, y: -8 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.97, y: -8 }}
@@ -568,6 +579,11 @@ function TaskModal({
         <div className="mt-3">
           <span className="mb-1 block text-xs font-medium text-slate-600">Tags</span>
           <TagPicker value={tags} options={allTags} onChange={setTags} />
+        </div>
+
+        <div className="mt-5 border-t border-slate-100 pt-4">
+          <span className="mb-2 flex items-center gap-1.5 text-xs font-medium text-slate-600"><MessageCircle size={13} className="text-brand" /> Comments</span>
+          <CommentThreads entityType="task" entityId={task.id} href={`/projects/${projectId}?tab=tasks`} meId={meId} isAdmin={isAdmin} />
         </div>
 
         <div className="mt-5 flex items-center justify-between">

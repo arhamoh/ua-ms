@@ -1388,6 +1388,75 @@ export async function revealLogin(id: string): Promise<string> {
   return decryptSecret(login.passwordEnc);
 }
 
+// ─── Comment threads (Figma-style) ───────────────────────────────────────────
+
+async function notifyCommentTargets(opts: {
+  threadId: string;
+  body: string;
+  href: string;
+  actorId: string;
+  actorName: string;
+  isReply: boolean;
+}) {
+  try {
+    const mentioned = await resolveMentions(opts.body);
+    // Reply: also notify everyone else who has commented in the thread.
+    let participants: string[] = [];
+    if (opts.isReply) {
+      const rows = await prisma.comment.findMany({ where: { threadId: opts.threadId }, select: { authorId: true } });
+      participants = rows.map((r) => r.authorId).filter((id): id is string => !!id);
+    }
+    const targets = Array.from(new Set([...mentioned, ...participants])).filter((id) => id !== opts.actorId);
+    await notifyUsers(targets, {
+      type: 'mention',
+      title: opts.isReply ? `${opts.actorName} replied` : `${opts.actorName} commented`,
+      body: opts.body.slice(0, 160),
+      href: opts.href,
+    });
+  } catch {
+    /* best-effort */
+  }
+}
+
+export async function createCommentThread(entityType: string, entityId: string, body: string, href: string) {
+  const s = await getSession();
+  const text = body.trim();
+  if (!s || !entityType || !entityId || !text) return;
+  const thread = await prisma.commentThread.create({
+    data: {
+      entityType,
+      entityId,
+      createdById: s.id,
+      comments: { create: { authorId: s.id, body: text.slice(0, 4000) } },
+    },
+  });
+  await notifyCommentTargets({ threadId: thread.id, body: text, href, actorId: s.id, actorName: s.name, isReply: false });
+}
+
+export async function replyToThread(threadId: string, body: string, href: string) {
+  const s = await getSession();
+  const text = body.trim();
+  if (!s || !threadId || !text) return;
+  await prisma.comment.create({ data: { threadId, authorId: s.id, body: text.slice(0, 4000) } });
+  await prisma.commentThread.update({ where: { id: threadId }, data: { updatedAt: new Date(), resolved: false } });
+  await notifyCommentTargets({ threadId, body: text, href, actorId: s.id, actorName: s.name, isReply: true });
+}
+
+export async function resolveThread(threadId: string, resolved: boolean) {
+  const s = await getSession();
+  if (!s || !threadId) return;
+  await prisma.commentThread.update({ where: { id: threadId }, data: { resolved } });
+}
+
+export async function deleteCommentThread(threadId: string) {
+  const s = await getSession();
+  if (!s || !threadId) return;
+  const thread = await prisma.commentThread.findUnique({ where: { id: threadId }, select: { createdById: true } });
+  const isAdmin = s.roles?.some((r) => r === 'SUPER_ADMIN' || r === 'MANAGER');
+  if (!thread || (thread.createdById !== s.id && !isAdmin)) return;
+  await prisma.commentThread.delete({ where: { id: threadId } });
+}
+
 // ─── Messaging ───────────────────────────────────────────────────────────────
 
 // Create a conversation, or reuse an existing 1:1 DM between the two people.

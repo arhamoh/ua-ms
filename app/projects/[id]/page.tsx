@@ -18,6 +18,7 @@ import {
 import { getSession } from '@/lib/auth';
 import TaskBoard from '@/components/TaskBoard';
 import ProjectFiles from '@/components/ProjectFiles';
+import CommentThreads from '@/components/CommentThreads';
 import ProjectStatusSelect from '@/components/ProjectStatusSelect';
 import { driveConfigured } from '@/lib/drive';
 
@@ -78,7 +79,8 @@ export default async function ProjectDetailPage({
       : '—';
 
   const c = project.client;
-  const activeTab = tab === 'tasks' ? 'tasks' : tab === 'files' ? 'files' : 'overview';
+  const activeTab = tab === 'tasks' ? 'tasks' : tab === 'files' ? 'files' : tab === 'discussion' ? 'discussion' : 'overview';
+  const isAdmin = !!session?.roles?.some((r) => r === 'SUPER_ADMIN' || r === 'MANAGER');
 
   // Unique members for the assignee picker.
   const memberMap = new Map<string, { id: string; name: string }>();
@@ -141,12 +143,17 @@ export default async function ProjectDetailPage({
         <Link href={`/projects/${project.id}?tab=files`} className={tabCls(activeTab === 'files')}>
           Files{project.files.length > 0 && <span className="ml-1 text-xs text-slate-400">{project.files.length}</span>}
         </Link>
+        <Link href={`/projects/${project.id}?tab=discussion`} className={tabCls(activeTab === 'discussion')}>
+          Discussion
+        </Link>
       </div>
 
       {activeTab === 'tasks' ? (
-        <TaskBoard projectId={project.id} initialTasks={boardTasks} members={members} canApprove={canApprove} allTags={allTags} />
+        <TaskBoard projectId={project.id} initialTasks={boardTasks} members={members} canApprove={canApprove} allTags={allTags} meId={session?.id ?? ''} isAdmin={isAdmin} />
       ) : activeTab === 'files' ? (
         <ProjectFiles projectId={project.id} files={project.files} driveOk={driveConfigured()} />
+      ) : activeTab === 'discussion' ? (
+        <CommentThreads entityType="project" entityId={project.id} href={`/projects/${project.id}?tab=discussion`} meId={session?.id ?? ''} isAdmin={isAdmin} />
       ) : (
         <div className="space-y-6">
           <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">

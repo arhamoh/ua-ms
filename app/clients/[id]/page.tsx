@@ -20,6 +20,8 @@ import Pill from '@/components/Pill';
 import AnimatedButton from '@/components/AnimatedButton';
 import FadeIn from '@/components/FadeIn';
 import { getRatesToCad, toCad } from '@/lib/fx';
+import { getSession } from '@/lib/auth';
+import CommentThreads from '@/components/CommentThreads';
 import { getOptions } from '@/lib/options';
 
 export const dynamic = 'force-dynamic';
@@ -50,6 +52,9 @@ export default async function ClientProfilePage({
   });
 
   if (!client) notFound();
+
+  const session = await getSession();
+  const isAdmin = !!session?.roles?.some((r) => r === 'SUPER_ADMIN' || r === 'MANAGER');
 
   // All totals are normalized to CAD using live rates (payments lock in the
   // rate captured when recorded; projects/budgets convert at the current rate).
@@ -331,6 +336,13 @@ export default async function ClientProfilePage({
           </form>
         </FadeIn>
       </div>
+
+      <FadeIn delay={0.08}>
+        <div className="mt-8">
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">Discussion</h2>
+          <CommentThreads entityType="client" entityId={client.id} href={`/clients/${client.id}`} meId={session?.id ?? ''} isAdmin={isAdmin} />
+        </div>
+      </FadeIn>
     </div>
   );
 }

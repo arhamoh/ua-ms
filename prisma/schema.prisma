@@ -92,8 +92,39 @@ model User {
   notifications     Notification[]     @relation("Notifications")
   conversationMemberships ConversationMember[] @relation("ConversationMemberships")
   messagesSent      Message[]          @relation("MessagesSent")
+  commentThreads    CommentThread[]    @relation("ThreadCreatedBy")
+  comments          Comment[]          @relation("CommentAuthor")
 
   @@index([email])
+}
+
+// Resolvable comment threads (Figma-style) attachable to any entity
+// (project / task / client). The first comment opens the thread; the rest are
+// replies. @mentions notify the tagged user.
+model CommentThread {
+  id          String    @id @default(cuid())
+  entityType  String // 'project' | 'task' | 'client'
+  entityId    String
+  resolved    Boolean   @default(false)
+  createdById String?
+  createdBy   User?     @relation("ThreadCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  comments    Comment[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([entityType, entityId])
+}
+
+model Comment {
+  id        String        @id @default(cuid())
+  threadId  String
+  thread    CommentThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  authorId  String?
+  author    User?         @relation("CommentAuthor", fields: [authorId], references: [id], onDelete: SetNull)
+  body      String
+  createdAt DateTime      @default(now())
+
+  @@index([threadId, createdAt])
 }
 
 // Direct & group messaging.
