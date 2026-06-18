@@ -1388,6 +1388,59 @@ export async function revealLogin(id: string): Promise<string> {
   return decryptSecret(login.passwordEnc);
 }
 
+// ─── Messaging ───────────────────────────────────────────────────────────────
+
+// Create a conversation, or reuse an existing 1:1 DM between the two people.
+export async function createConversation(
+  memberIds: string[],
+  isGroup: boolean,
+  title?: string,
+): Promise<{ id: string } | null> {
+  const s = await getSession();
+  if (!s) return null;
+  const others = Array.from(new Set(memberIds.filter((id) => id && id !== s.id)));
+  if (!others.length) return null;
+
+  if (!isGroup && others.length === 1) {
+    const existing = await prisma.conversation.findFirst({
+      where: {
+        isGroup: false,
+        AND: [{ members: { some: { userId: s.id } } }, { members: { some: { userId: others[0] } } }],
+      },
+      include: { _count: { select: { members: true } } },
+    });
+    if (existing && existing._count.members === 2) return { id: existing.id };
+  }
+
+  const allIds = Array.from(new Set([s.id, ...others]));
+  const convo = await prisma.conversation.create({
+    data: {
+      isGroup: isGroup || allIds.length > 2,
+      title: isGroup ? title?.trim() || null : null,
+      createdById: s.id,
+      members: { create: allIds.map((userId) => ({ userId, lastReadAt: userId === s.id ? new Date() : null })) },
+    },
+  });
+  return { id: convo.id };
+}
+
+export async function sendMessage(conversationId: string, body: string): Promise<{ ok: boolean }> {
+  const s = await getSession();
+  const text = body.trim();
+  if (!s || !conversationId || !text) return { ok: false };
+  const member = await prisma.conversationMember.findUnique({
+    where: { conversationId_userId: { conversationId, userId: s.id } },
+  });
+  if (!member) return { ok: false };
+  await prisma.message.create({ data: { conversationId, senderId: s.id, body: text.slice(0, 4000) } });
+  await prisma.conversation.update({ where: { id: conversationId }, data: { updatedAt: new Date() } });
+  await prisma.conversationMember.update({
+    where: { conversationId_userId: { conversationId, userId: s.id } },
+    data: { lastReadAt: new Date() },
+  });
+  return { ok: true };
+}
+
 // ─── Database maintenance (super admin) ──────────────────────────────────────
 
 // Applies any pending Prisma migrations (`prisma migrate deploy`) on demand, so

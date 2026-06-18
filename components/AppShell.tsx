@@ -17,6 +17,7 @@ import {
   RefreshCw,
   PiggyBank,
   FileText,
+  MessageSquare,
   Sparkles,
   KeyRound,
   BarChart3,
@@ -84,6 +85,7 @@ const navSections: NavSection[] = [
   {
     title: 'More',
     items: [
+      { href: '/messages', label: 'Messages', icon: MessageSquare },
       { href: '/assistant', label: 'Assistant', icon: Sparkles },
       { href: '/logins', label: 'Logins', icon: KeyRound },
       { href: '/settings', label: 'Settings', icon: Settings },

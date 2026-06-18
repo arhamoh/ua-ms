@@ -90,8 +90,47 @@ model User {
   loginsCreated     Login[]            @relation("LoginCreatedBy")
   loginShares       LoginShare[]       @relation("LoginShares")
   notifications     Notification[]     @relation("Notifications")
+  conversationMemberships ConversationMember[] @relation("ConversationMemberships")
+  messagesSent      Message[]          @relation("MessagesSent")
 
   @@index([email])
+}
+
+// Direct & group messaging.
+model Conversation {
+  id          String               @id @default(cuid())
+  isGroup     Boolean              @default(false)
+  title       String?
+  createdById String?
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+  members     ConversationMember[]
+  messages    Message[]
+}
+
+model ConversationMember {
+  id             String       @id @default(cuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User         @relation("ConversationMemberships", fields: [userId], references: [id], onDelete: Cascade)
+  lastReadAt     DateTime?
+  createdAt      DateTime     @default(now())
+
+  @@unique([conversationId, userId])
+  @@index([userId])
+}
+
+model Message {
+  id             String       @id @default(cuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  senderId       String?
+  sender         User?        @relation("MessagesSent", fields: [senderId], references: [id], onDelete: SetNull)
+  body           String
+  createdAt      DateTime     @default(now())
+
+  @@index([conversationId, createdAt])
 }
 
 // In-app notifications (mentions, approvals, shares, leave requests, …).
