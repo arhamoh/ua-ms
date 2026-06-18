@@ -32,6 +32,21 @@ function clockTime(iso: string) {
 function fullStamp(iso: string) {
   return new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
 }
+function driveFileId(url: string | null) {
+  return url?.match(/\/d\/([^/]+)/)?.[1] ?? null;
+}
+function isImage(type: string | null) {
+  return !!type && type.startsWith('image/');
+}
+// Wrap occurrences of `q` in <mark> for search-result highlighting.
+function highlight(text: string, q: string) {
+  const needle = q.trim();
+  if (!needle) return text;
+  const parts = text.split(new RegExp(`(${needle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'ig'));
+  return parts.map((p, i) =>
+    p.toLowerCase() === needle.toLowerCase() ? <mark key={i} className="rounded bg-amber-200/70 px-0.5">{p}</mark> : <span key={i}>{p}</span>,
+  );
+}
 function dayLabel(iso: string) {
   const d = new Date(iso);
   const today = new Date();
@@ -219,7 +234,7 @@ export default function Messenger({ me, users, initialConversationId = null }: {
                     <span className="truncate text-sm font-medium text-slate-700">{r.conversationName}</span>
                     <span className="shrink-0 text-[10px] text-slate-400">{new Date(r.createdAt).toLocaleDateString()}</span>
                   </span>
-                  <span className="truncate text-xs text-slate-500">{r.senderName ? `${r.senderName.split(' ')[0]}: ` : ''}{r.body}</span>
+                  <span className="truncate text-xs text-slate-500">{r.senderName ? `${r.senderName.split(' ')[0]}: ` : ''}{highlight(r.body, query)}</span>
                 </button>
               ))}
             </div>
@@ -313,11 +328,18 @@ export default function Messenger({ me, users, initialConversationId = null }: {
                     <div className={`flex ${m.mine ? 'justify-end' : 'justify-start'}`}>
                       <div className={`max-w-[78%] rounded-2xl px-3.5 py-2 text-sm ${m.mine ? 'bg-brand text-white' : 'bg-slate-100 text-slate-800'}`}>
                         {active.isGroup && !m.mine && <div className="mb-0.5 text-[11px] font-semibold text-brand">{m.senderName.split(' ')[0]}</div>}
-                        {m.body && <div className="whitespace-pre-wrap break-words">{m.body}</div>}
+                        {m.body && <div className="whitespace-pre-wrap break-words">{threadQuery.trim() ? highlight(m.body, threadQuery) : m.body}</div>}
                         {m.url && (
-                          <a href={m.url} target="_blank" rel="noreferrer" className={`mt-1 inline-flex max-w-full items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs ${m.mine ? 'bg-white/20 hover:bg-white/30' : 'bg-white hover:bg-slate-50 border border-slate-200'}`}>
-                            <FileText size={14} className="shrink-0" /> <span className="truncate">{m.name ?? 'Attachment'}</span>
-                          </a>
+                          isImage(m.type) && driveFileId(m.url) ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <a href={m.url} target="_blank" rel="noreferrer" className="mt-1 block">
+                              <img src={`/api/message-attachment?id=${driveFileId(m.url)}`} alt={m.name ?? 'image'} className="max-h-48 max-w-full rounded-lg border border-black/5 object-cover" />
+                            </a>
+                          ) : (
+                            <a href={m.url} target="_blank" rel="noreferrer" className={`mt-1 inline-flex max-w-full items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs ${m.mine ? 'bg-white/20 hover:bg-white/30' : 'border border-slate-200 bg-white hover:bg-slate-50'}`}>
+                              <FileText size={14} className="shrink-0" /> <span className="truncate">{m.name ?? 'Attachment'}</span>
+                            </a>
+                          )
                         )}
                         <div title={fullStamp(m.createdAt)} className={`mt-0.5 text-[10px] ${m.mine ? 'text-white/70' : 'text-slate-400'}`}>{clockTime(m.createdAt)}</div>
                       </div>

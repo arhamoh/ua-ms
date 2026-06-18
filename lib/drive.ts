@@ -54,6 +54,22 @@ async function ensureFolder(drive: DriveClient, name: string, parentId: string, 
   return created.data.id as string;
 }
 
+// Downloads a Drive file's bytes (via the service account) — used to proxy
+// message-attachment thumbnails so images render inline.
+export async function downloadDriveFile(fileId: string): Promise<{ buffer: Buffer; mimeType: string } | null> {
+  try {
+    const drive = getDrive();
+    const meta = await drive.files.get({ fileId, fields: 'mimeType', supportsAllDrives: true });
+    const res = await drive.files.get(
+      { fileId, alt: 'media', supportsAllDrives: true },
+      { responseType: 'arraybuffer' },
+    );
+    return { buffer: Buffer.from(res.data as ArrayBuffer), mimeType: meta.data.mimeType ?? 'application/octet-stream' };
+  } catch {
+    return null;
+  }
+}
+
 // Uploads into a single named folder under the Shared Drive (e.g. "Messages").
 export async function uploadToDriveFolder(opts: {
   folder: string;
