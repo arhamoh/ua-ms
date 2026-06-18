@@ -159,7 +159,15 @@ function detectMapping(header: string[]): Mapping {
 
 type Override = { include?: boolean; title?: string; category?: string; date?: string; amount?: string };
 
-export default function StatementImport({ currencies, categories }: { currencies: Opt[]; categories: Opt[] }) {
+export default function StatementImport({
+  currencies,
+  categories,
+  rates,
+}: {
+  currencies: Opt[];
+  categories: Opt[];
+  rates: Record<string, number>;
+}) {
   const router = useRouter();
   const [mode, setMode] = useState<'csv' | 'pdf' | null>(null);
   const [fileName, setFileName] = useState('');
@@ -626,6 +634,12 @@ export default function StatementImport({ currencies, categories }: { currencies
         <p className="text-sm text-slate-500">
           {included.length} expense{included.length === 1 ? '' : 's'} ready ·{' '}
           <span className="font-medium text-slate-700">{includedTotal.toLocaleString('en-US', { style: 'currency', currency })}</span>
+          {currency !== 'CAD' && rates[currency] && (
+            <span className="ml-1 text-xs text-slate-400">
+              ≈ {(includedTotal * rates[currency]).toLocaleString('en-US', { style: 'currency', currency: 'CAD' })} CAD{' '}
+              <span className="text-slate-300">(1 {currency} = {rates[currency].toFixed(4)} CAD · today’s rate)</span>
+            </span>
+          )}
         </p>
         <button
           onClick={doImport}

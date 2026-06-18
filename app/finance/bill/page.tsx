@@ -1,15 +1,17 @@
 import Link from 'next/link';
 import { ArrowLeft, FileSpreadsheet } from 'lucide-react';
 import { getOptions, ensureExpenseCategories } from '@/lib/options';
+import { getRatesToCad } from '@/lib/fx';
 import BillScan from '@/components/BillScan';
 
 export const dynamic = 'force-dynamic';
 
 export default async function ScanBillPage() {
   await ensureExpenseCategories();
-  const [currencies, categories] = await Promise.all([
+  const [currencies, categories, rates] = await Promise.all([
     getOptions('currency'),
     getOptions('expenseCategory'),
+    getRatesToCad(),
   ]);
 
   return (
@@ -29,7 +31,7 @@ export default async function ScanBillPage() {
         </Link>
       </div>
 
-      <BillScan currencies={currencies} categories={categories} />
+      <BillScan currencies={currencies} categories={categories} rates={rates} />
     </div>
   );
 }

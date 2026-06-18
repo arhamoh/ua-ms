@@ -1,15 +1,17 @@
 import Link from 'next/link';
 import { ArrowLeft, Camera } from 'lucide-react';
 import { getOptions, ensureExpenseCategories } from '@/lib/options';
+import { getRatesToCad } from '@/lib/fx';
 import StatementImport from '@/components/StatementImport';
 
 export const dynamic = 'force-dynamic';
 
 export default async function ImportStatementPage() {
   await ensureExpenseCategories();
-  const [currencies, categories] = await Promise.all([
+  const [currencies, categories, rates] = await Promise.all([
     getOptions('currency'),
     getOptions('expenseCategory'),
+    getRatesToCad(),
   ]);
 
   return (
@@ -29,7 +31,7 @@ export default async function ImportStatementPage() {
         </Link>
       </div>
 
-      <StatementImport currencies={currencies} categories={categories} />
+      <StatementImport currencies={currencies} categories={categories} rates={rates} />
     </div>
   );
 }

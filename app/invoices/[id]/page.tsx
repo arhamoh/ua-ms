@@ -4,8 +4,9 @@ import { ArrowLeft, Send, Check } from 'lucide-react';
 import { prisma } from '@/lib/prisma';
 import { setInvoiceStatus, emailInvoice } from '@/app/actions';
 import { emailConfigured } from '@/lib/email';
-import { INVOICE_STATUS_LABELS, INVOICE_STATUS_BADGE, formatMoney } from '@/lib/enums';
+import { INVOICE_STATUS_LABELS, INVOICE_STATUS_BADGE, formatMoney, fxRateNote } from '@/lib/enums';
 import { getCompany, computeTax } from '@/lib/company';
+import { getRatesToCad, toCad } from '@/lib/fx';
 import PrintButton from '@/components/PrintButton';
 
 export const dynamic = 'force-dynamic';
@@ -32,6 +33,8 @@ export default async function InvoiceDetailPage({
   const company = await getCompany();
   const tax = computeTax(inv.amount, inv.client.taxRegion, company);
   const canEmail = emailConfigured();
+  const rates = await getRatesToCad();
+  const totalCad = inv.currency !== 'CAD' ? toCad(tax.total, inv.currency, rates) : null;
 
   return (
     <div className="mx-auto max-w-2xl">
@@ -151,6 +154,11 @@ export default async function InvoiceDetailPage({
               <span className="text-xs uppercase tracking-wide text-slate-500">Total due</span>
               <span className="tabular-nums">{formatMoney(tax.total, inv.currency)}</span>
             </div>
+            {totalCad != null && (
+              <div className="pt-1 text-right text-[11px] text-slate-400 print:hidden">
+                ≈ {formatMoney(totalCad, 'CAD')} CAD <span className="text-slate-300">({fxRateNote(tax.total, totalCad, inv.currency)} · today’s rate)</span>
+              </div>
+            )}
           </div>
         </div>
 

@@ -40,7 +40,15 @@ function fileToDataUrl(file: File, maxDim = 1600, quality = 0.82): Promise<strin
 
 type Fields = { title: string; amount: string; currency: string; date: string; category: string; note: string };
 
-export default function BillScan({ currencies, categories }: { currencies: Opt[]; categories: Opt[] }) {
+export default function BillScan({
+  currencies,
+  categories,
+  rates,
+}: {
+  currencies: Opt[];
+  categories: Opt[];
+  rates: Record<string, number>;
+}) {
   const router = useRouter();
   const [preview, setPreview] = useState('');
   const [scanning, setScanning] = useState(false);
@@ -233,6 +241,12 @@ export default function BillScan({ currencies, categories }: { currencies: Opt[]
                   </select>
                 </label>
               </div>
+              {fields.currency !== 'CAD' && Number(fields.amount) > 0 && rates[fields.currency] && (
+                <p className="-mt-1 text-xs text-slate-400">
+                  ≈ {(Number(fields.amount) * rates[fields.currency]).toLocaleString('en-US', { style: 'currency', currency: 'CAD' })} CAD{' '}
+                  <span className="text-slate-300">(1 {fields.currency} = {rates[fields.currency].toFixed(4)} CAD · today’s rate)</span>
+                </p>
+              )}
               <div className="grid grid-cols-2 gap-2">
                 <label className="block">
                   <span className="mb-1 block text-xs font-medium text-slate-600">Date</span>

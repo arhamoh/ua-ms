@@ -4,7 +4,7 @@ import { ArrowLeft, Send } from 'lucide-react';
 import { prisma } from '@/lib/prisma';
 import { emailReceipt } from '@/app/actions';
 import { emailConfigured } from '@/lib/email';
-import { PAYMENT_METHOD_LABELS, formatMoney } from '@/lib/enums';
+import { PAYMENT_METHOD_LABELS, formatMoney, fxRateNote } from '@/lib/enums';
 import { getCompany } from '@/lib/company';
 import PrintButton from '@/components/PrintButton';
 
@@ -90,6 +90,11 @@ export default async function ReceiptPage({
               <span className="text-xs uppercase tracking-wide text-emerald-600">Amount paid</span>
               <span className="text-lg font-bold tabular-nums text-emerald-700">{formatMoney(p.amount, p.currency)}</span>
             </div>
+            {p.currency !== 'CAD' && p.amountCad != null && (
+              <div className="mt-1 text-right text-[11px] text-slate-400 print:hidden">
+                {formatMoney(p.amountCad, 'CAD')} CAD <span className="text-slate-300">({fxRateNote(p.amount, p.amountCad, p.currency)})</span>
+              </div>
+            )}
           </div>
         </div>
 
