@@ -41,6 +41,7 @@ type SearchData = {
   clients: { id: string; name: string }[];
   projects: { id: string; name: string; sub: string }[];
   team: { id: string; name: string; sub: string }[];
+  logins: { id: string; name: string; sub?: string }[];
 };
 
 const GROUPS = ['Pages', 'Projects', 'Clients', 'Team'];
@@ -59,7 +60,7 @@ export default function InlineSearch() {
       fetch('/api/search', { cache: 'no-store' })
         .then((r) => r.json())
         .then(setData)
-        .catch(() => setData({ clients: [], projects: [], team: [] }));
+        .catch(() => setData({ clients: [], projects: [], team: [], logins: [] }));
     }
   }, [data]);
 
@@ -78,6 +79,7 @@ export default function InlineSearch() {
       data.projects.forEach((p) => dyn.push({ id: `pr-${p.id}`, label: p.name, sub: p.sub, href: `/projects/${p.id}`, group: 'Projects', icon: FolderKanban }));
       data.clients.forEach((c) => dyn.push({ id: `cl-${c.id}`, label: c.name, href: `/clients/${c.id}`, group: 'Clients', icon: Briefcase }));
       data.team.forEach((u) => dyn.push({ id: `tm-${u.id}`, label: u.name, sub: u.sub, href: '/team', group: 'Team', icon: Users }));
+      data.logins?.forEach((l) => dyn.push({ id: `lg-${l.id}`, label: l.name, sub: l.sub, href: `/logins?focus=${l.id}`, group: 'Logins', icon: KeyRound }));
     }
     const q = query.trim().toLowerCase();
     if (!q) return [];

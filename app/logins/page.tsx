@@ -7,7 +7,12 @@ import FadeIn from '@/components/FadeIn';
 
 export const dynamic = 'force-dynamic';
 
-export default async function LoginsPage() {
+export default async function LoginsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ focus?: string }>;
+}) {
+  const { focus } = await searchParams;
   const session = await getSession();
   const manage = canManageLogins(session?.roles);
 
@@ -55,7 +60,7 @@ export default async function LoginsPage() {
       </FadeIn>
 
       <div className="mt-6">
-        <LoginsManager items={items} users={users} canManage={manage} />
+        <LoginsManager items={items} users={users} canManage={manage} focusId={focus ?? null} />
       </div>
     </div>
   );

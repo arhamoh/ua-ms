@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState, useTransition } from 'react';
+import { useEffect, useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   KeyRound, Plus, Search, Eye, EyeOff, Copy, Check, ExternalLink, Pencil, Trash2, X, Users, Loader2,
@@ -26,17 +26,29 @@ export default function LoginsManager({
   items,
   users,
   canManage,
+  focusId = null,
 }: {
   items: LoginItem[];
   users: TeamUser[];
   canManage: boolean;
+  focusId?: string | null;
 }) {
   const router = useRouter();
   const [query, setQuery] = useState('');
   const [editing, setEditing] = useState<LoginItem | 'new' | null>(null);
   const [revealed, setRevealed] = useState<Record<string, string>>({});
   const [copied, setCopied] = useState('');
+  const [highlight, setHighlight] = useState<string | null>(null);
   const [, start] = useTransition();
+
+  // Deep-link from search (?focus=<id>): scroll to + briefly highlight the card.
+  useEffect(() => {
+    if (!focusId) return;
+    setHighlight(focusId);
+    document.getElementById(`login-${focusId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    const t = setTimeout(() => setHighlight(null), 2500);
+    return () => clearTimeout(t);
+  }, [focusId]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -112,7 +124,13 @@ export default function LoginsManager({
           {filtered.map((l) => {
             const pw = revealed[l.id];
             return (
-              <div key={l.id} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div
+                key={l.id}
+                id={`login-${l.id}`}
+                className={`rounded-2xl border bg-white p-4 shadow-sm transition ${
+                  highlight === l.id ? 'border-brand ring-2 ring-brand/30' : 'border-slate-200'
+                }`}
+              >
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex min-w-0 items-center gap-2.5">
                     <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-brand-light text-brand">

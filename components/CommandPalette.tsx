@@ -49,6 +49,7 @@ type SearchData = {
   clients: { id: string; name: string }[];
   projects: { id: string; name: string; sub: string }[];
   team: { id: string; name: string; sub: string }[];
+  logins: { id: string; name: string; sub?: string }[];
 };
 
 export default function CommandPalette() {
@@ -89,7 +90,7 @@ export default function CommandPalette() {
       fetch('/api/search', { cache: 'no-store' })
         .then((r) => r.json())
         .then(setData)
-        .catch(() => setData({ clients: [], projects: [], team: [] }));
+        .catch(() => setData({ clients: [], projects: [], team: [], logins: [] }));
     }
     if (open) setTimeout(() => inputRef.current?.focus(), 10);
   }, [open, data]);
@@ -105,6 +106,9 @@ export default function CommandPalette() {
       );
       data.team.forEach((u) =>
         dynamic.push({ id: `tm-${u.id}`, label: u.name, sub: u.sub, href: '/team', group: 'Team', icon: Users }),
+      );
+      data.logins?.forEach((l) =>
+        dynamic.push({ id: `lg-${l.id}`, label: l.name, sub: l.sub, href: `/logins?focus=${l.id}`, group: 'Logins', icon: KeyRound }),
       );
     }
     const all = [...PAGES, ...dynamic];
@@ -148,7 +152,7 @@ export default function CommandPalette() {
 
   // Group items in render order while keeping a flat index for keyboard nav.
   let flatIndex = -1;
-  const groups = ['Pages', 'Projects', 'Clients', 'Team'];
+  const groups = ['Pages', 'Projects', 'Clients', 'Team', 'Logins'];
 
   return (
     <AnimatePresence>
