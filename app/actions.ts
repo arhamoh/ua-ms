@@ -1424,20 +1424,38 @@ export async function createConversation(
   return { id: convo.id };
 }
 
-export async function sendMessage(conversationId: string, body: string): Promise<{ ok: boolean }> {
+type Attachment = { url?: string | null; name?: string | null; type?: string | null };
+
+export async function sendMessage(
+  conversationId: string,
+  body: string,
+  attachment?: Attachment,
+): Promise<{ ok: boolean }> {
   const s = await getSession();
-  const text = body.trim();
-  if (!s || !conversationId || !text) return { ok: false };
+  const text = (body ?? '').trim();
+  const hasAttachment = !!attachment?.url;
+  if (!s || !conversationId || (!text && !hasAttachment)) return { ok: false };
   const member = await prisma.conversationMember.findUnique({
     where: { conversationId_userId: { conversationId, userId: s.id } },
   });
   if (!member) return { ok: false };
-  await prisma.message.create({ data: { conversationId, senderId: s.id, body: text.slice(0, 4000) } });
+  await prisma.message.create({
+    data: {
+      conversationId,
+      senderId: s.id,
+      body: text.slice(0, 4000),
+      attachmentUrl: attachment?.url ?? null,
+      attachmentName: attachment?.name ?? null,
+      attachmentType: attachment?.type ?? null,
+    },
+  });
   await prisma.conversation.update({ where: { id: conversationId }, data: { updatedAt: new Date() } });
   await prisma.conversationMember.update({
     where: { conversationId_userId: { conversationId, userId: s.id } },
-    data: { lastReadAt: new Date() },
+    data: { lastReadAt: new Date(), deletedAt: null },
   });
+  // A new message brings the conversation back for anyone who had deleted it.
+  await prisma.conversationMember.updateMany({ where: { conversationId, deletedAt: { not: null } }, data: { deletedAt: null } });
 
   // Notify the other members — one rolling, unread notification per conversation
   // (bumped rather than duplicated) so the bell doesn't flood on chatty threads.
@@ -1446,7 +1464,7 @@ export async function sendMessage(conversationId: string, body: string): Promise
     const others = await prisma.conversationMember.findMany({ where: { conversationId, userId: { not: s.id } }, select: { userId: true } });
     const href = `/messages?c=${conversationId}`;
     const title = convo?.isGroup ? `${s.name} in ${convo.title || 'a group'}` : `New message from ${s.name}`;
-    const snippet = text.slice(0, 140);
+    const snippet = (text || `📎 ${attachment?.name ?? 'Attachment'}`).slice(0, 140);
     for (const m of others) {
       const existing = await prisma.notification.findFirst({ where: { userId: m.userId, type: 'message', href, read: false }, select: { id: true } });
       if (existing) {
@@ -1462,17 +1480,25 @@ export async function sendMessage(conversationId: string, body: string): Promise
   return { ok: true };
 }
 
-// Leave/delete a conversation. Removes it for everyone (small-team behaviour);
-// any member may delete. Cascades messages + memberships.
+// Soft-delete a conversation for the current user — it moves to "Recently
+// deleted" and is kept for 30 days (lazy-purged when the list is loaded).
 export async function deleteConversation(conversationId: string) {
   const s = await getSession();
   if (!s || !conversationId) return;
-  const member = await prisma.conversationMember.findUnique({
-    where: { conversationId_userId: { conversationId, userId: s.id } },
-    select: { id: true },
+  await prisma.conversationMember.updateMany({
+    where: { conversationId, userId: s.id },
+    data: { deletedAt: new Date(), lastReadAt: new Date() },
   });
-  if (!member) return;
-  await prisma.conversation.delete({ where: { id: conversationId } });
+}
+
+// Restore a soft-deleted conversation back to the active list.
+export async function restoreConversation(conversationId: string) {
+  const s = await getSession();
+  if (!s || !conversationId) return;
+  await prisma.conversationMember.updateMany({
+    where: { conversationId, userId: s.id },
+    data: { deletedAt: null },
+  });
 }
 
 // Mark a conversation read or unread for the current user.

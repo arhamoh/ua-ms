@@ -115,6 +115,7 @@ model ConversationMember {
   userId         String
   user           User         @relation("ConversationMemberships", fields: [userId], references: [id], onDelete: Cascade)
   lastReadAt     DateTime?
+  deletedAt      DateTime? // soft-delete: hidden from the list, kept for 30 days
   createdAt      DateTime     @default(now())
 
   @@unique([conversationId, userId])
@@ -128,6 +129,9 @@ model Message {
   senderId       String?
   sender         User?        @relation("MessagesSent", fields: [senderId], references: [id], onDelete: SetNull)
   body           String
+  attachmentUrl  String?
+  attachmentName String?
+  attachmentType String?
   createdAt      DateTime     @default(now())
 
   @@index([conversationId, createdAt])

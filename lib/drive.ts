@@ -54,6 +54,25 @@ async function ensureFolder(drive: DriveClient, name: string, parentId: string, 
   return created.data.id as string;
 }
 
+// Uploads into a single named folder under the Shared Drive (e.g. "Messages").
+export async function uploadToDriveFolder(opts: {
+  folder: string;
+  fileName: string;
+  mimeType: string;
+  buffer: Buffer;
+}): Promise<{ fileId: string; webViewLink: string | null }> {
+  const driveId = process.env.GOOGLE_SHARED_DRIVE_ID as string;
+  const drive = getDrive();
+  const folderId = await ensureFolder(drive, opts.folder, driveId, driveId);
+  const created = await drive.files.create({
+    requestBody: { name: opts.fileName, parents: [folderId] },
+    media: { mimeType: opts.mimeType, body: Readable.from(opts.buffer) },
+    supportsAllDrives: true,
+    fields: 'id, webViewLink',
+  });
+  return { fileId: created.data.id as string, webViewLink: created.data.webViewLink ?? null };
+}
+
 // Uploads into: <Shared Drive>/<Client - Project>/<Category>/<file>
 export async function uploadToDrive(opts: {
   clientName: string;
