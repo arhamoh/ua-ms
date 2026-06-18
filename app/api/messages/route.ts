@@ -35,6 +35,11 @@ export async function GET(req: NextRequest) {
       where: { conversationId_userId: { conversationId, userId: me } },
       data: { lastReadAt: new Date() },
     });
+    // Clear the bell notification for this conversation once it's opened.
+    await prisma.notification.updateMany({
+      where: { userId: me, type: 'message', href: `/messages?c=${conversationId}`, read: false },
+      data: { read: true },
+    });
 
     return NextResponse.json(
       {

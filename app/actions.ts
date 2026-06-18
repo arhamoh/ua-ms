@@ -1438,7 +1438,69 @@ export async function sendMessage(conversationId: string, body: string): Promise
     where: { conversationId_userId: { conversationId, userId: s.id } },
     data: { lastReadAt: new Date() },
   });
+
+  // Notify the other members — one rolling, unread notification per conversation
+  // (bumped rather than duplicated) so the bell doesn't flood on chatty threads.
+  try {
+    const convo = await prisma.conversation.findUnique({ where: { id: conversationId }, select: { isGroup: true, title: true } });
+    const others = await prisma.conversationMember.findMany({ where: { conversationId, userId: { not: s.id } }, select: { userId: true } });
+    const href = `/messages?c=${conversationId}`;
+    const title = convo?.isGroup ? `${s.name} in ${convo.title || 'a group'}` : `New message from ${s.name}`;
+    const snippet = text.slice(0, 140);
+    for (const m of others) {
+      const existing = await prisma.notification.findFirst({ where: { userId: m.userId, type: 'message', href, read: false }, select: { id: true } });
+      if (existing) {
+        await prisma.notification.update({ where: { id: existing.id }, data: { title, body: snippet, createdAt: new Date() } });
+      } else {
+        await prisma.notification.create({ data: { userId: m.userId, type: 'message', title, body: snippet, href } });
+      }
+    }
+  } catch {
+    /* best-effort */
+  }
+
   return { ok: true };
+}
+
+// Leave/delete a conversation. Removes it for everyone (small-team behaviour);
+// any member may delete. Cascades messages + memberships.
+export async function deleteConversation(conversationId: string) {
+  const s = await getSession();
+  if (!s || !conversationId) return;
+  const member = await prisma.conversationMember.findUnique({
+    where: { conversationId_userId: { conversationId, userId: s.id } },
+    select: { id: true },
+  });
+  if (!member) return;
+  await prisma.conversation.delete({ where: { id: conversationId } });
+}
+
+// Mark a conversation read or unread for the current user.
+export async function setConversationRead(conversationId: string, read: boolean) {
+  const s = await getSession();
+  if (!s || !conversationId) return;
+  const member = await prisma.conversationMember.findUnique({
+    where: { conversationId_userId: { conversationId, userId: s.id } },
+    select: { id: true },
+  });
+  if (!member) return;
+  if (read) {
+    await prisma.conversationMember.update({
+      where: { conversationId_userId: { conversationId, userId: s.id } },
+      data: { lastReadAt: new Date() },
+    });
+    await prisma.notification.updateMany({
+      where: { userId: s.id, type: 'message', href: `/messages?c=${conversationId}`, read: false },
+      data: { read: true },
+    });
+  } else {
+    // Mark unread: rewind read marker to just before the latest message.
+    const last = await prisma.message.findFirst({ where: { conversationId }, orderBy: { createdAt: 'desc' }, select: { createdAt: true } });
+    await prisma.conversationMember.update({
+      where: { conversationId_userId: { conversationId, userId: s.id } },
+      data: { lastReadAt: last ? new Date(last.createdAt.getTime() - 1000) : null },
+    });
+  }
 }
 
 // ─── Database maintenance (super admin) ──────────────────────────────────────

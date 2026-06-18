@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
-  Bell, AtSign, CheckCircle2, KeyRound, CalendarClock, Circle, CheckCheck,
+  Bell, AtSign, CheckCircle2, KeyRound, CalendarClock, Circle, CheckCheck, MessageSquare,
 } from 'lucide-react';
 
 type Notif = {
@@ -21,6 +21,7 @@ const ICONS: Record<string, typeof Bell> = {
   task_approval: CheckCircle2,
   login_shared: KeyRound,
   leave: CalendarClock,
+  message: MessageSquare,
 };
 
 function timeAgo(iso: string) {

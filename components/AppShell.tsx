@@ -29,6 +29,7 @@ import {
 } from 'lucide-react';
 import CommandPalette from '@/components/CommandPalette';
 import NotificationBell from '@/components/NotificationBell';
+import MessagesBadge from '@/components/MessagesBadge';
 import AssistantWidget from '@/components/AssistantWidget';
 import HeaderClock from '@/components/HeaderClock';
 import MigrationButton from '@/components/MigrationButton';
@@ -153,6 +154,7 @@ function NavContent({
                   )}
                   <Icon size={18} className={active ? 'text-brand' : 'text-slate-400'} />
                   {!collapsed && label}
+                  {href === '/messages' && <MessagesBadge collapsed={collapsed} />}
                 </MotionLink>
               );
             })}

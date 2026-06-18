@@ -3,8 +3,9 @@
 import { useCallback, useEffect, useRef, useState, useTransition } from 'react';
 import {
   MessageSquare, Plus, Send, ArrowLeft, Users, X, Search, Loader2, Check,
+  MoreVertical, Trash2, Mail, MailOpen,
 } from 'lucide-react';
-import { createConversation, sendMessage } from '@/app/actions';
+import { createConversation, sendMessage, deleteConversation, setConversationRead } from '@/app/actions';
 
 type TeamUser = { id: string; name: string };
 type ConvoSummary = {
@@ -26,12 +27,13 @@ function clockTime(iso: string) {
   return new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
 }
 
-export default function Messenger({ me, users }: { me: TeamUser; users: TeamUser[] }) {
+export default function Messenger({ me, users, initialConversationId = null }: { me: TeamUser; users: TeamUser[]; initialConversationId?: string | null }) {
   const [convos, setConvos] = useState<ConvoSummary[]>([]);
-  const [activeId, setActiveId] = useState<string | null>(null);
+  const [activeId, setActiveId] = useState<string | null>(initialConversationId);
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState('');
   const [newOpen, setNewOpen] = useState(false);
+  const [menuId, setMenuId] = useState<string | null>(null);
   const [, start] = useTransition();
   const endRef = useRef<HTMLDivElement>(null);
   const activeRef = useRef<string | null>(null);
@@ -80,6 +82,29 @@ export default function Messenger({ me, users }: { me: TeamUser; users: TeamUser
     endRef.current?.scrollIntoView({ block: 'end' });
   }, [messages]);
 
+  // Close the per-conversation menu on any outside click.
+  useEffect(() => {
+    if (!menuId) return;
+    const close = () => setMenuId(null);
+    document.addEventListener('click', close);
+    return () => document.removeEventListener('click', close);
+  }, [menuId]);
+
+  const toggleRead = (c: ConvoSummary) =>
+    start(async () => {
+      setMenuId(null);
+      await setConversationRead(c.id, c.unread > 0); // unread>0 → mark read; else mark unread
+      await loadConvos();
+    });
+
+  const remove = (c: ConvoSummary) =>
+    start(async () => {
+      setMenuId(null);
+      await deleteConversation(c.id);
+      if (activeRef.current === c.id) setActiveId(null);
+      await loadConvos();
+    });
+
   const active = convos.find((c) => c.id === activeId) ?? null;
 
   const send = () => {
@@ -110,27 +135,47 @@ export default function Messenger({ me, users }: { me: TeamUser; users: TeamUser
             <div className="px-4 py-10 text-center text-xs text-slate-400">No conversations yet. Start one with “+”.</div>
           ) : (
             convos.map((c) => (
-              <button
-                key={c.id}
-                onClick={() => setActiveId(c.id)}
-                className={`flex w-full items-center gap-3 px-3 py-2.5 text-left transition hover:bg-slate-50 ${activeId === c.id ? 'bg-brand-light/40' : ''}`}
-              >
-                <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-full text-xs font-semibold ${c.isGroup ? 'bg-slate-200 text-slate-600' : 'bg-brand-light text-brand'}`}>
-                  {c.isGroup ? <Users size={15} /> : initials(c.name)}
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="flex items-center justify-between gap-2">
-                    <span className="truncate text-sm font-medium text-slate-800">{c.name}</span>
-                    {c.lastMessage && <span className="shrink-0 text-[10px] text-slate-400">{clockTime(c.lastMessage.createdAt)}</span>}
+              <div key={c.id} className="group relative">
+                <button
+                  onClick={() => setActiveId(c.id)}
+                  className={`flex w-full items-center gap-3 px-3 py-2.5 text-left transition hover:bg-slate-50 ${activeId === c.id ? 'bg-brand-light/40' : ''}`}
+                >
+                  <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-full text-xs font-semibold ${c.isGroup ? 'bg-slate-200 text-slate-600' : 'bg-brand-light text-brand'}`}>
+                    {c.isGroup ? <Users size={15} /> : initials(c.name)}
                   </span>
-                  <span className="flex items-center justify-between gap-2">
-                    <span className="truncate text-xs text-slate-500">
-                      {c.lastMessage ? `${c.isGroup ? `${c.lastMessage.senderName.split(' ')[0]}: ` : ''}${c.lastMessage.body}` : 'No messages yet'}
+                  <span className="min-w-0 flex-1">
+                    <span className="flex items-center justify-between gap-2">
+                      <span className={`truncate text-sm ${c.unread > 0 ? 'font-semibold text-slate-900' : 'font-medium text-slate-800'}`}>{c.name}</span>
+                      {c.lastMessage && <span className="shrink-0 text-[10px] text-slate-400 group-hover:invisible">{clockTime(c.lastMessage.createdAt)}</span>}
                     </span>
-                    {c.unread > 0 && <span className="grid h-4 min-w-4 shrink-0 place-items-center rounded-full bg-brand px-1 text-[10px] font-semibold text-white">{c.unread}</span>}
+                    <span className="flex items-center justify-between gap-2">
+                      <span className={`truncate text-xs ${c.unread > 0 ? 'text-slate-700' : 'text-slate-500'}`}>
+                        {c.lastMessage ? `${c.isGroup ? `${c.lastMessage.senderName.split(' ')[0]}: ` : ''}${c.lastMessage.body}` : 'No messages yet'}
+                      </span>
+                      {c.unread > 0 && <span className="grid h-4 min-w-4 shrink-0 place-items-center rounded-full bg-brand px-1 text-[10px] font-semibold text-white">{c.unread > 20 ? '20+' : c.unread}</span>}
+                    </span>
                   </span>
-                </span>
-              </button>
+                </button>
+
+                {/* Actions menu */}
+                <button
+                  onClick={(e) => { e.stopPropagation(); setMenuId(menuId === c.id ? null : c.id); }}
+                  className="absolute right-2 top-1/2 hidden -translate-y-1/2 rounded-lg bg-white/90 p-1 text-slate-400 shadow-sm hover:text-slate-700 group-hover:block"
+                  aria-label="Conversation options"
+                >
+                  <MoreVertical size={15} />
+                </button>
+                {menuId === c.id && (
+                  <div onClick={(e) => e.stopPropagation()} className="absolute right-2 top-10 z-20 w-44 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 text-sm shadow-xl">
+                    <button onClick={() => toggleRead(c)} className="flex w-full items-center gap-2 px-3 py-2 text-left text-slate-700 hover:bg-slate-50">
+                      {c.unread > 0 ? <><MailOpen size={14} /> Mark as read</> : <><Mail size={14} /> Mark as unread</>}
+                    </button>
+                    <button onClick={() => remove(c)} className="flex w-full items-center gap-2 px-3 py-2 text-left text-rose-600 hover:bg-rose-50">
+                      <Trash2 size={14} /> Delete conversation
+                    </button>
+                  </div>
+                )}
+              </div>
             ))
           )}
         </div>
