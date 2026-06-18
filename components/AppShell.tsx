@@ -19,6 +19,7 @@ import {
   FileText,
   Sparkles,
   KeyRound,
+  BarChart3,
   Settings,
   Clock,
   PanelLeftClose,
@@ -52,7 +53,7 @@ async function hardRefresh() {
   window.location.reload();
 }
 
-type NavItem = { href: string; label: string; icon: LucideIcon };
+type NavItem = { href: string; label: string; icon: LucideIcon; adminOnly?: boolean };
 type NavSection = { title?: string; items: NavItem[] };
 
 const navSections: NavSection[] = [
@@ -77,6 +78,7 @@ const navSections: NavSection[] = [
     items: [
       { href: '/time', label: 'Time', icon: Clock },
       { href: '/team', label: 'Members', icon: Users },
+      { href: '/reports', label: 'Reports', icon: BarChart3, adminOnly: true },
     ],
   },
   {
@@ -103,6 +105,7 @@ function NavContent({
   const pathname = usePathname();
   const isActive = (href: string) =>
     href === '/' ? pathname === '/' : pathname.startsWith(href);
+  const isAdmin = !!user?.roles?.some((r) => r === 'SUPER_ADMIN' || r === 'MANAGER');
 
   return (
     <>
@@ -122,7 +125,7 @@ function NavContent({
                   {section.title}
                 </p>
               ))}
-            {section.items.map(({ href, label, icon: Icon }) => {
+            {section.items.filter((it) => !it.adminOnly || isAdmin).map(({ href, label, icon: Icon }) => {
               const active = isActive(href);
               return (
                 <MotionLink
