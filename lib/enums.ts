@@ -175,6 +175,20 @@ export function formatMoney(amount: number, currency = 'USD'): string {
   }
 }
 
+// The FX rate used to convert an amount to CAD, e.g. "1 USD = 1.3700 CAD".
+// Empty for CAD or when the inputs don't allow a sensible rate — meant to be
+// shown in light text next to a converted amount.
+export function fxRateNote(
+  originalAmount: number,
+  cadAmount: number | null | undefined,
+  currency?: string | null,
+): string {
+  if (!currency || currency === 'CAD' || !originalAmount || cadAmount == null) return '';
+  const rate = cadAmount / originalAmount;
+  if (!Number.isFinite(rate) || rate <= 0) return '';
+  return `1 ${currency} = ${rate.toFixed(4)} CAD`;
+}
+
 export const STATUS_BADGE: Record<string, string> = {
   ONBOARDING: 'bg-amber-100 text-amber-700',
   ACTIVE: 'bg-emerald-100 text-emerald-700',

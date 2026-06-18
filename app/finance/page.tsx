@@ -12,7 +12,7 @@ import {
   recordLoanRecovery,
   deleteLoan,
 } from '@/app/actions';
-import { EXPENSE_CATEGORY_LABELS, EXPENSE_CATEGORY_BADGE, formatMoney } from '@/lib/enums';
+import { EXPENSE_CATEGORY_LABELS, EXPENSE_CATEGORY_BADGE, formatMoney, fxRateNote } from '@/lib/enums';
 import { getOptions, ensureExpenseCategories, ensureOptionDefaults } from '@/lib/options';
 import { getRatesToCad, toCad } from '@/lib/fx';
 import FadeIn from '@/components/FadeIn';
@@ -236,7 +236,10 @@ export default async function FinancePage({
                           <td className="px-5 py-3 tabular-nums text-slate-500">{e.date.toISOString().slice(0, 10)}</td>
                           <td className="px-5 py-3 text-right tabular-nums">
                             <div className="font-medium">{formatMoney(e.amount, e.currency)}</div>
-                            {e.currency !== 'CAD' && <div className="text-xs text-slate-400">{formatMoney(e.amountCad ?? cadOf(e.amount, e.currency), 'CAD')} CAD</div>}
+                            {e.currency !== 'CAD' && (() => {
+                              const cadAmt = e.amountCad ?? cadOf(e.amount, e.currency);
+                              return <div className="text-xs text-slate-400">{formatMoney(cadAmt, 'CAD')} CAD <span className="text-slate-300">({fxRateNote(e.amount, cadAmt, e.currency)})</span></div>;
+                            })()}
                           </td>
                           <td className="px-5 py-3"><RowActions deleteAction={deleteExpense.bind(null, e.id)} label="expense" /></td>
                         </tr>
@@ -320,7 +323,7 @@ export default async function FinancePage({
                           <tr key={p.id}>
                             <td className="px-5 py-3 font-medium text-slate-800">{p.user.name}</td>
                             <td className="px-5 py-3 tabular-nums text-slate-500">{p.paidAt.toISOString().slice(0, 10)}</td>
-                            <td className="px-5 py-3 text-right tabular-nums">{formatMoney(p.amount, p.currency)}{p.currency !== 'CAD' && <span className="ml-2 text-xs text-slate-400">{formatMoney(p.amountCad ?? cadOf(p.amount, p.currency), 'CAD')} CAD</span>}</td>
+                            <td className="px-5 py-3 text-right tabular-nums">{formatMoney(p.amount, p.currency)}{p.currency !== 'CAD' && (() => { const cadAmt = p.amountCad ?? cadOf(p.amount, p.currency); return <span className="ml-2 text-xs text-slate-400">{formatMoney(cadAmt, 'CAD')} CAD <span className="text-slate-300">({fxRateNote(p.amount, cadAmt, p.currency)})</span></span>; })()}</td>
                             <td className="px-5 py-3"><RowActions deleteAction={deleteSalaryPayment.bind(null, p.id)} label="salary payment" /></td>
                           </tr>
                         ))}
@@ -420,7 +423,7 @@ export default async function FinancePage({
                               <td className="px-5 py-3 tabular-nums text-slate-500">{l.givenAt.toISOString().slice(0, 10)}</td>
                               <td className="px-5 py-3 text-right tabular-nums">
                                 <div className="font-medium">{formatMoney(l.amount, l.currency)}</div>
-                                {l.currency !== 'CAD' && <div className="text-xs text-slate-400">{formatMoney(givenCad, 'CAD')} CAD</div>}
+                                {l.currency !== 'CAD' && <div className="text-xs text-slate-400">{formatMoney(givenCad, 'CAD')} CAD <span className="text-slate-300">({fxRateNote(l.amount, givenCad, l.currency)})</span></div>}
                               </td>
                               <td className="px-5 py-3">
                                 {settled ? (

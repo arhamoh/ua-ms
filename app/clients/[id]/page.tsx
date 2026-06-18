@@ -14,6 +14,7 @@ import {
   PAYMENT_METHOD_LABELS,
   CURRENCIES,
   formatMoney,
+  fxRateNote,
 } from '@/lib/enums';
 import Pill from '@/components/Pill';
 import AnimatedButton from '@/components/AnimatedButton';
@@ -226,11 +227,15 @@ export default async function ClientProfilePage({
                           <td className="px-5 py-3 text-slate-500">{p.project?.name ?? '—'}</td>
                           <td className="px-5 py-3 text-right tabular-nums">
                             <div className="font-medium text-emerald-600">{formatMoney(p.amount, p.currency)}</div>
-                            {p.currency !== 'CAD' && (
-                              <div className="text-xs text-slate-400">
-                                {formatMoney(p.amountCad ?? toCad(p.amount, p.currency, rates), 'CAD')} CAD
-                              </div>
-                            )}
+                            {p.currency !== 'CAD' && (() => {
+                              const cadAmt = p.amountCad ?? toCad(p.amount, p.currency, rates);
+                              return (
+                                <div className="text-xs text-slate-400">
+                                  {formatMoney(cadAmt, 'CAD')} CAD{' '}
+                                  <span className="text-slate-300">({fxRateNote(p.amount, cadAmt, p.currency)})</span>
+                                </div>
+                              );
+                            })()}
                           </td>
                           <td className="px-5 py-3">
                             <RowActions

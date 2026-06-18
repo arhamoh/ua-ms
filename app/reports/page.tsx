@@ -4,7 +4,7 @@ import { BarChart3, Clock, Coins, Wallet, Users } from 'lucide-react';
 import { prisma } from '@/lib/prisma';
 import { getSession } from '@/lib/auth';
 import { getRatesToCad, toCad } from '@/lib/fx';
-import { formatMoney } from '@/lib/enums';
+import { formatMoney, fxRateNote } from '@/lib/enums';
 import FadeIn from '@/components/FadeIn';
 import PrintButton from '@/components/PrintButton';
 
@@ -86,14 +86,16 @@ export default async function ReportsPage({
     }),
   ]);
 
-  // Current monthly salary rate = latest effective salary per user.
-  const rate = new Map<string, number>();
-  for (const s of salaries) if (!rate.has(s.userId)) rate.set(s.userId, cad(s.amount, s.currency));
+  // Current monthly salary rate = latest effective salary per user (keep the
+  // original currency/amount so the FX rate can be shown).
+  const rateInfo = new Map<string, { cad: number; amount: number; currency: string }>();
+  for (const s of salaries) if (!rateInfo.has(s.userId)) rateInfo.set(s.userId, { cad: cad(s.amount, s.currency), amount: s.amount, currency: s.currency });
 
-  type Row = { id: string; name: string; roles: string[]; hours: number; active: number; rate: number; salaryPaid: number; commission: number };
+  type Row = { id: string; name: string; roles: string[]; hours: number; active: number; rate: number; rateAmount: number; rateCurrency: string; salaryPaid: number; commission: number };
   const byUser = new Map<string, Row>();
   for (const u of users) {
-    byUser.set(u.id, { id: u.id, name: u.name, roles: u.roles, hours: 0, active: 0, rate: rate.get(u.id) ?? 0, salaryPaid: 0, commission: 0 });
+    const ri = rateInfo.get(u.id);
+    byUser.set(u.id, { id: u.id, name: u.name, roles: u.roles, hours: 0, active: 0, rate: ri?.cad ?? 0, rateAmount: ri?.amount ?? 0, rateCurrency: ri?.currency ?? 'CAD', salaryPaid: 0, commission: 0 });
   }
   for (const e of entries) {
     const r = byUser.get(e.userId);
@@ -209,7 +211,14 @@ export default async function ReportsPage({
                         <td className="px-5 py-3 font-medium text-slate-800">{r.name}</td>
                         <td className="px-5 py-3 text-right tabular-nums">{r.hours.toFixed(1)}</td>
                         <td className="px-5 py-3 text-right tabular-nums text-slate-500">{p != null ? `${(r.active / 3600).toFixed(1)}h · ${p}%` : '—'}</td>
-                        <td className="px-5 py-3 text-right tabular-nums text-slate-500">{r.rate > 0 ? `${formatMoney(r.rate, 'CAD')}/mo` : '—'}</td>
+                        <td className="px-5 py-3 text-right tabular-nums text-slate-500">
+                          {r.rate > 0 ? (
+                            <>
+                              {formatMoney(r.rate, 'CAD')}/mo
+                              {r.rateCurrency !== 'CAD' && <span className="ml-1 text-slate-300">({fxRateNote(r.rateAmount, r.rate, r.rateCurrency)})</span>}
+                            </>
+                          ) : '—'}
+                        </td>
                         <td className="px-5 py-3 text-right tabular-nums">{r.salaryPaid > 0 ? formatMoney(r.salaryPaid, 'CAD') : '—'}</td>
                         <td className="px-5 py-3 text-right tabular-nums">{r.commission > 0 ? formatMoney(r.commission, 'CAD') : '—'}</td>
                         <td className="px-5 py-3 text-right font-semibold tabular-nums">{formatMoney(r.salaryPaid + r.commission, 'CAD')}</td>
