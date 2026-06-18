@@ -87,8 +87,41 @@ model User {
   uploadedFiles     FileAsset[]        @relation("UploadedFiles")
   fileComments      FileComment[]      @relation("FileComments")
   assistantMessages AssistantMessage[] @relation("AssistantMessages")
+  loginsCreated     Login[]            @relation("LoginCreatedBy")
+  loginShares       LoginShare[]       @relation("LoginShares")
 
   @@index([email])
+}
+
+// Shared login credentials (a small team vault). Passwords are stored encrypted
+// (AES-256-GCM) and only decrypted on demand for authorized users.
+model Login {
+  id          String       @id @default(cuid())
+  name        String
+  url         String?
+  username    String?
+  passwordEnc String // encrypted blob — never the plaintext
+  notes       String?
+  createdById String?
+  createdBy   User?        @relation("LoginCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  shares      LoginShare[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@index([createdById])
+}
+
+// Who a given login is shared with. Managers (super admin / admin / PM) see all.
+model LoginShare {
+  id        String   @id @default(cuid())
+  loginId   String
+  login     Login    @relation(fields: [loginId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation("LoginShares", fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([loginId, userId])
+  @@index([userId])
 }
 
 // Persisted analytics-assistant chat, per user. Token/cost columns power the

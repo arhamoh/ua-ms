@@ -19,6 +19,7 @@ import {
   PiggyBank,
   FileText,
   Sparkles,
+  KeyRound,
   Settings,
   Clock,
   PanelLeftClose,
@@ -82,6 +83,7 @@ const navSections: NavSection[] = [
     title: 'More',
     items: [
       { href: '/assistant', label: 'Assistant', icon: Sparkles },
+      { href: '/logins', label: 'Logins', icon: KeyRound },
       { href: '/settings', label: 'Settings', icon: Settings },
     ],
   },

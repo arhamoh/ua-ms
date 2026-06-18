@@ -15,6 +15,7 @@ import {
   TASK_APPROVAL_GATED_STATUSES,
   TASK_REVIEW_STATUS,
   isTaskApprover,
+  canManageLogins,
   LEAD_TYPES,
   EXPENSE_CATEGORIES,
   CURRENCIES,
@@ -30,6 +31,7 @@ import { getCompany, computeTax } from '@/lib/company';
 import { getSession } from '@/lib/auth';
 import { driveConfigured, uploadToDrive, testDriveConnection } from '@/lib/drive';
 import { testOpenRouter } from '@/lib/integrations';
+import { encryptSecret, decryptSecret } from '@/lib/crypto';
 
 function str(v: FormDataEntryValue | null): string | null {
   const s = (v ?? '').toString().trim();
@@ -1259,6 +1261,90 @@ export async function clearAssistantHistory() {
   await prisma.assistantMessage.deleteMany({ where: { userId: s.id } });
   revalidatePath('/assistant');
   redirect('/assistant');
+}
+
+// ─── Logins vault ────────────────────────────────────────────────────────────
+
+async function loginAccess() {
+  const s = await getSession();
+  return { s, manage: canManageLogins(s?.roles) };
+}
+
+export async function createLogin(formData: FormData) {
+  const { s, manage } = await loginAccess();
+  if (!s || !manage) return;
+  const name = str(formData.get('name'));
+  if (!name) return;
+  const shareUserIds = formData.getAll('shareUserIds').map(String).filter(Boolean);
+  await prisma.login.create({
+    data: {
+      name,
+      url: str(formData.get('url')),
+      username: str(formData.get('username')),
+      notes: str(formData.get('notes')),
+      passwordEnc: encryptSecret(str(formData.get('password')) ?? ''),
+      createdById: s.id,
+      shares: shareUserIds.length ? { create: shareUserIds.map((userId) => ({ userId })) } : undefined,
+    },
+  });
+  revalidatePath('/logins');
+}
+
+export async function updateLogin(formData: FormData) {
+  const { s, manage } = await loginAccess();
+  if (!s || !manage) return;
+  const id = str(formData.get('id'));
+  const name = str(formData.get('name'));
+  if (!id || !name) return;
+  const password = str(formData.get('password'));
+  const data: Record<string, unknown> = {
+    name,
+    url: str(formData.get('url')),
+    username: str(formData.get('username')),
+    notes: str(formData.get('notes')),
+  };
+  if (password) data.passwordEnc = encryptSecret(password); // only rotate if a new one was typed
+  await prisma.login.update({ where: { id }, data });
+
+  const shareUserIds = formData.getAll('shareUserIds').map(String).filter(Boolean);
+  await prisma.loginShare.deleteMany({ where: { loginId: id } });
+  if (shareUserIds.length) {
+    await prisma.loginShare.createMany({
+      data: shareUserIds.map((userId) => ({ loginId: id, userId })),
+      skipDuplicates: true,
+    });
+  }
+  revalidatePath('/logins');
+}
+
+export async function deleteLogin(formData: FormData) {
+  const { s, manage } = await loginAccess();
+  if (!s || !manage) return;
+  const id = str(formData.get('id'));
+  if (!id) return;
+  await prisma.login.delete({ where: { id } });
+  revalidatePath('/logins');
+}
+
+export async function revokeLoginShare(loginId: string, userId: string) {
+  const { s, manage } = await loginAccess();
+  if (!s || !manage || !loginId || !userId) return;
+  await prisma.loginShare.deleteMany({ where: { loginId, userId } });
+  revalidatePath('/logins');
+}
+
+// Returns the decrypted password — only to a user allowed to see this login.
+export async function revealLogin(id: string): Promise<string> {
+  const { s, manage } = await loginAccess();
+  if (!s || !id) return '';
+  const login = await prisma.login.findUnique({
+    where: { id },
+    select: { passwordEnc: true, createdById: true, shares: { select: { userId: true } } },
+  });
+  if (!login) return '';
+  const allowed = manage || login.createdById === s.id || login.shares.some((sh) => sh.userId === s.id);
+  if (!allowed) return '';
+  return decryptSecret(login.passwordEnc);
 }
 
 // ─── Database maintenance (super admin) ──────────────────────────────────────

@@ -86,6 +86,13 @@ export function isTaskApprover(roles?: string[] | null) {
   return !!roles?.some((r) => TASK_APPROVER_ROLES.includes(r));
 }
 
+// Who can create login credentials and share/revoke them (super admin, admin/
+// manager, project manager). Everyone else only sees logins shared with them.
+export const LOGIN_MANAGER_ROLES = ['SUPER_ADMIN', 'MANAGER', 'PROJECT_MANAGER'];
+export function canManageLogins(roles?: string[] | null) {
+  return !!roles?.some((r) => LOGIN_MANAGER_ROLES.includes(r));
+}
+
 export const TASK_STATUS_DOT: Record<string, string> = {
   BACKLOG: 'bg-slate-400',
   TODO: 'bg-sky-500',

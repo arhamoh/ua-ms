@@ -13,6 +13,7 @@ import {
   PiggyBank,
   FileText,
   Sparkles,
+  KeyRound,
   Settings,
   Clock,
   CornerDownLeft,
@@ -31,6 +32,7 @@ const PAGES: Item[] = [
   { id: 'p-assistant', label: 'Analytics Assistant', href: '/assistant', group: 'Pages', icon: Sparkles },
   { id: 'p-time', label: 'Time & attendance', href: '/time', group: 'Pages', icon: Clock },
   { id: 'p-team', label: 'Team', href: '/team', group: 'Pages', icon: Users },
+  { id: 'p-logins', label: 'Logins', href: '/logins', group: 'Pages', icon: KeyRound },
   { id: 'p-settings', label: 'Settings', href: '/settings', group: 'Pages', icon: Settings },
   { id: 'p-onboard', label: 'Onboard a client', href: '/onboard', group: 'Pages', icon: UserPlus },
 ];
