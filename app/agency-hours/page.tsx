@@ -7,6 +7,7 @@ import { DAY_LABELS, minToHHMM } from '@/lib/schedule';
 import FadeIn from '@/components/FadeIn';
 import AgencyClocks from '@/components/AgencyClocks';
 import TimezoneSelect from '@/components/TimezoneSelect';
+import ClientSelect from '@/components/ClientSelect';
 import { createAgency, updateAgency, deleteAgency } from './actions';
 
 export const dynamic = 'force-dynamic';
@@ -23,14 +24,14 @@ type Agency = {
   note: string | null;
 };
 
-function ScheduleFields({ agency }: { agency?: Agency }) {
+function ScheduleFields({ agency, clients }: { agency?: Agency; clients: { id: string; name: string }[] }) {
   const days = agency?.days ?? [1, 2, 3, 4, 5];
   return (
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-      <label className="block sm:col-span-2">
-        <span className="mb-1 block text-xs font-medium text-slate-600">Agency name</span>
-        <input name="name" required defaultValue={agency?.name ?? ''} placeholder="e.g. Brightleaf Studio" className={inputCls} />
-      </label>
+      <div className="block sm:col-span-2">
+        <span className="mb-1 block text-xs font-medium text-slate-600">Client</span>
+        <ClientSelect name="name" clients={clients} defaultValue={agency?.name ?? ''} required placeholder="Search & select a client…" />
+      </div>
       <div className="block sm:col-span-2">
         <span className="mb-1 block text-xs font-medium text-slate-600">Timezone</span>
         <TimezoneSelect name="timezone" defaultValue={agency?.timezone ?? ''} required />
@@ -67,7 +68,10 @@ export default async function AgencyHoursPage() {
   if (!user) redirect('/login');
   if (!canManageAgencyHours(user.roles)) redirect('/');
 
-  const agencies = await prisma.agencySchedule.findMany({ orderBy: { name: 'asc' } });
+  const [agencies, clients] = await Promise.all([
+    prisma.agencySchedule.findMany({ orderBy: { name: 'asc' } }),
+    prisma.client.findMany({ orderBy: { name: 'asc' }, select: { id: true, name: true } }),
+  ]);
 
   return (
     <div className="max-w-4xl">
@@ -92,7 +96,7 @@ export default async function AgencyHoursPage() {
             <Plus size={18} className="text-brand" />
             <h2 className="text-sm font-semibold">Add an agency schedule</h2>
           </div>
-          <ScheduleFields />
+          <ScheduleFields clients={clients} />
           <button className="mt-4 inline-flex items-center gap-1.5 rounded-xl bg-brand px-4 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-brand-dark">
             <Plus size={15} /> Add agency
           </button>
@@ -109,7 +113,7 @@ export default async function AgencyHoursPage() {
             <div key={a.id} className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
               <form action={updateAgency}>
                 <input type="hidden" name="id" value={a.id} />
-                <ScheduleFields agency={a} />
+                <ScheduleFields agency={a} clients={clients} />
                 <div className="mt-4 flex items-center gap-2">
                   <button className="rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-slate-800">Save changes</button>
                 </div>
