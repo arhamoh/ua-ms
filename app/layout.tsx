@@ -43,25 +43,29 @@ export default async function RootLayout({
     : null;
   const attendance = { open: !!openEntry, checkInAt: openEntry ? openEntry.checkInAt.toISOString() : null };
 
-  // Distinct timezones the team spans, minus the viewer's own — shown as live
-  // header clocks so people across timezones can see each other's local time.
+  // Distinct timezones the team spans (others), plus the viewer's own — shown as
+  // live header clocks so people across timezones can see each other's local time.
+  // The viewer's own clock is rendered separately (labeled "You") by TeamClocks,
+  // with a browser-timezone fallback when they haven't saved one in Settings.
   let teamZones: { tz: string; label: string }[] = [];
+  let myTz: string | null = null;
   if (user) {
     const [me, others] = await Promise.all([
       prisma.user.findUnique({ where: { id: user.id }, select: { timezone: true } }),
       prisma.user.findMany({ where: { timezone: { not: null }, NOT: { id: user.id } }, select: { timezone: true }, distinct: ['timezone'] }),
     ]);
+    myTz = me?.timezone ?? null;
     const seen = new Set<string>();
     teamZones = others
       .map((o) => o.timezone as string)
-      .filter((tz) => tz && tz !== me?.timezone && !seen.has(tz) && (seen.add(tz), true))
+      .filter((tz) => tz && tz !== myTz && !seen.has(tz) && (seen.add(tz), true))
       .map((tz) => ({ tz, label: tzLabel(tz) }));
   }
 
   return (
     <html lang="en" className={`${GeistSans.variable} ${GeistMono.variable}`}>
       <body className="min-h-screen bg-slate-50 font-sans text-slate-900 antialiased">
-        <AppShell user={user} attendance={attendance} teamZones={teamZones}>{children}</AppShell>
+        <AppShell user={user} attendance={attendance} myTz={myTz} teamZones={teamZones}>{children}</AppShell>
         <PWARegister />
       </body>
     </html>

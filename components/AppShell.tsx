@@ -242,11 +242,13 @@ function NavContent({
 export default function AppShell({
   user,
   attendance,
+  myTz = null,
   teamZones = [],
   children,
 }: {
   user: SessionUser | null;
   attendance?: { open: boolean; checkInAt: string | null };
+  myTz?: string | null;
   teamZones?: { tz: string; label: string }[];
   children: React.ReactNode;
 }) {
@@ -335,8 +337,8 @@ export default function AppShell({
             <img src="/logo.png" alt="UA Digital" className="h-9 w-auto" />
           </Link>
 
-          {/* Live clocks for the team's other timezones (left side) */}
-          <TeamClocks zones={teamZones} />
+          {/* Live clocks — the viewer's own time plus the team's other timezones */}
+          <TeamClocks myTz={myTz} zones={teamZones} />
 
           <div className="ml-auto flex items-center gap-2 sm:gap-3">
             <HeaderClock initial={attendance ?? { open: false, checkInAt: null }} />
