@@ -2,9 +2,9 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { Clock, ChevronDown } from 'lucide-react';
-import { formatTimeInTz, tzOffsetMinutes } from '@/lib/schedule';
+import { formatTimeInTz } from '@/lib/schedule';
 
-/** The two home offices. Montreal uses America/Toronto (Eastern) under the hood. */
+/** The two home offices, always shown. Montreal uses America/Toronto (Eastern). */
 const CORE_ZONES = [
   { tz: 'America/Toronto', label: 'Montreal' },
   { tz: 'Asia/Karachi', label: 'Karachi' },
@@ -13,17 +13,14 @@ const CORE_ZONES = [
 /**
  * Live header clocks.
  *
- * Core rule: always show Montreal + Karachi, except the one matching where the
- * viewer currently is — so from Montreal you see only Karachi, from Karachi only
- * Montreal, and from anywhere else you see both. "Where you are" is the browser's
- * detected timezone, matched by current UTC offset.
- *
- * Privileged roles (super admin / manager / PM) also get the partner-agency
- * clocks appended. Each clock is separated by a "|".
+ * Always shows both home offices — Montreal + Karachi — no matter where the
+ * viewer is. Privileged roles (super admin / manager / PM) also get the
+ * partner-agency clocks appended when any are configured. Each clock is
+ * separated by a "|".
  *
  * Desktop shows an inline row; mobile collapses it into a tap-to-open dropdown so
  * the header stays uncluttered. Rendered only after mount so server/client agree
- * (the browser timezone — and therefore which clocks show — is client-only).
+ * on the time.
  */
 export default function TeamClocks({
   agencyZones = [],
@@ -31,17 +28,11 @@ export default function TeamClocks({
   agencyZones?: { tz: string; label: string }[];
 }) {
   const [now, setNow] = useState<Date | null>(null);
-  const [browserTz, setBrowserTz] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setNow(new Date());
-    try {
-      setBrowserTz(Intl.DateTimeFormat().resolvedOptions().timeZone);
-    } catch {
-      // ignore — without a browser tz we just show both core zones
-    }
     const t = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(t);
   }, []);
@@ -58,10 +49,7 @@ export default function TeamClocks({
 
   if (!now) return null;
 
-  const myOffset = browserTz ? tzOffsetMinutes(browserTz, now) : NaN;
-  const core = CORE_ZONES.filter((z) => tzOffsetMinutes(z.tz, now) !== myOffset);
-  const clocks = [...core, ...agencyZones];
-  if (!clocks.length) return null;
+  const clocks = [...CORE_ZONES, ...agencyZones];
 
   return (
     <>
