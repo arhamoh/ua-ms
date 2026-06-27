@@ -93,6 +93,12 @@ export function canManageLogins(roles?: string[] | null) {
   return !!roles?.some((r) => LOGIN_MANAGER_ROLES.includes(r));
 }
 
+// Who can see & manage partner-agency working hours (super admin, admin/manager, PM).
+export const AGENCY_HOURS_ROLES = ['SUPER_ADMIN', 'MANAGER', 'PROJECT_MANAGER'];
+export function canManageAgencyHours(roles?: string[] | null) {
+  return !!roles?.some((r) => AGENCY_HOURS_ROLES.includes(r));
+}
+
 export const TASK_STATUS_DOT: Record<string, string> = {
   BACKLOG: 'bg-slate-400',
   TODO: 'bg-sky-500',

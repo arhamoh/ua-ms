@@ -1,7 +1,8 @@
 import Link from 'next/link';
-import { Briefcase, Activity, Scale, TrendingUp, ArrowRight, ArrowUpRight, CalendarClock, ListTodo } from 'lucide-react';
+import { Briefcase, Activity, Scale, TrendingUp, ArrowRight, ArrowUpRight, CalendarClock, ListTodo, Globe } from 'lucide-react';
 import { prisma } from '@/lib/prisma';
-import { PROJECT_STATUS_LABELS, STATUS_BADGE, PROJECT_TYPE_LABELS, formatMoney } from '@/lib/enums';
+import { PROJECT_STATUS_LABELS, STATUS_BADGE, PROJECT_TYPE_LABELS, formatMoney, canManageAgencyHours } from '@/lib/enums';
+import AgencyClocks from '@/components/AgencyClocks';
 import { getRatesToCad, toCad } from '@/lib/fx';
 import { getSession } from '@/lib/auth';
 import FadeIn from '@/components/FadeIn';
@@ -26,6 +27,9 @@ const pad = (n: number) => String(n).padStart(2, '0');
 export default async function DashboardPage() {
   const session = await getSession();
   const userName = session?.name || 'there';
+
+  const canAgency = canManageAgencyHours(session?.roles);
+  const agencies = canAgency ? await prisma.agencySchedule.findMany({ orderBy: { name: 'asc' } }) : [];
 
   const now = new Date();
   const sixAgo = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 5, 1));
@@ -142,6 +146,18 @@ export default async function DashboardPage() {
           </FadeIn>
         ))}
       </section>
+
+      {/* Agency hours — live partner clocks (managers only) */}
+      {canAgency && agencies.length > 0 && (
+        <FadeIn delay={0.06} className="mt-6 block">
+          <div className="mb-3 flex items-center gap-2">
+            <Globe size={16} className="text-brand" />
+            <h2 className="text-sm font-semibold">Agency hours</h2>
+            <Link href="/agency-hours" className="text-xs font-medium text-brand hover:underline">Manage</Link>
+          </div>
+          <AgencyClocks agencies={agencies} />
+        </FadeIn>
+      )}
 
       {/* Charts: income/expense + status donut */}
       <section className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-3">

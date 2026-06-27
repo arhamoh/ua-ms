@@ -72,6 +72,7 @@ model User {
   email        String   @unique
   passwordHash String?
   roles        Role[]   @default([])
+  timezone     String?  // IANA tz of where this person works, e.g. "Asia/Karachi"
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -707,6 +708,20 @@ model SequenceEnrollment {
   createdAt    DateTime  @default(now())
 
   @@unique([leadId, sequenceId])
+}
+
+// Working hours we've committed to a partner agency (who may be in another
+// timezone). Shown as live clocks + an open/closed indicator. One weekly window.
+model AgencySchedule {
+  id        String   @id @default(cuid())
+  name      String
+  timezone  String   // IANA tz, e.g. "Asia/Karachi"
+  days      Int[]    // working days, 0=Sun … 6=Sat
+  startMin  Int      @default(540)  // window start, minutes from midnight (09:00)
+  endMin    Int      @default(1020) // window end, minutes from midnight (17:00)
+  note      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 // Append-only log of everything that happens to a lead.

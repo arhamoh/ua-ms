@@ -24,6 +24,7 @@ import {
   Settings,
   Clock,
   Target,
+  Globe,
   PanelLeftClose,
   PanelLeftOpen,
   type LucideIcon,
@@ -34,7 +35,9 @@ import MessagesBadge from '@/components/MessagesBadge';
 import AssistantWidget from '@/components/AssistantWidget';
 import HeaderClock from '@/components/HeaderClock';
 import MigrationButton from '@/components/MigrationButton';
+import TeamClocks from '@/components/TeamClocks';
 import { logout } from '@/app/login/actions';
+import { canManageAgencyHours } from '@/lib/enums';
 import type { SessionUser } from '@/lib/auth';
 
 const MotionLink = motion.create(Link);
@@ -56,7 +59,7 @@ async function hardRefresh() {
   window.location.reload();
 }
 
-type NavItem = { href: string; label: string; icon: LucideIcon; adminOnly?: boolean; superAdminOnly?: boolean };
+type NavItem = { href: string; label: string; icon: LucideIcon; adminOnly?: boolean; superAdminOnly?: boolean; pmUp?: boolean };
 type NavSection = { title?: string; items: NavItem[] };
 
 const navSections: NavSection[] = [
@@ -66,6 +69,7 @@ const navSections: NavSection[] = [
     items: [
       { href: '/clients', label: 'Clients', icon: Briefcase },
       { href: '/projects', label: 'Projects', icon: FolderKanban },
+      { href: '/agency-hours', label: 'Agency Hours', icon: Globe, pmUp: true },
     ],
   },
   {
@@ -115,6 +119,7 @@ function NavContent({
     href === '/' ? pathname === '/' : pathname.startsWith(href);
   const isAdmin = !!user?.roles?.some((r) => r === 'SUPER_ADMIN' || r === 'MANAGER');
   const isSuperAdmin = !!user?.roles?.includes('SUPER_ADMIN');
+  const isPmUp = canManageAgencyHours(user?.roles);
 
   return (
     <>
@@ -126,7 +131,7 @@ function NavContent({
       <nav className="flex-1 space-y-1 px-3 py-4">
         {navSections.map((section, si) => {
           const items = section.items.filter(
-            (it) => (!it.adminOnly || isAdmin) && (!it.superAdminOnly || isSuperAdmin),
+            (it) => (!it.adminOnly || isAdmin) && (!it.superAdminOnly || isSuperAdmin) && (!it.pmUp || isPmUp),
           );
           if (items.length === 0) return null;
           return (
@@ -237,10 +242,12 @@ function NavContent({
 export default function AppShell({
   user,
   attendance,
+  teamZones = [],
   children,
 }: {
   user: SessionUser | null;
   attendance?: { open: boolean; checkInAt: string | null };
+  teamZones?: { tz: string; label: string }[];
   children: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
@@ -327,6 +334,9 @@ export default function AppShell({
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/logo.png" alt="UA Digital" className="h-9 w-auto" />
           </Link>
+
+          {/* Live clocks for the team's other timezones (left side) */}
+          <TeamClocks zones={teamZones} />
 
           <div className="ml-auto flex items-center gap-2 sm:gap-3">
             <HeaderClock initial={attendance ?? { open: false, checkInAt: null }} />
