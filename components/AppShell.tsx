@@ -56,7 +56,7 @@ async function hardRefresh() {
   window.location.reload();
 }
 
-type NavItem = { href: string; label: string; icon: LucideIcon; adminOnly?: boolean };
+type NavItem = { href: string; label: string; icon: LucideIcon; adminOnly?: boolean; superAdminOnly?: boolean };
 type NavSection = { title?: string; items: NavItem[] };
 
 const navSections: NavSection[] = [
@@ -70,7 +70,7 @@ const navSections: NavSection[] = [
   },
   {
     title: 'Growth',
-    items: [{ href: '/leads', label: 'Leads', icon: Target }],
+    items: [{ href: '/leads', label: 'Leads', icon: Target, superAdminOnly: true }],
   },
   {
     title: 'Money',
@@ -114,6 +114,7 @@ function NavContent({
   const isActive = (href: string) =>
     href === '/' ? pathname === '/' : pathname.startsWith(href);
   const isAdmin = !!user?.roles?.some((r) => r === 'SUPER_ADMIN' || r === 'MANAGER');
+  const isSuperAdmin = !!user?.roles?.includes('SUPER_ADMIN');
 
   return (
     <>
@@ -123,7 +124,12 @@ function NavContent({
       </div>
 
       <nav className="flex-1 space-y-1 px-3 py-4">
-        {navSections.map((section, si) => (
+        {navSections.map((section, si) => {
+          const items = section.items.filter(
+            (it) => (!it.adminOnly || isAdmin) && (!it.superAdminOnly || isSuperAdmin),
+          );
+          if (items.length === 0) return null;
+          return (
           <div key={section.title ?? 'main'} className={si > 0 ? 'pt-3' : ''}>
             {section.title &&
               (collapsed ? (
@@ -133,7 +139,7 @@ function NavContent({
                   {section.title}
                 </p>
               ))}
-            {section.items.filter((it) => !it.adminOnly || isAdmin).map(({ href, label, icon: Icon }) => {
+            {items.map(({ href, label, icon: Icon }) => {
               const active = isActive(href);
               return (
                 <MotionLink
@@ -164,7 +170,8 @@ function NavContent({
               );
             })}
           </div>
-        ))}
+          );
+        })}
 
         <div className="px-1 pt-4">
           <Link

@@ -10,6 +10,7 @@ export const dynamic = 'force-dynamic';
 export default async function LeadsPage() {
   const user = await getSession();
   if (!user) redirect('/login');
+  if (!user.roles.includes('SUPER_ADMIN')) redirect('/');
 
   const [total, withEmail, byStatusRaw, bySegmentRaw, leadsRaw] = await Promise.all([
     prisma.lead.count(),

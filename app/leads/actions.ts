@@ -10,7 +10,7 @@ import { convertLeadToClient } from '@/lib/leadgen/convert';
 
 async function requireUser() {
   const user = await getSession();
-  if (!user) throw new Error('Unauthorized');
+  if (!user || !user.roles.includes('SUPER_ADMIN')) throw new Error('Unauthorized');
   return user;
 }
 
