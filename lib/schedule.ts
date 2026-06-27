@@ -62,6 +62,17 @@ export function formatDayInTz(tz: string, date: Date = new Date()): string {
   }
 }
 
+/** A timezone's current UTC offset in minutes (positive = ahead of UTC). */
+export function tzOffsetMinutes(tz: string, date: Date = new Date()): number {
+  try {
+    const asTz = new Date(date.toLocaleString('en-US', { timeZone: tz }));
+    const asUtc = new Date(date.toLocaleString('en-US', { timeZone: 'UTC' }));
+    return Math.round((asTz.getTime() - asUtc.getTime()) / 60000);
+  } catch {
+    return NaN;
+  }
+}
+
 /** Friendly label for a tz id, e.g. "Asia/Karachi" -> "Karachi". */
 export function tzLabel(tz: string): string {
   const seg = tz.split('/').pop() ?? tz;
