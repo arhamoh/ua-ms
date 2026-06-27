@@ -3,9 +3,10 @@ import { Globe, Plus, Trash2, Clock } from 'lucide-react';
 import { getSession } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { canManageAgencyHours } from '@/lib/enums';
-import { allTimezones, DAY_LABELS, minToHHMM } from '@/lib/schedule';
+import { DAY_LABELS, minToHHMM } from '@/lib/schedule';
 import FadeIn from '@/components/FadeIn';
 import AgencyClocks from '@/components/AgencyClocks';
+import TimezoneSelect from '@/components/TimezoneSelect';
 import { createAgency, updateAgency, deleteAgency } from './actions';
 
 export const dynamic = 'force-dynamic';
@@ -22,7 +23,7 @@ type Agency = {
   note: string | null;
 };
 
-function ScheduleFields({ agency, zones }: { agency?: Agency; zones: string[] }) {
+function ScheduleFields({ agency }: { agency?: Agency }) {
   const days = agency?.days ?? [1, 2, 3, 4, 5];
   return (
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -30,15 +31,10 @@ function ScheduleFields({ agency, zones }: { agency?: Agency; zones: string[] })
         <span className="mb-1 block text-xs font-medium text-slate-600">Agency name</span>
         <input name="name" required defaultValue={agency?.name ?? ''} placeholder="e.g. Brightleaf Studio" className={inputCls} />
       </label>
-      <label className="block sm:col-span-2">
+      <div className="block sm:col-span-2">
         <span className="mb-1 block text-xs font-medium text-slate-600">Timezone</span>
-        <select name="timezone" required defaultValue={agency?.timezone ?? ''} className={inputCls}>
-          <option value="" disabled>Select timezone…</option>
-          {zones.map((z) => (
-            <option key={z} value={z}>{z}</option>
-          ))}
-        </select>
-      </label>
+        <TimezoneSelect name="timezone" defaultValue={agency?.timezone ?? ''} required />
+      </div>
       <div className="block sm:col-span-2">
         <span className="mb-1 block text-xs font-medium text-slate-600">Working days</span>
         <div className="flex flex-wrap gap-1.5">
@@ -72,7 +68,6 @@ export default async function AgencyHoursPage() {
   if (!canManageAgencyHours(user.roles)) redirect('/');
 
   const agencies = await prisma.agencySchedule.findMany({ orderBy: { name: 'asc' } });
-  const zones = allTimezones();
 
   return (
     <div className="max-w-4xl">
@@ -97,7 +92,7 @@ export default async function AgencyHoursPage() {
             <Plus size={18} className="text-brand" />
             <h2 className="text-sm font-semibold">Add an agency schedule</h2>
           </div>
-          <ScheduleFields zones={zones} />
+          <ScheduleFields />
           <button className="mt-4 inline-flex items-center gap-1.5 rounded-xl bg-brand px-4 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-brand-dark">
             <Plus size={15} /> Add agency
           </button>
@@ -114,7 +109,7 @@ export default async function AgencyHoursPage() {
             <div key={a.id} className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
               <form action={updateAgency}>
                 <input type="hidden" name="id" value={a.id} />
-                <ScheduleFields agency={a} zones={zones} />
+                <ScheduleFields agency={a} />
                 <div className="mt-4 flex items-center gap-2">
                   <button className="rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-slate-800">Save changes</button>
                 </div>

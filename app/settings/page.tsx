@@ -2,7 +2,7 @@ import { Database, FileText, Trash2, SlidersHorizontal, Plus, X, Building2, Plug
 import { prisma } from '@/lib/prisma';
 import { seedDemoData, backfillInvoices, clearDemoData, addOption, deleteOption, saveCompanySettings } from '@/app/actions';
 import { saveMyTimezone } from './actions';
-import { allTimezones } from '@/lib/schedule';
+import TimezoneSelect from '@/components/TimezoneSelect';
 import { ensureOptionsSeeded, ensureOptionDefaults, OPTION_KINDS } from '@/lib/options';
 import { getIntegrations } from '@/lib/integrations';
 import { getCompany } from '@/lib/company';
@@ -41,7 +41,6 @@ export default async function SettingsPage({
   const session = await getSession();
   const isSuperAdmin = !!session?.roles?.includes('SUPER_ADMIN');
   const me = session ? await prisma.user.findUnique({ where: { id: session.id }, select: { timezone: true } }) : null;
-  const timezones = allTimezones();
 
   const preferencesTab: SettingsTab = {
     id: 'preferences',
@@ -57,15 +56,10 @@ export default async function SettingsPage({
           Set where you work. Teammates in other timezones will see your local time as a live clock in
           their header — and you&apos;ll see theirs.
         </p>
-        <label className="mt-4 block max-w-sm">
+        <div className="mt-4 block max-w-sm">
           <span className="mb-1 block text-xs font-medium text-slate-600">Timezone</span>
-          <select name="timezone" defaultValue={me?.timezone ?? ''} className={inputCls}>
-            <option value="">Not set</option>
-            {timezones.map((z) => (
-              <option key={z} value={z}>{z}</option>
-            ))}
-          </select>
-        </label>
+          <TimezoneSelect name="timezone" defaultValue={me?.timezone ?? ''} />
+        </div>
         <button className="mt-4 rounded-xl bg-brand px-4 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-brand-dark">
           Save timezone
         </button>
