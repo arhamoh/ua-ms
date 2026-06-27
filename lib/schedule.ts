@@ -38,6 +38,37 @@ export function isOpenNow(
   return minutes >= startMin || minutes < endMin; // crosses midnight
 }
 
+/** Minutes left in a window counts as "closing soon" at or below this. */
+export const CLOSING_SOON_MIN = 60;
+
+/**
+ * Whether the agency is currently within its window, and if so how many minutes
+ * remain until it closes (handles windows that cross midnight).
+ */
+export function agencyStatus(
+  days: number[],
+  startMin: number,
+  endMin: number,
+  tz: string,
+  date: Date = new Date(),
+): { open: boolean; minutesLeft: number } {
+  if (!isOpenNow(days, startMin, endMin, tz, date)) return { open: false, minutesLeft: 0 };
+  const { minutes } = zonedNow(tz, date);
+  // open — minutes until endMin, wrapping past midnight when the window does.
+  const left = endMin > startMin || minutes < endMin ? endMin - minutes : 1440 - minutes + endMin;
+  return { open: true, minutesLeft: left };
+}
+
+/** Minutes-from-now -> "2h 15m" / "45m". */
+export function formatDuration(totalMin: number): string {
+  const m = Math.max(0, Math.round(totalMin));
+  const h = Math.floor(m / 60);
+  const mm = m % 60;
+  if (h && mm) return `${h}h ${mm}m`;
+  if (h) return `${h}h`;
+  return `${mm}m`;
+}
+
 /** Live clock string in a tz, e.g. "3:45:09 PM". */
 export function formatTimeInTz(tz: string, date: Date = new Date(), withSeconds = false): string {
   try {

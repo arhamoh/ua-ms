@@ -46,13 +46,13 @@ export default async function RootLayout({
   // Partner-agency clocks for privileged roles (super admin / manager / PM) —
   // appended after the core Montreal/Karachi clocks in the header. Everyone else
   // gets none (TeamClocks still shows the core zones for them).
-  let agencyZones: { tz: string; label: string }[] = [];
+  let agencyZones: { tz: string; label: string; days: number[]; startMin: number; endMin: number }[] = [];
   if (user && canManageAgencyHours(user.roles)) {
     const agencies = await prisma.agencySchedule.findMany({
       orderBy: { name: 'asc' },
-      select: { name: true, timezone: true },
+      select: { name: true, timezone: true, days: true, startMin: true, endMin: true },
     });
-    agencyZones = agencies.map((a) => ({ tz: a.timezone, label: a.name }));
+    agencyZones = agencies.map((a) => ({ tz: a.timezone, label: a.name, days: a.days, startMin: a.startMin, endMin: a.endMin }));
   }
 
   return (

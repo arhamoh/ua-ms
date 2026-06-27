@@ -247,7 +247,7 @@ export default function AppShell({
 }: {
   user: SessionUser | null;
   attendance?: { open: boolean; checkInAt: string | null };
-  agencyZones?: { tz: string; label: string }[];
+  agencyZones?: { tz: string; label: string; days: number[]; startMin: number; endMin: number }[];
   children: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
