@@ -1,0 +1,32 @@
+name: Lead-gen daily
+
+# Runs the lead-gen pipeline on a schedule by calling the app's protected cron
+# endpoint. The secret lives in GitHub repo secrets (Settings → Secrets and
+# variables → Actions → new secret named CRON_SECRET).
+#
+# NOTE: scheduled workflows run from the DEFAULT branch (main), so this only
+# fires once this file is on main. Use "Run workflow" (workflow_dispatch) to
+# test it manually any time.
+
+on:
+  schedule:
+    - cron: '0 13 * * *' # 13:00 UTC daily
+  workflow_dispatch: {} # manual trigger button in the Actions tab
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Source + score + enroll leads
+        run: |
+          curl -fsS --retry 2 -X GET \
+            "https://uadigital-pm.up.railway.app/api/leads/cron?task=source" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
+          echo ""
+
+      - name: Send due outreach touches
+        run: |
+          curl -fsS --retry 2 -X GET \
+            "https://uadigital-pm.up.railway.app/api/leads/cron?task=outreach" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
+          echo ""
