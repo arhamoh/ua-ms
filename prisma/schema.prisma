@@ -258,6 +258,9 @@ model Client {
   payments Payment[]
   invoices Invoice[]
 
+  // Set when this client was converted from a sourced Lead.
+  convertedFromLead Lead? @relation("LeadConversion")
+
   @@index([salespersonId])
 }
 
@@ -607,4 +610,114 @@ model Payment {
 
   @@index([clientId])
   @@index([projectId])
+}
+
+// ─── Lead generation ─────────────────────────────────────────────────────────
+// Sourced prospects (pre-Client). A "won" lead converts into a Client above.
+
+// A target company a lead works at.
+model LeadCompany {
+  id            String   @id @default(cuid())
+  name          String
+  domain        String?  @unique
+  industry      String?
+  employeeCount Int?
+  location      String?
+  linkedinUrl   String?
+  description   String?
+  createdAt     DateTime @default(now())
+
+  leads Lead[]
+}
+
+// A sourced person (the prospect we contact).
+model Lead {
+  id          String   @id @default(cuid())
+  firstName   String?
+  lastName    String?
+  title       String?
+  email       String?  @unique
+  emailStatus String   @default("unknown") // unknown | verified | risky | invalid
+  phone       String?
+  linkedinUrl String?
+
+  source     String  @default("apollo")
+  externalId String? @unique // provider dedupe key (e.g. Apollo person id)
+  segment    String? // which ICP segment this lead was sourced for
+
+  score      Int     @default(0)
+  status     String  @default("new") // new | scored | queued | contacted | replied | won | lost | unqualified
+  smsConsent Boolean @default(false) // TCPA: only true if opted in
+
+  companyId String?
+  company   LeadCompany? @relation(fields: [companyId], references: [id], onDelete: SetNull)
+
+  // Set once this lead is converted into a real Client.
+  convertedClientId String? @unique
+  convertedClient   Client? @relation("LeadConversion", fields: [convertedClientId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  activities  LeadActivity[]
+  enrollments SequenceEnrollment[]
+
+  @@index([status])
+  @@index([segment])
+  @@index([companyId])
+}
+
+// A reusable multi-step outreach campaign (one per ICP segment).
+model Sequence {
+  id        String   @id @default(cuid())
+  key       String   @unique // matches an ICP segment key
+  name      String
+  channel   String   @default("multi") // email | linkedin | sms | multi
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  steps       SequenceStep[]
+  enrollments SequenceEnrollment[]
+}
+
+// One touch within a sequence.
+model SequenceStep {
+  id         String   @id @default(cuid())
+  sequenceId String
+  sequence   Sequence @relation(fields: [sequenceId], references: [id], onDelete: Cascade)
+  order      Int
+  channel    String   @default("email") // email | linkedin | sms
+  delayDays  Int      @default(0) // days to wait after the previous step
+  subject    String? // email only
+  body       String // supports {{firstName}}, {{company}} tokens
+
+  @@unique([sequenceId, order])
+}
+
+// Tracks one lead moving through one sequence.
+model SequenceEnrollment {
+  id           String    @id @default(cuid())
+  leadId       String
+  lead         Lead      @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  sequenceId   String
+  sequence     Sequence  @relation(fields: [sequenceId], references: [id], onDelete: Cascade)
+  currentStep  Int       @default(0)
+  status       String    @default("active") // active | completed | stopped
+  nextActionAt DateTime?
+  createdAt    DateTime  @default(now())
+
+  @@unique([leadId, sequenceId])
+}
+
+// Append-only log of everything that happens to a lead.
+model LeadActivity {
+  id        String   @id @default(cuid())
+  leadId    String
+  lead      Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  type      String // sourced | scored | email_sent | replied | linkedin_task | note | ...
+  channel   String? // email | linkedin | sms
+  detail    String?
+  createdAt DateTime @default(now())
+
+  @@index([leadId, createdAt])
 }

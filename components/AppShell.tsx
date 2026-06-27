@@ -23,6 +23,7 @@ import {
   BarChart3,
   Settings,
   Clock,
+  Target,
   PanelLeftClose,
   PanelLeftOpen,
   type LucideIcon,
@@ -66,6 +67,10 @@ const navSections: NavSection[] = [
       { href: '/clients', label: 'Clients', icon: Briefcase },
       { href: '/projects', label: 'Projects', icon: FolderKanban },
     ],
+  },
+  {
+    title: 'Growth',
+    items: [{ href: '/leads', label: 'Leads', icon: Target }],
   },
   {
     title: 'Money',
