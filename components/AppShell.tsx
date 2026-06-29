@@ -128,7 +128,7 @@ function NavContent({
         <img src="/logo.png" alt="UA Digital" className={collapsed ? 'h-8 w-auto' : 'h-14 w-auto'} />
       </div>
 
-      <nav className="flex-1 space-y-1 px-3 py-4">
+      <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto px-3 py-4">
         {navSections.map((section, si) => {
           const items = section.items.filter(
             (it) => (!it.adminOnly || isAdmin) && (!it.superAdminOnly || isSuperAdmin) && (!it.pmUp || isPmUp),
