@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { TrendingUp, TrendingDown, Scale, Plus, Landmark, RotateCcw, HandCoins, Upload, Camera } from 'lucide-react';
+import { TrendingUp, TrendingDown, Scale, Plus, Landmark, RotateCcw, HandCoins, Upload, Camera, FileText, ReceiptText } from 'lucide-react';
 import { prisma } from '@/lib/prisma';
 import {
   addExpense,
@@ -11,10 +11,15 @@ import {
   addLoan,
   recordLoanRecovery,
   deleteLoan,
+  addOtherIncome,
+  deleteOtherIncome,
 } from '@/app/actions';
-import { EXPENSE_CATEGORY_LABELS, EXPENSE_CATEGORY_BADGE, formatMoney, fxRateNote } from '@/lib/enums';
+import { EXPENSE_CATEGORY_LABELS, EXPENSE_CATEGORY_BADGE, INVOICE_STATUS_LABELS, INVOICE_STATUS_BADGE, formatMoney, fxRateNote } from '@/lib/enums';
 import { getOptions, ensureExpenseCategories, ensureOptionDefaults } from '@/lib/options';
 import { getRatesToCad, toCad } from '@/lib/fx';
+import { getCompany, computeTax } from '@/lib/company';
+import { collectedFromPayment, quarterRange } from '@/lib/tax';
+import QuarterlyTax, { type QuarterData } from '@/components/QuarterlyTax';
 import FadeIn from '@/components/FadeIn';
 import RowActions from '@/components/RowActions';
 import Pill from '@/components/Pill';
@@ -27,13 +32,15 @@ const inputCls =
 
 const pad = (n: number) => String(n).padStart(2, '0');
 
+const TABS = ['pnl', 'receivables', 'expenses', 'salaries', 'loans', 'tax'] as const;
+
 export default async function FinancePage({
   searchParams,
 }: {
-  searchParams: Promise<{ tab?: string; month?: string }>;
+  searchParams: Promise<{ tab?: string; month?: string; year?: string }>;
 }) {
   const sp = await searchParams;
-  const tab = ['expenses', 'salaries', 'loans'].includes(sp.tab ?? '') ? sp.tab! : 'pnl';
+  const tab = (TABS as readonly string[]).includes(sp.tab ?? '') ? sp.tab! : 'pnl';
 
   const now = new Date();
   const defaultMonth = `${now.getUTCFullYear()}-${pad(now.getUTCMonth() + 1)}`;
@@ -44,29 +51,47 @@ export default async function FinancePage({
   const monthLabel = start.toLocaleString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' });
   const today = now.toISOString().split('T')[0];
 
+  // Tax tab operates on a full calendar year.
+  const nowYear = now.getUTCFullYear();
+  const taxYear = sp.year && /^\d{4}$/.test(sp.year) ? Number(sp.year) : nowYear;
+  const years = [nowYear, nowYear - 1, nowYear - 2];
+  const yearStart = new Date(Date.UTC(taxYear, 0, 1));
+  const yearEnd = new Date(Date.UTC(taxYear + 1, 0, 1));
+
   await Promise.all([ensureExpenseCategories(), ensureOptionDefaults('paymentMethod')]);
-  const [rates, payments, expenses, salaryPays, commPays, users, expenseCats, currencies, methods, loans, owedExpenses] =
-    await Promise.all([
-      getRatesToCad(),
-      prisma.payment.findMany({ where: { paidAt: { gte: start, lt: end } } }),
-      prisma.expense.findMany({
-        where: { date: { gte: start, lt: end } },
-        orderBy: { date: 'desc' },
-        include: { paidBy: { select: { name: true } } },
-      }),
-      prisma.salaryPayment.findMany({ where: { paidAt: { gte: start, lt: end } }, include: { user: true }, orderBy: { paidAt: 'desc' } }),
-      prisma.commissionPayout.findMany({ where: { paidAt: { gte: start, lt: end } } }),
-      prisma.user.findMany({ orderBy: { name: 'asc' }, include: { salaries: { orderBy: { effectiveFrom: 'desc' }, take: 1 } } }),
-      getOptions('expenseCategory'),
-      getOptions('currency'),
-      getOptions('paymentMethod'),
-      prisma.loan.findMany({ orderBy: { givenAt: 'desc' } }),
-      // Reimbursements still owed to team members — across all time, not just this month.
-      prisma.expense.findMany({
-        where: { paidById: { not: null }, reimbursed: false },
-        include: { paidBy: { select: { name: true } } },
-      }),
-    ]);
+  const [
+    rates, company, payments, expenses, salaryPays, commPays, users, expenseCats, currencies, methods, loans,
+    owedExpenses, otherIncomeMonth, invoicesRaw, yearPayments, yearExpenses, filings,
+  ] = await Promise.all([
+    getRatesToCad(),
+    getCompany(),
+    prisma.payment.findMany({ where: { paidAt: { gte: start, lt: end } } }),
+    prisma.expense.findMany({
+      where: { date: { gte: start, lt: end } },
+      orderBy: { date: 'desc' },
+      include: { paidBy: { select: { name: true } } },
+    }),
+    prisma.salaryPayment.findMany({ where: { paidAt: { gte: start, lt: end } }, include: { user: true }, orderBy: { paidAt: 'desc' } }),
+    prisma.commissionPayout.findMany({ where: { paidAt: { gte: start, lt: end } } }),
+    prisma.user.findMany({ orderBy: { name: 'asc' }, include: { salaries: { orderBy: { effectiveFrom: 'desc' }, take: 1 } } }),
+    getOptions('expenseCategory'),
+    getOptions('currency'),
+    getOptions('paymentMethod'),
+    prisma.loan.findMany({ orderBy: { givenAt: 'desc' } }),
+    prisma.expense.findMany({
+      where: { paidById: { not: null }, reimbursed: false },
+      include: { paidBy: { select: { name: true } } },
+    }),
+    prisma.otherIncome.findMany({ where: { date: { gte: start, lt: end } }, orderBy: { date: 'desc' } }),
+    prisma.invoice.findMany({
+      where: { status: { not: 'VOID' } },
+      orderBy: { number: 'desc' },
+      include: { client: true, project: true, payments: true },
+    }),
+    prisma.payment.findMany({ where: { paidAt: { gte: yearStart, lt: yearEnd } }, include: { client: { select: { taxRegion: true } } } }),
+    prisma.expense.findMany({ where: { date: { gte: yearStart, lt: yearEnd } }, select: { date: true, gst: true, qst: true } }),
+    prisma.quarterlyFiling.findMany({ where: { year: taxYear } }),
+  ]);
 
   const cadOf = (amt: number, cur: string) => toCad(amt, cur, rates);
 
@@ -75,11 +100,14 @@ export default async function FinancePage({
   const loanRecovered = loans.reduce((s, l) => s + l.recoveredAmount, 0);
   const loanOutstanding = loanGiven - loanRecovered;
 
-  // Total still owed back to people who fronted expenses.
   const owedTotal = owedExpenses.reduce((s, e) => s + (e.amountCad ?? cadOf(e.amount, e.currency)), 0);
 
-  const income = payments.reduce((s, p) => s + (p.amountCad ?? cadOf(p.amount, p.currency)), 0);
+  const clientIncome = payments.reduce((s, p) => s + (p.amountCad ?? cadOf(p.amount, p.currency)), 0);
+  const otherIncomeTotal = otherIncomeMonth.reduce((s, o) => s + (o.amountCad ?? cadOf(o.amount, o.currency)), 0);
+  const income = clientIncome + otherIncomeTotal;
   const expenseTotal = expenses.reduce((s, e) => s + (e.amountCad ?? cadOf(e.amount, e.currency)), 0);
+  const gstPaidMonth = expenses.reduce((s, e) => s + (e.gst ?? 0), 0);
+  const qstPaidMonth = expenses.reduce((s, e) => s + (e.qst ?? 0), 0);
   const salaryTotal = salaryPays.reduce((s, p) => s + (p.amountCad ?? cadOf(p.amount, p.currency)), 0);
   const commTotal = commPays.reduce((s, p) => s + p.amount, 0);
   const outgoings = expenseTotal + salaryTotal + commTotal;
@@ -90,11 +118,70 @@ export default async function FinancePage({
     byCategory[e.category] = (byCategory[e.category] ?? 0) + (e.amountCad ?? cadOf(e.amount, e.currency));
   });
 
+  // Receivables: invoice total (incl. tax, CAD) vs. what's been paid.
+  const receivables = invoicesRaw.map((inv) => {
+    const tax = computeTax(inv.amount, inv.client.taxRegion, company);
+    const totalCad = cadOf(tax.total, inv.currency);
+    const paidCad = inv.payments.reduce((s, p) => s + (p.amountCad ?? cadOf(p.amount, p.currency)), 0);
+    return { inv, totalCad, paidCad, outstanding: Math.max(totalCad - paidCad, 0) };
+  });
+  const totalOutstanding = receivables.reduce((s, r) => s + r.outstanding, 0);
+  const totalInvoiced = receivables.reduce((s, r) => s + r.totalCad, 0);
+  const totalCollected = receivables.reduce((s, r) => s + r.paidCad, 0);
+
+  // Quarterly GST/QST.
+  const quarters: QuarterData[] = [1, 2, 3, 4].map((qn) => {
+    const { start: qs, end: qe } = quarterRange(taxYear, qn);
+    const qp = yearPayments.filter((p) => p.paidAt >= qs && p.paidAt < qe);
+    const qx = yearExpenses.filter((e) => e.date >= qs && e.date < qe);
+    const filing = filings.find((f) => f.quarter === qn);
+    const overridden = filing?.incomeOverrideCad != null;
+
+    let incomeCad = qp
+      .filter((p) => p.client.taxRegion === 'QC' || p.client.taxRegion === 'CA')
+      .reduce((s, p) => s + (p.amountCad ?? cadOf(p.amount, p.currency)), 0);
+    let gstCollected = 0;
+    let qstCollected = 0;
+    if (overridden) {
+      incomeCad = filing!.incomeOverrideCad!;
+      const t = collectedFromPayment(incomeCad, 'QC', company);
+      gstCollected = t.gst;
+      qstCollected = t.qst;
+    } else {
+      for (const p of qp) {
+        const t = collectedFromPayment(p.amountCad ?? cadOf(p.amount, p.currency), p.client.taxRegion, company);
+        gstCollected += t.gst;
+        qstCollected += t.qst;
+      }
+    }
+    const gstPaid = qx.reduce((s, e) => s + (e.gst ?? 0), 0);
+    const qstPaid = qx.reduce((s, e) => s + (e.qst ?? 0), 0);
+    return {
+      quarter: qn,
+      incomeCad,
+      overridden,
+      gstCollected,
+      qstCollected,
+      gstPaid,
+      qstPaid,
+      gstNet: gstCollected - gstPaid,
+      qstNet: qstCollected - qstPaid,
+      gstReceived: filing?.gstReceived ?? false,
+      qstReceived: filing?.qstReceived ?? false,
+      filedAt: filing?.filedAt ?? null,
+      filingLink: filing?.filingLink ?? null,
+      incomeOverrideCad: filing?.incomeOverrideCad ?? null,
+    };
+  });
+
   const tabCls = (active: boolean) =>
     `border-b-2 px-1 pb-2 text-sm font-medium transition ${
       active ? 'border-brand text-brand' : 'border-transparent text-slate-500 hover:text-slate-800'
     }`;
-  const tabHref = (t: string) => `/finance?tab=${t}&month=${month}`;
+  const tabHref = (t: string) => (t === 'tax' ? `/finance?tab=tax&year=${taxYear}` : `/finance?tab=${t}&month=${month}`);
+  const tabLabel: Record<string, string> = {
+    pnl: 'P&L', receivables: 'Receivables', expenses: 'Expenses', salaries: 'Salaries', loans: 'Loans', tax: 'GST/QST',
+  };
 
   return (
     <div>
@@ -102,24 +189,25 @@ export default async function FinancePage({
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
             <h1 className="text-2xl font-bold tracking-tight">Finance</h1>
-            <p className="mt-1 text-sm text-slate-500">Income, expenses, salaries — all in CAD.</p>
+            <p className="mt-1 text-sm text-slate-500">Income, expenses, receivables &amp; tax — all in CAD.</p>
           </div>
-          <form className="flex items-end gap-2">
-            <input type="hidden" name="tab" value={tab} />
-            <label className="block">
-              <span className="mb-1 block text-xs font-medium text-slate-500">Month</span>
-              <input type="month" name="month" defaultValue={month} className={inputCls} />
-            </label>
-            <button className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium hover:bg-slate-50">Go</button>
-          </form>
+          {tab !== 'tax' && (
+            <form className="flex items-end gap-2">
+              <input type="hidden" name="tab" value={tab} />
+              <label className="block">
+                <span className="mb-1 block text-xs font-medium text-slate-500">Month</span>
+                <input type="month" name="month" defaultValue={month} className={inputCls} />
+              </label>
+              <button className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium hover:bg-slate-50">Go</button>
+            </form>
+          )}
         </div>
       </FadeIn>
 
-      <div className="mb-6 mt-4 flex gap-6 border-b border-slate-200">
-        <Link href={tabHref('pnl')} className={tabCls(tab === 'pnl')}>P&amp;L</Link>
-        <Link href={tabHref('expenses')} className={tabCls(tab === 'expenses')}>Expenses</Link>
-        <Link href={tabHref('salaries')} className={tabCls(tab === 'salaries')}>Salaries</Link>
-        <Link href={tabHref('loans')} className={tabCls(tab === 'loans')}>Loans</Link>
+      <div className="mb-6 mt-4 flex gap-6 overflow-x-auto border-b border-slate-200">
+        {TABS.map((t) => (
+          <Link key={t} href={tabHref(t)} className={`${tabCls(tab === t)} whitespace-nowrap`}>{tabLabel[t]}</Link>
+        ))}
       </div>
 
       {tab === 'pnl' && (
@@ -147,8 +235,14 @@ export default async function FinancePage({
                 <tbody className="divide-y divide-slate-100">
                   <tr className="bg-emerald-50/40">
                     <td className="px-5 py-3 font-medium text-emerald-700">Client payments received</td>
-                    <td className="px-5 py-3 text-right font-medium tabular-nums text-emerald-700">{formatMoney(income, 'CAD')}</td>
+                    <td className="px-5 py-3 text-right font-medium tabular-nums text-emerald-700">{formatMoney(clientIncome, 'CAD')}</td>
                   </tr>
+                  {otherIncomeTotal > 0 && (
+                    <tr className="bg-emerald-50/40">
+                      <td className="px-5 py-3 text-emerald-700">Other income</td>
+                      <td className="px-5 py-3 text-right tabular-nums text-emerald-700">{formatMoney(otherIncomeTotal, 'CAD')}</td>
+                    </tr>
+                  )}
                   {Object.keys(EXPENSE_CATEGORY_LABELS).map((cat) =>
                     byCategory[cat] ? (
                       <tr key={cat}>
@@ -171,6 +265,103 @@ export default async function FinancePage({
               </table>
             </div>
           </FadeIn>
+
+          {/* Other income (non-client) */}
+          <FadeIn delay={0.14}>
+            <div className="mt-6 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+              <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+                <div>
+                  <h2 className="text-sm font-semibold">Other income — {monthLabel}</h2>
+                  <p className="mt-0.5 text-xs text-slate-400">Non-client money in (refunds, interest, unmatched bank credits). Not part of GST/QST collected.</p>
+                </div>
+                <span className="text-sm font-medium">{formatMoney(otherIncomeTotal, 'CAD')}</span>
+              </div>
+              {otherIncomeMonth.length > 0 && (
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[520px] text-sm">
+                    <tbody className="divide-y divide-slate-100">
+                      {otherIncomeMonth.map((o) => (
+                        <tr key={o.id} className="hover:bg-slate-50">
+                          <td className="px-5 py-3 font-medium text-slate-800">{o.title}{o.source === 'STATEMENT' && <span className="ml-2 rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-500">from statement</span>}</td>
+                          <td className="px-5 py-3 tabular-nums text-slate-500">{o.date.toISOString().slice(0, 10)}</td>
+                          <td className="px-5 py-3 text-right tabular-nums text-emerald-700">{formatMoney(o.amount, o.currency)}{o.currency !== 'CAD' && <span className="ml-1 text-xs text-slate-400">({formatMoney(o.amountCad ?? cadOf(o.amount, o.currency), 'CAD')} CAD)</span>}</td>
+                          <td className="px-5 py-3"><RowActions deleteAction={deleteOtherIncome.bind(null, o.id)} label="income entry" /></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              <form action={addOtherIncome} className="grid grid-cols-1 gap-3 border-t border-slate-100 p-5 sm:grid-cols-2 lg:grid-cols-4">
+                <label className="block"><span className="mb-1 block text-xs font-medium text-slate-600">Title *</span><input name="title" required className={inputCls} placeholder="Tax refund" /></label>
+                <div className="grid grid-cols-3 gap-2">
+                  <label className="col-span-2 block"><span className="mb-1 block text-xs font-medium text-slate-600">Amount *</span><input name="amount" type="number" min="0" step="any" required className={inputCls} placeholder="200" /></label>
+                  <label className="block"><span className="mb-1 block text-xs font-medium text-slate-600">Cur</span><select name="currency" defaultValue="CAD" className={inputCls}>{currencies.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}</select></label>
+                </div>
+                <label className="block"><span className="mb-1 block text-xs font-medium text-slate-600">Date</span><input name="date" type="date" defaultValue={today} className={inputCls} /></label>
+                <div className="flex items-end"><AnimatedButton className="w-full rounded-xl bg-brand px-4 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-brand-dark">Add income</AnimatedButton></div>
+              </form>
+            </div>
+          </FadeIn>
+        </div>
+      )}
+
+      {tab === 'receivables' && (
+        <div className="space-y-6">
+          <section className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            {[
+              { label: 'Invoiced (incl. tax)', value: formatMoney(totalInvoiced, 'CAD'), icon: FileText, tint: 'bg-slate-100 text-slate-600' },
+              { label: 'Collected', value: formatMoney(totalCollected, 'CAD'), icon: TrendingUp, tint: 'bg-emerald-50 text-emerald-600' },
+              { label: 'Outstanding', value: formatMoney(totalOutstanding, 'CAD'), icon: HandCoins, tint: totalOutstanding > 0.5 ? 'bg-amber-50 text-amber-600' : 'bg-slate-100 text-slate-500' },
+            ].map((s, i) => (
+              <FadeIn key={s.label} delay={0.04 * i}>
+                <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                  <span className={`grid h-10 w-10 place-items-center rounded-xl ${s.tint}`}><s.icon size={20} /></span>
+                  <div className="mt-4 text-2xl font-semibold tracking-tight">{s.value}</div>
+                  <div className="mt-0.5 text-sm text-slate-500">{s.label}</div>
+                </div>
+              </FadeIn>
+            ))}
+          </section>
+
+          <FadeIn delay={0.1}>
+            <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+              <div className="border-b border-slate-100 px-5 py-4">
+                <h2 className="text-sm font-semibold">Invoices &amp; outstanding balances</h2>
+                <p className="mt-0.5 text-xs text-slate-400">Totals include GST/QST, converted to CAD. Record a payment against an invoice to reconcile it.</p>
+              </div>
+              {receivables.length === 0 ? (
+                <div className="px-5 py-10 text-center text-sm text-slate-500">No open invoices.</div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[720px] text-sm">
+                    <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+                      <tr>
+                        <th className="px-5 py-3 font-medium">#</th>
+                        <th className="px-5 py-3 font-medium">Client</th>
+                        <th className="px-5 py-3 font-medium">Status</th>
+                        <th className="px-5 py-3 text-right font-medium">Total</th>
+                        <th className="px-5 py-3 text-right font-medium">Paid</th>
+                        <th className="px-5 py-3 text-right font-medium">Outstanding</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {receivables.map(({ inv, totalCad, paidCad, outstanding }) => (
+                        <tr key={inv.id} className="hover:bg-slate-50">
+                          <td className="px-5 py-3"><Link href={`/invoices/${inv.id}`} className="font-medium text-brand hover:underline">#{inv.number}</Link></td>
+                          <td className="px-5 py-3 text-slate-600">{inv.client.name}{inv.project && <span className="text-slate-400"> · {inv.project.name}</span>}</td>
+                          <td className="px-5 py-3"><Pill className={INVOICE_STATUS_BADGE[inv.status]}>{INVOICE_STATUS_LABELS[inv.status]}</Pill></td>
+                          <td className="px-5 py-3 text-right tabular-nums text-slate-600">{formatMoney(totalCad, 'CAD')}</td>
+                          <td className="px-5 py-3 text-right tabular-nums text-emerald-700">{formatMoney(paidCad, 'CAD')}</td>
+                          <td className={`px-5 py-3 text-right font-medium tabular-nums ${outstanding > 0.5 ? 'text-amber-700' : 'text-slate-400'}`}>{formatMoney(outstanding, 'CAD')}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </FadeIn>
         </div>
       )}
 
@@ -190,6 +381,13 @@ export default async function FinancePage({
                   <span className="ml-1 text-sm font-medium">{formatMoney(expenseTotal, 'CAD')}</span>
                 </div>
               </div>
+              {(gstPaidMonth > 0 || qstPaidMonth > 0) && (
+                <div className="flex items-center gap-4 border-b border-slate-100 bg-slate-50 px-5 py-2 text-xs text-slate-500">
+                  <span className="inline-flex items-center gap-1"><ReceiptText size={13} /> Input tax credits this month:</span>
+                  <span>GST paid <span className="font-medium text-slate-700 tabular-nums">{formatMoney(gstPaidMonth, 'CAD')}</span></span>
+                  <span>QST paid <span className="font-medium text-slate-700 tabular-nums">{formatMoney(qstPaidMonth, 'CAD')}</span></span>
+                </div>
+              )}
               {owedTotal > 0.5 && (
                 <div className="flex items-center gap-2 border-b border-amber-100 bg-amber-50 px-5 py-3 text-sm text-amber-800">
                   <HandCoins size={16} className="shrink-0" />
@@ -236,6 +434,9 @@ export default async function FinancePage({
                           <td className="px-5 py-3 tabular-nums text-slate-500">{e.date.toISOString().slice(0, 10)}</td>
                           <td className="px-5 py-3 text-right tabular-nums">
                             <div className="font-medium">{formatMoney(e.amount, e.currency)}</div>
+                            {(e.gst ?? 0) + (e.qst ?? 0) > 0 && (
+                              <div className="text-[11px] text-slate-400">incl. GST/QST {formatMoney((e.gst ?? 0) + (e.qst ?? 0), e.currency)}</div>
+                            )}
                             {e.currency !== 'CAD' && (() => {
                               const cadAmt = e.amountCad ?? cadOf(e.amount, e.currency);
                               return <div className="text-xs text-slate-400">{formatMoney(cadAmt, 'CAD')} CAD <span className="text-slate-300">({fxRateNote(e.amount, cadAmt, e.currency)})</span></div>;
@@ -273,6 +474,10 @@ export default async function FinancePage({
                 <label className="block"><span className="mb-1 block text-xs font-medium text-slate-600">Date</span><input name="date" type="date" defaultValue={today} className={inputCls} /></label>
                 <label className="block"><span className="mb-1 block text-xs font-medium text-slate-600">Note</span><input name="note" className={inputCls} placeholder="Optional" /></label>
               </div>
+              <label className="mt-3 flex items-center gap-2 text-sm text-slate-600">
+                <input type="checkbox" name="taxIncluded" className="rounded border-slate-300" />
+                This CAD purchase included GST/QST — back it out as an input tax credit
+              </label>
               <div className="mt-4 flex items-center justify-between gap-3">
                 <span className="text-xs text-slate-400">If a team member fronted it, it shows as owed until reimbursed.</span>
                 <AnimatedButton className="shrink-0 rounded-xl bg-brand px-5 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-brand-dark">Add expense</AnimatedButton>
@@ -491,6 +696,8 @@ export default async function FinancePage({
           </div>
         </div>
       )}
+
+      {tab === 'tax' && <FadeIn><QuarterlyTax year={taxYear} years={years} quarters={quarters} /></FadeIn>}
     </div>
   );
 }

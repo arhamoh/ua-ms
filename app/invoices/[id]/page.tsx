@@ -1,13 +1,14 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { ArrowLeft, Send, Check } from 'lucide-react';
+import { ArrowLeft, Send, Check, Plus } from 'lucide-react';
 import { prisma } from '@/lib/prisma';
-import { setInvoiceStatus, emailInvoice } from '@/app/actions';
+import { setInvoiceStatus, emailInvoice, recordPayment, deletePayment } from '@/app/actions';
 import { emailConfigured } from '@/lib/email';
-import { INVOICE_STATUS_LABELS, INVOICE_STATUS_BADGE, formatMoney, fxRateNote } from '@/lib/enums';
+import { INVOICE_STATUS_LABELS, INVOICE_STATUS_BADGE, PAYMENT_METHOD_LABELS, PAYMENT_METHODS, CURRENCIES, formatMoney, fxRateNote } from '@/lib/enums';
 import { getCompany, computeTax } from '@/lib/company';
 import { getRatesToCad, toCad } from '@/lib/fx';
 import PrintButton from '@/components/PrintButton';
+import RowActions from '@/components/RowActions';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,7 +27,7 @@ export default async function InvoiceDetailPage({
   const { sent, error } = await searchParams;
   const inv = await prisma.invoice.findUnique({
     where: { id },
-    include: { client: true, project: true },
+    include: { client: true, project: true, payments: { orderBy: { paidAt: 'desc' } } },
   });
   if (!inv) notFound();
 
@@ -35,6 +36,12 @@ export default async function InvoiceDetailPage({
   const canEmail = emailConfigured();
   const rates = await getRatesToCad();
   const totalCad = inv.currency !== 'CAD' ? toCad(tax.total, inv.currency, rates) : null;
+
+  // Receivables: how much of this invoice's total (incl. tax, CAD) is paid.
+  const totalCadAll = toCad(tax.total, inv.currency, rates);
+  const paidCad = inv.payments.reduce((s, p) => s + (p.amountCad ?? toCad(p.amount, p.currency, rates)), 0);
+  const outstandingCad = Math.max(totalCadAll - paidCad, 0);
+  const today = new Date().toISOString().split('T')[0];
 
   return (
     <div className="mx-auto max-w-2xl">
@@ -163,6 +170,47 @@ export default async function InvoiceDetailPage({
         </div>
 
         {inv.notes && <p className="mt-6 whitespace-pre-line text-sm text-slate-600">{inv.notes}</p>}
+      </div>
+
+      {/* Payments & reconciliation — screen only */}
+      <div className="mt-6 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm print:hidden">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-5 py-4">
+          <h2 className="text-sm font-semibold">Payments</h2>
+          <div className="flex items-center gap-4 text-xs">
+            <span className="text-slate-400">Paid <span className="font-medium tabular-nums text-emerald-700">{formatMoney(paidCad, 'CAD')}</span></span>
+            <span className="text-slate-400">Outstanding <span className={`font-medium tabular-nums ${outstandingCad > 0.5 ? 'text-amber-700' : 'text-slate-400'}`}>{formatMoney(outstandingCad, 'CAD')}</span></span>
+          </div>
+        </div>
+
+        {inv.payments.length > 0 && (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[480px] text-sm">
+              <tbody className="divide-y divide-slate-100">
+                {inv.payments.map((p) => (
+                  <tr key={p.id} className="hover:bg-slate-50">
+                    <td className="px-5 py-3 text-slate-600">{PAYMENT_METHOD_LABELS[p.method] ?? p.method}{p.bankMatchedAt && <span className="ml-2 rounded-full bg-emerald-50 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700">reconciled</span>}</td>
+                    <td className="px-5 py-3 tabular-nums text-slate-500">{p.paidAt.toISOString().slice(0, 10)}</td>
+                    <td className="px-5 py-3 text-right tabular-nums">{formatMoney(p.amount, p.currency)}{p.currency !== 'CAD' && <span className="ml-2 text-xs text-slate-400">{formatMoney(p.amountCad ?? toCad(p.amount, p.currency, rates), 'CAD')} CAD</span>}</td>
+                    <td className="px-5 py-3"><RowActions deleteAction={deletePayment.bind(null, p.id)} label="payment" /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        <form action={recordPayment} className="grid grid-cols-1 gap-3 border-t border-slate-100 p-5 sm:grid-cols-2 lg:grid-cols-4">
+          <input type="hidden" name="clientId" value={inv.clientId} />
+          <input type="hidden" name="invoiceId" value={inv.id} />
+          <input type="hidden" name="projectId" value={inv.projectId ?? ''} />
+          <div className="grid grid-cols-3 gap-2">
+            <label className="col-span-2 block"><span className="mb-1 block text-xs font-medium text-slate-600">Amount *</span><input name="amount" type="number" min="0" step="any" required defaultValue={outstandingCad > 0.5 && inv.currency === 'CAD' ? outstandingCad.toFixed(2) : ''} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand focus:outline-none" placeholder="500" /></label>
+            <label className="block"><span className="mb-1 block text-xs font-medium text-slate-600">Cur</span><select name="currency" defaultValue={inv.currency} className="w-full rounded-lg border border-slate-300 px-2 py-2 text-sm focus:border-brand focus:outline-none">{CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}</select></label>
+          </div>
+          <label className="block"><span className="mb-1 block text-xs font-medium text-slate-600">Method</span><select name="method" defaultValue="BANK_TRANSFER" className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand focus:outline-none">{PAYMENT_METHODS.map((m) => <option key={m} value={m}>{PAYMENT_METHOD_LABELS[m]}</option>)}</select></label>
+          <label className="block"><span className="mb-1 block text-xs font-medium text-slate-600">Date</span><input name="paidAt" type="date" defaultValue={today} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand focus:outline-none" /></label>
+          <div className="flex items-end"><button className="inline-flex w-full items-center justify-center gap-1.5 rounded-xl bg-brand px-4 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-brand-dark"><Plus size={15} /> Record payment</button></div>
+        </form>
       </div>
     </div>
   );

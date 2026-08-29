@@ -4,7 +4,7 @@ import { useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { UploadCloud, FileSpreadsheet, CheckCircle2, RotateCcw, Loader2, Eye } from 'lucide-react';
-import { importStatementExpenses } from '@/app/actions';
+import { importStatementLines } from '@/app/actions';
 import ProgressBar from './ProgressBar';
 
 function fileToBase64(file: File): Promise<string> {
@@ -157,7 +157,8 @@ function detectMapping(header: string[]): Mapping {
 
 // ── Component ────────────────────────────────────────────────────────────────
 
-type Override = { include?: boolean; title?: string; category?: string; date?: string; amount?: string };
+type Override = { include?: boolean; type?: 'expense' | 'income'; title?: string; category?: string; date?: string; amount?: string };
+type ImportResult = { expenses: number; incomeMatched: number; incomeAdded: number };
 
 export default function StatementImport({
   currencies,
@@ -180,7 +181,8 @@ export default function StatementImport({
   const [currency, setCurrency] = useState('CAD');
   const [note, setNote] = useState('');
   const [overrides, setOverrides] = useState<Record<number, Override>>({});
-  const [result, setResult] = useState<number | null>(null);
+  const [taxIncluded, setTaxIncluded] = useState(false);
+  const [result, setResult] = useState<ImportResult | null>(null);
   const [pending, start] = useTransition();
   // Preview of the original file (PDF data URL / raw CSV text). Temporary trust
   // aid — safe to remove this + the panel below once no longer needed.
@@ -305,7 +307,7 @@ export default function StatementImport({
       base.map((b, i) => {
         const isExpense = b.outflow > 0;
         const interest = /interest/i.test(b.desc);
-        const defTitle = interest ? 'Additional credit card fee' : b.desc || 'Expense';
+        const defTitle = interest ? 'Additional credit card fee' : b.desc || (isExpense ? 'Expense' : 'Income');
         const defCat = interest ? 'FEES' : b.category || guessCategory(b.desc);
         const o = overrides[i] ?? {};
         const baseAmt = b.outflow || b.inflow;
@@ -314,7 +316,10 @@ export default function StatementImport({
           rawDesc: b.desc,
           isExpense,
           interest,
-          include: o.include ?? isExpense,
+          // Both directions are included by default now — the review step lets you
+          // deselect. Income lines reconcile against client payments on import.
+          include: o.include ?? baseAmt > 0,
+          type: o.type ?? (isExpense ? 'expense' : 'income'),
           title: o.title ?? defTitle,
           category: o.category ?? defCat,
           date: o.date ?? b.date,
@@ -326,6 +331,8 @@ export default function StatementImport({
 
   const included = txns.filter((t) => t.include && Number(t.amount) > 0);
   const includedTotal = included.reduce((s, t) => s + Number(t.amount), 0);
+  const nExpenses = included.filter((t) => t.type === 'expense').length;
+  const nIncome = included.filter((t) => t.type === 'income').length;
 
   const setOv = (i: number, patch: Override) =>
     setOverrides((p) => ({ ...p, [i]: { ...p[i], ...patch } }));
@@ -334,31 +341,40 @@ export default function StatementImport({
 
   const doImport = () => {
     const items = included.map((t) => ({
+      type: t.type,
       title: t.title,
       category: t.category,
       amount: t.amount,
       currency,
       date: t.date,
       note: note.trim() || 'Imported from statement',
+      taxIncluded: t.type === 'expense' && taxIncluded,
     }));
     start(async () => {
-      const res = await importStatementExpenses(items);
-      setResult(res.count);
+      const res = await importStatementLines(items);
+      setResult(res);
       router.refresh();
     });
   };
 
   // ── Success state ──
   if (result !== null) {
+    const parts: string[] = [];
+    if (result.expenses) parts.push(`${result.expenses} expense${result.expenses === 1 ? '' : 's'}`);
+    if (result.incomeMatched) parts.push(`${result.incomeMatched} payment${result.incomeMatched === 1 ? '' : 's'} reconciled`);
+    if (result.incomeAdded) parts.push(`${result.incomeAdded} other-income entr${result.incomeAdded === 1 ? 'y' : 'ies'}`);
     return (
       <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-10 text-center shadow-sm">
         <span className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-emerald-100 text-emerald-600">
           <CheckCircle2 size={24} />
         </span>
         <h2 className="mt-4 text-base font-semibold text-emerald-900">
-          Imported {result} expense{result === 1 ? '' : 's'}
+          {parts.length ? `Imported ${parts.join(' · ')}` : 'Nothing to import'}
         </h2>
-        <p className="mt-1 text-sm text-emerald-700">They’ve been added to your expenses, converted to CAD.</p>
+        <p className="mt-1 text-sm text-emerald-700">
+          Expenses were added and converted to CAD. Bank credits that matched a client payment were marked reconciled;
+          the rest were logged as other income.
+        </p>
         <div className="mt-5 flex items-center justify-center gap-3">
           <Link href="/finance?tab=expenses" className="rounded-xl bg-brand px-4 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-brand-dark">
             View expenses
@@ -381,7 +397,8 @@ export default function StatementImport({
         <h2 className="mt-4 text-sm font-semibold">Upload a statement (CSV or PDF)</h2>
         <p className="mx-auto mt-1 max-w-md text-sm text-slate-500">
           Drop your bank or credit-card statement here. CSVs are mapped automatically; PDFs are read for you.
-          You’ll review every line before anything is added, and “interest” lines become “Additional credit card fee”.
+          Both money out (expenses) and money in (income) are picked up and categorized — you review every line
+          before anything is added. Income that matches a client payment is reconciled; the rest becomes other income.
         </p>
         <label className="mt-5 inline-flex cursor-pointer items-center gap-2 rounded-xl bg-brand px-4 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-brand-dark">
           <FileSpreadsheet size={16} /> Choose CSV or PDF
@@ -561,9 +578,17 @@ export default function StatementImport({
 
       {/* Review table */}
       <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-5 py-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-4">
           <h2 className="text-sm font-semibold">Review &amp; edit</h2>
-          <span className="text-xs text-slate-400">{included.length} selected · {includedTotal.toLocaleString('en-US', { style: 'currency', currency })}</span>
+          <div className="flex flex-wrap items-center gap-4">
+            <label className="flex items-center gap-1.5 text-xs text-slate-600">
+              <input type="checkbox" checked={taxIncluded} onChange={(e) => setTaxIncluded(e.target.checked)} className="rounded border-slate-300" />
+              Expenses include GST/QST (Canadian card)
+            </label>
+            <span className="text-xs text-slate-400">
+              {nExpenses} expense{nExpenses === 1 ? '' : 's'} · {nIncome} income · {includedTotal.toLocaleString('en-US', { style: 'currency', currency })}
+            </span>
+          </div>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[760px] text-sm">
@@ -585,6 +610,7 @@ export default function StatementImport({
                   />
                 </th>
                 <th className="px-4 py-3 font-medium">Date</th>
+                <th className="px-4 py-3 font-medium">Type</th>
                 <th className="px-4 py-3 font-medium">Title</th>
                 <th className="px-4 py-3 font-medium">Category</th>
                 <th className="px-4 py-3 text-right font-medium">Amount</th>
@@ -598,6 +624,16 @@ export default function StatementImport({
                   </td>
                   <td className="px-4 py-2">
                     <input type="date" value={t.date} onChange={(e) => setOv(t.i, { date: e.target.value })} className={`${miniCls} w-36`} />
+                  </td>
+                  <td className="px-4 py-2">
+                    <select
+                      value={t.type}
+                      onChange={(e) => setOv(t.i, { type: e.target.value as 'expense' | 'income' })}
+                      className={`${miniCls} w-28 ${t.type === 'income' ? 'text-emerald-700' : 'text-rose-700'}`}
+                    >
+                      <option value="expense">Expense</option>
+                      <option value="income">Income</option>
+                    </select>
                   </td>
                   <td className="px-4 py-2">
                     <input
@@ -632,7 +668,7 @@ export default function StatementImport({
       {/* Import bar */}
       <div className="sticky bottom-0 flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white/90 px-5 py-4 shadow-sm backdrop-blur">
         <p className="text-sm text-slate-500">
-          {included.length} expense{included.length === 1 ? '' : 's'} ready ·{' '}
+          {included.length} line{included.length === 1 ? '' : 's'} ready ·{' '}
           <span className="font-medium text-slate-700">{includedTotal.toLocaleString('en-US', { style: 'currency', currency })}</span>
           {currency !== 'CAD' && rates[currency] && (
             <span className="ml-1 text-xs text-slate-400">
@@ -646,7 +682,7 @@ export default function StatementImport({
           disabled={pending || included.length === 0}
           className="rounded-xl bg-brand px-5 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-brand-dark disabled:opacity-50"
         >
-          {pending ? 'Importing…' : `Import ${included.length} expense${included.length === 1 ? '' : 's'}`}
+          {pending ? 'Importing…' : `Import ${included.length} line${included.length === 1 ? '' : 's'}`}
         </button>
       </div>
     </div>
