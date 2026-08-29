@@ -60,6 +60,7 @@ enum TaskStatus {
 enum InvoiceStatus {
   DRAFT
   SENT
+  PARTIAL
   PAID
   VOID
 }
@@ -460,6 +461,9 @@ model Invoice {
   projectId String?
   project   Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
 
+  // Payments applied to this invoice (receivables reconciliation).
+  payments Payment[]
+
   @@index([clientId])
   @@index([projectId])
 }
@@ -473,6 +477,10 @@ model Expense {
   currency  String          @default("CAD")
   amountCad Float?
   fxRate    Float?
+  // Input tax credits: the GST/QST portion backed out of a taxable purchase
+  // (in the expense's own currency, CAD in practice). null = no tax tracked.
+  gst       Float?
+  qst       Float?
   date      DateTime        // the date the expense applies to
   note      String?
   createdAt DateTime        @default(now())
@@ -603,14 +611,63 @@ model Payment {
   note      String?
   createdAt DateTime      @default(now())
 
+  // Bank reconciliation: set when this payment was matched to a statement credit.
+  bankMatchedAt DateTime?
+
   clientId String
   client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
 
   projectId String?
   project   Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
 
+  // Optional link to the invoice this payment settles (receivables reconciliation).
+  invoiceId String?
+  invoice   Invoice? @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+
   @@index([clientId])
   @@index([projectId])
+  @@index([invoiceId])
+}
+
+// Income that is NOT a client payment — e.g. an unmatched bank credit, a refund,
+// or interest. Kept separate so client-payment revenue stays the source of truth,
+// but still rolled into the Finance P&L income line. Excluded from GST/QST
+// remittance (it isn't sales tax charged to a client).
+model OtherIncome {
+  id        String   @id @default(cuid())
+  title     String
+  category  String   @default("OTHER")
+  amount    Float
+  currency  String   @default("CAD")
+  amountCad Float?
+  fxRate    Float?
+  date      DateTime
+  note      String?
+  source    String   @default("MANUAL") // MANUAL | STATEMENT
+  createdAt DateTime @default(now())
+
+  @@index([date])
+}
+
+// Per-quarter GST/QST remittance state: an optional manual income override plus
+// the "received" toggles and filing confirmation. The collected/paid figures
+// themselves are computed live from payments + expenses.
+model QuarterlyFiling {
+  id                String    @id @default(cuid())
+  year              Int
+  quarter           Int // 1..4
+  incomeOverrideCad Float?    // overrides the auto income base when set
+  gstReceived       Boolean   @default(false)
+  gstReceivedAt     DateTime?
+  qstReceived       Boolean   @default(false)
+  qstReceivedAt     DateTime?
+  filedAt           DateTime?
+  filingLink        String?
+  note              String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@unique([year, quarter])
 }
 
 // ─── Lead generation ─────────────────────────────────────────────────────────

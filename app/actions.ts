@@ -28,6 +28,7 @@ import { getRatesToCad, toCad } from '@/lib/fx';
 import { sendEmail, verifyEmailConnection } from '@/lib/email';
 import { invoiceHtml, receiptHtml } from '@/lib/documents';
 import { getCompany, computeTax } from '@/lib/company';
+import { backOutExpenseTax, collectedFromPayment } from '@/lib/tax';
 import { getSession } from '@/lib/auth';
 import { driveConfigured, uploadToDrive, testDriveConnection } from '@/lib/drive';
 import { testOpenRouter } from '@/lib/integrations';
@@ -207,6 +208,7 @@ export async function recordPayment(formData: FormData) {
   const paidRaw = str(formData.get('paidAt'));
   const projectId = str(formData.get('projectId'));
   const currency = str(formData.get('currency')) ?? 'USD';
+  const invoiceId = str(formData.get('invoiceId'));
 
   // Capture the CAD value at the moment of recording.
   const rates = await getRatesToCad();
@@ -224,11 +226,21 @@ export async function recordPayment(formData: FormData) {
       paidAt: paidRaw ? new Date(paidRaw) : new Date(),
       note: str(formData.get('note')),
       projectId: projectId || null,
+      invoiceId: invoiceId || null,
     },
   });
   await logActivity(`Recorded a payment of ${amount} ${currency}`);
 
+  // Reconcile the linked invoice's status against what's now been paid.
+  if (invoiceId) await syncInvoiceStatus(invoiceId);
+
   revalidatePath(`/clients/${clientId}`);
+  revalidatePath('/finance');
+  if (invoiceId) {
+    revalidatePath('/invoices');
+    revalidatePath(`/invoices/${invoiceId}`);
+    redirect(`/invoices/${invoiceId}`);
+  }
   redirect(`/clients/${clientId}`);
 }
 
@@ -437,6 +449,17 @@ export async function addExpense(formData: FormData) {
   // null = company paid directly; otherwise a team member fronted the money.
   const paidById = str(formData.get('paidById')) || null;
 
+  // Input tax credits: back GST/QST out of the total when the purchase included
+  // them. Only meaningful for Canadian (CAD) purchases.
+  let gst: number | null = null;
+  let qst: number | null = null;
+  if (str(formData.get('taxIncluded')) && currency === 'CAD') {
+    const company = await getCompany();
+    const t = backOutExpenseTax(amount, company);
+    gst = t.gst;
+    qst = t.qst;
+  }
+
   await prisma.expense.create({
     data: {
       title,
@@ -445,6 +468,8 @@ export async function addExpense(formData: FormData) {
       currency,
       amountCad,
       fxRate,
+      gst,
+      qst,
       date: dateRaw ? new Date(dateRaw) : new Date(),
       note: str(formData.get('note')),
       paidById,
@@ -530,7 +555,33 @@ export async function recordSalaryPayment(formData: FormData) {
 
 // ─── Invoices & receipts ─────────────────────────────────────────────────────
 
-const INVOICE_STATUSES = ['DRAFT', 'SENT', 'PAID', 'VOID'];
+const INVOICE_STATUSES = ['DRAFT', 'SENT', 'PARTIAL', 'PAID', 'VOID'];
+
+// Recompute an invoice's status from the payments applied to it. Compares total
+// paid (CAD) against the invoice total incl. tax (CAD). Leaves a manually VOIDed
+// invoice untouched.
+async function syncInvoiceStatus(invoiceId: string) {
+  const inv = await prisma.invoice.findUnique({
+    where: { id: invoiceId },
+    include: { client: { select: { taxRegion: true } }, payments: true },
+  });
+  if (!inv || inv.status === 'VOID') return;
+
+  const company = await getCompany();
+  const tax = computeTax(inv.amount, inv.client.taxRegion, company);
+  const rates = await getRatesToCad();
+  const totalCad = toCad(tax.total, inv.currency, rates);
+  const paidCad = inv.payments.reduce((s, p) => s + (p.amountCad ?? toCad(p.amount, p.currency, rates)), 0);
+
+  let status: string;
+  if (paidCad <= 0.01) status = inv.sentAt ? 'SENT' : 'DRAFT';
+  else if (paidCad + 0.5 >= totalCad) status = 'PAID';
+  else status = 'PARTIAL';
+
+  if (status !== inv.status) {
+    await prisma.invoice.update({ where: { id: invoiceId }, data: { status: status as any } });
+  }
+}
 
 export async function setInvoiceStatus(formData: FormData) {
   const id = str(formData.get('invoiceId'));
@@ -1140,8 +1191,14 @@ export async function deleteInvoice(id: string) {
 
 export async function deletePayment(id: string) {
   if (!id) return;
-  const p = await prisma.payment.findUnique({ where: { id }, select: { clientId: true } });
+  const p = await prisma.payment.findUnique({ where: { id }, select: { clientId: true, invoiceId: true } });
   await prisma.payment.delete({ where: { id } });
+  // Re-reconcile the invoice this payment was applied to.
+  if (p?.invoiceId) {
+    await syncInvoiceStatus(p.invoiceId);
+    revalidatePath('/invoices');
+    revalidatePath(`/invoices/${p.invoiceId}`);
+  }
   if (p) revalidatePath(`/clients/${p.clientId}`);
   revalidatePath('/finance');
   revalidatePath('/');
@@ -1220,6 +1277,203 @@ export async function importStatementExpenses(items: ImportItem[]): Promise<{ co
   if (data.length) await prisma.expense.createMany({ data });
   revalidatePath('/finance');
   return { count: data.length };
+}
+
+// A single reviewed line from a statement, either direction.
+type StatementLine = {
+  type?: 'expense' | 'income';
+  title?: string;
+  category?: string;
+  amount?: number | string;
+  currency?: string;
+  date?: string;
+  note?: string;
+  taxIncluded?: boolean; // expenses only — back GST/QST out of the total (CAD)
+};
+
+const DAY = 86_400_000;
+
+// Import a reviewed statement: expenses become Expense rows; income (credits) is
+// reconciled against existing client payments — a close match just marks that
+// payment as seen in the bank (no new revenue), and anything unmatched is logged
+// as OtherIncome so it's still captured without double-counting client revenue.
+export async function importStatementLines(
+  items: StatementLine[],
+): Promise<{ expenses: number; incomeMatched: number; incomeAdded: number }> {
+  if (!Array.isArray(items) || items.length === 0) return { expenses: 0, incomeMatched: 0, incomeAdded: 0 };
+
+  const rates = await getRatesToCad();
+  const company = await getCompany();
+
+  const clean = items
+    .map((it) => {
+      const amount = typeof it.amount === 'string' ? Number(it.amount) : it.amount ?? 0;
+      if (!amount || Number.isNaN(amount) || amount <= 0) return null;
+      const currency = CURRENCIES.includes(it.currency ?? '') ? (it.currency as string) : 'CAD';
+      const date = it.date ? new Date(it.date) : new Date();
+      if (Number.isNaN(date.getTime())) return null;
+      const amountCad = toCad(amount, currency, rates);
+      const fxRate = currency === 'CAD' ? 1 : rates[currency] ?? null;
+      return { it, amount, currency, date, amountCad, fxRate };
+    })
+    .filter((x): x is NonNullable<typeof x> => x !== null);
+
+  // ── Expenses ──
+  const expenseData = clean
+    .filter((x) => x.it.type !== 'income')
+    .map(({ it, amount, currency, date, amountCad, fxRate }) => {
+      let title = (it.title ?? '').trim() || 'Expense';
+      let category = EXPENSE_CATEGORIES.includes(it.category ?? '') ? (it.category as string) : 'OTHER';
+      if (/interest/i.test(title)) {
+        title = 'Additional credit card fee';
+        category = 'FEES';
+      }
+      let gst: number | null = null;
+      let qst: number | null = null;
+      if (it.taxIncluded && currency === 'CAD') {
+        const t = backOutExpenseTax(amount, company);
+        gst = t.gst;
+        qst = t.qst;
+      }
+      return {
+        title,
+        category,
+        amount,
+        currency,
+        amountCad,
+        fxRate,
+        gst,
+        qst,
+        date,
+        note: (it.note ?? '').trim() || 'Imported from statement',
+        reimbursed: true, // company-paid
+      };
+    });
+  if (expenseData.length) await prisma.expense.createMany({ data: expenseData });
+
+  // ── Income: reconcile against existing, unmatched client payments ──
+  const incomeLines = clean.filter((x) => x.it.type === 'income');
+  let incomeMatched = 0;
+  const otherIncomeData: any[] = [];
+
+  if (incomeLines.length) {
+    const candidates = await prisma.payment.findMany({
+      where: { bankMatchedAt: null },
+      select: { id: true, amount: true, amountCad: true, currency: true, paidAt: true },
+    });
+    const used = new Set<string>();
+    const matchedIds: string[] = [];
+
+    for (const { it, currency, date, amountCad } of incomeLines) {
+      const tol = Math.max(1, amountCad * 0.02);
+      const match = candidates.find((p) => {
+        if (used.has(p.id)) return false;
+        const pCad = p.amountCad ?? toCad(p.amount, p.currency, rates);
+        return Math.abs(pCad - amountCad) <= tol && Math.abs(p.paidAt.getTime() - date.getTime()) <= 7 * DAY;
+      });
+      if (match) {
+        used.add(match.id);
+        matchedIds.push(match.id);
+        incomeMatched++;
+      } else {
+        const category = (it.category ?? '').trim() || 'OTHER';
+        otherIncomeData.push({
+          title: (it.title ?? '').trim() || 'Bank credit',
+          category,
+          amount: typeof it.amount === 'string' ? Number(it.amount) : it.amount,
+          currency,
+          amountCad,
+          fxRate: currency === 'CAD' ? 1 : rates[currency] ?? null,
+          date,
+          note: (it.note ?? '').trim() || 'Unmatched credit from statement',
+          source: 'STATEMENT',
+        });
+      }
+    }
+
+    if (matchedIds.length) {
+      await prisma.payment.updateMany({ where: { id: { in: matchedIds } }, data: { bankMatchedAt: new Date() } });
+    }
+    if (otherIncomeData.length) await prisma.otherIncome.createMany({ data: otherIncomeData });
+  }
+
+  revalidatePath('/finance');
+  return { expenses: expenseData.length, incomeMatched, incomeAdded: otherIncomeData.length };
+}
+
+// ─── Other income (non-client) ───────────────────────────────────────────────
+
+export async function addOtherIncome(formData: FormData) {
+  const title = str(formData.get('title'));
+  if (!title) throw new Error('A title is required.');
+  const amountRaw = str(formData.get('amount'));
+  const amount = amountRaw ? Number(amountRaw) : NaN;
+  if (!amountRaw || Number.isNaN(amount) || amount <= 0) throw new Error('A valid amount is required.');
+
+  const currency = str(formData.get('currency')) ?? 'CAD';
+  const dateRaw = str(formData.get('date'));
+  const rates = await getRatesToCad();
+
+  await prisma.otherIncome.create({
+    data: {
+      title,
+      category: str(formData.get('category')) || 'OTHER',
+      amount,
+      currency,
+      amountCad: toCad(amount, currency, rates),
+      fxRate: currency === 'CAD' ? 1 : rates[currency] ?? null,
+      date: dateRaw ? new Date(dateRaw) : new Date(),
+      note: str(formData.get('note')),
+      source: 'MANUAL',
+    },
+  });
+  revalidatePath('/finance');
+  redirect('/finance?tab=pnl');
+}
+
+export async function deleteOtherIncome(id: string) {
+  if (!id) return;
+  await prisma.otherIncome.delete({ where: { id } });
+  revalidatePath('/finance');
+}
+
+// ─── Quarterly GST/QST filing state ──────────────────────────────────────────
+
+// Upsert per-quarter remittance state. `field` names which toggle/value to set.
+export async function setQuarterlyFiling(formData: FormData) {
+  const year = Number(str(formData.get('year')));
+  const quarter = Number(str(formData.get('quarter')));
+  const field = str(formData.get('field'));
+  if (!Number.isInteger(year) || quarter < 1 || quarter > 4 || !field) return;
+
+  const data: Record<string, any> = {};
+  if (field === 'gstReceived') {
+    const on = str(formData.get('value')) === '1';
+    data.gstReceived = on;
+    data.gstReceivedAt = on ? new Date() : null;
+  } else if (field === 'qstReceived') {
+    const on = str(formData.get('value')) === '1';
+    data.qstReceived = on;
+    data.qstReceivedAt = on ? new Date() : null;
+  } else if (field === 'filingLink') {
+    const link = str(formData.get('value'));
+    data.filingLink = link;
+    data.filedAt = link ? new Date() : null;
+  } else if (field === 'incomeOverride') {
+    const raw = str(formData.get('value'));
+    const n = raw ? Number(raw) : NaN;
+    data.incomeOverrideCad = raw && !Number.isNaN(n) ? n : null;
+  } else {
+    return;
+  }
+
+  await prisma.quarterlyFiling.upsert({
+    where: { year_quarter: { year, quarter } },
+    create: { year, quarter, ...data },
+    update: data,
+  });
+  revalidatePath('/finance');
+  redirect(`/finance?tab=tax&year=${year}`);
 }
 
 // ─── Loans / money to recover ────────────────────────────────────────────────
