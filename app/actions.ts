@@ -1720,7 +1720,22 @@ export async function commitPendingImport(
   revalidatePath('/finance');
   revalidatePath('/finance/import');
   revalidatePath('/statements');
-  redirect('/finance?tab=pnl');
+
+  // Finance P&L / Expenses / Income are filtered by month (default = current
+  // month). Land on the month the statement's transactions belong to, so the
+  // imported rows are visible instead of hidden under the current month.
+  const monthCounts = new Map<string, number>();
+  for (const l of lines) {
+    const d = l.date ? new Date(l.date) : null;
+    if (d && !Number.isNaN(d.getTime())) {
+      const key = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
+      monthCounts.set(key, (monthCounts.get(key) ?? 0) + 1);
+    }
+  }
+  let targetMonth = '';
+  let best = 0;
+  for (const [k, c] of monthCounts) if (c > best) { best = c; targetMonth = k; }
+  redirect(targetMonth ? `/finance?tab=pnl&month=${targetMonth}` : '/finance?tab=pnl');
 }
 
 // ─── Quarterly GST/QST filing state ──────────────────────────────────────────
