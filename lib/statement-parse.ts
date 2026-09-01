@@ -11,6 +11,7 @@ export type ImportLine = {
   rawDesc: string;
   tax: 'none' | 'gst' | 'both'; // expense tax treatment; income is always 'none'
   clientId?: string | null; // income → assign to a client (becomes a payment)
+  note?: string; // optional per-line note
 };
 
 export function fileToBase64(file: File): Promise<string> {

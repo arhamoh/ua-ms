@@ -1622,7 +1622,7 @@ export async function commitPendingImport(
           fxRate,
           method: 'BANK_TRANSFER',
           paidAt: date,
-          note: (l.title || 'From statement').slice(0, 300),
+          note: (l.note?.trim() || l.title || 'From statement').slice(0, 300),
           bankMatchedAt: now,
         });
       } else {
@@ -1634,7 +1634,7 @@ export async function commitPendingImport(
           amountCad,
           fxRate,
           date,
-          note: 'Imported from statement',
+          note: l.note?.trim() || 'Imported from statement',
           source: 'STATEMENT',
         });
       }
@@ -1652,7 +1652,7 @@ export async function commitPendingImport(
         title = 'Interest expense';
         category = 'FEES';
       }
-      expenseData.push({ title, category, amount, currency, amountCad, fxRate, gst, qst, date, note: 'Imported from statement', reimbursed: true });
+      expenseData.push({ title, category, amount, currency, amountCad, fxRate, gst, qst, date, note: l.note?.trim() || 'Imported from statement', reimbursed: true });
     }
   }
 

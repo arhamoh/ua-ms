@@ -128,7 +128,9 @@ export default function PendingReview({
   };
 
   return (
-    <div className="space-y-5">
+    // Break out of the page's max-width so the wide review table has room.
+    <div className="mx-[calc(50%_-_50vw)] w-screen px-4 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-[1680px] space-y-5">
       {/* Account + statement meta */}
       <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -166,7 +168,7 @@ export default function PendingReview({
           </div>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[1180px] text-sm">
+          <table className="w-full min-w-[1320px] text-sm">
             <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
               <tr>
                 <th className="px-4 py-3">
@@ -177,7 +179,9 @@ export default function PendingReview({
                 <th className="px-4 py-3 font-medium">Type</th>
                 <th className="px-4 py-3 font-medium">Title</th>
                 <th className="px-4 py-3 font-medium">Category</th>
-                <th className="px-4 py-3 font-medium">Tax / Client</th>
+                <th className="px-4 py-3 font-medium">Tax</th>
+                <th className="px-4 py-3 font-medium">Client</th>
+                <th className="px-4 py-3 font-medium">Notes</th>
                 <th className="px-4 py-3 text-right font-medium">Amount</th>
               </tr>
             </thead>
@@ -208,13 +212,21 @@ export default function PendingReview({
                         <option value="none">No tax</option>
                       </select>
                     ) : (
+                      <span className="pl-2 text-slate-300">—</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-2">
+                    {l.type === 'income' ? (
                       <select value={l.clientId ?? ''} onChange={(e) => onClientChange(i, e.target.value)} className={`${mini} w-48 ${l.clientId ? 'text-slate-800' : 'text-slate-500'}`} title="Assign this income to a client">
                         <option value="">— unassigned —</option>
                         {clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
                         <option value="__new__">+ Quick-add client…</option>
                       </select>
+                    ) : (
+                      <span className="pl-2 text-slate-300">—</span>
                     )}
                   </td>
+                  <td className="px-4 py-2"><input value={l.note ?? ''} onChange={(e) => setLine(i, { note: e.target.value })} placeholder="Optional" className={`${mini} min-w-[160px]`} /></td>
                   <td className="px-4 py-2 text-right"><input type="number" min="0" step="any" value={l.amount} onChange={(e) => setLine(i, { amount: Number(e.target.value) || 0 })} className={`${mini} w-32 text-right tabular-nums`} /></td>
                 </tr>
               ))}
@@ -274,6 +286,7 @@ export default function PendingReview({
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 }
