@@ -178,8 +178,9 @@ export default function StatementImport({
   const [rawRows, setRawRows] = useState<string[][]>([]);
   const [hasHeader, setHasHeader] = useState(true);
   const [mapping, setMapping] = useState<Mapping | null>(null);
-  const [pdfRows, setPdfRows] = useState<{ date: string; desc: string; outflow: number; inflow: number; category: string }[] | null>(null);
+  const [pdfRows, setPdfRows] = useState<{ date: string; desc: string; outflow: number; inflow: number; category: string; source?: string }[] | null>(null);
   const [pdfLoading, setPdfLoading] = useState(false);
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [pdfNotice, setPdfNotice] = useState<string | null>(null);
   const [currency, setCurrency] = useState('CAD');
   const [note, setNote] = useState('');
@@ -187,8 +188,8 @@ export default function StatementImport({
   const [taxIncluded, setTaxIncluded] = useState(false);
   const [result, setResult] = useState<ImportResult | null>(null);
   const [pending, start] = useTransition();
-  // The original file, kept so it can be archived to Statements on import.
-  const [file, setFile] = useState<File | null>(null);
+  // The original file(s), kept so they can be archived to Statements on import.
+  const [files, setFiles] = useState<File[]>([]);
   const [acctType, setAcctType] = useState('BANK');
   const [acctLabel, setAcctLabel] = useState('');
   // Preview of the original file (PDF data URL / raw CSV text). Temporary trust
@@ -196,70 +197,99 @@ export default function StatementImport({
   const [sourceData, setSourceData] = useState('');
   const [showPreview, setShowPreview] = useState(false);
 
+  const isPdfFile = (f: File) => f.type === 'application/pdf' || /\.pdf$/i.test(f.name);
+
   const onFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files?.[0];
+    const list = Array.from(e.target.files ?? []);
     e.target.value = '';
-    if (!f) return;
-    const isPdf = f.type === 'application/pdf' || /\.pdf$/i.test(f.name);
-    setFileName(f.name);
-    setFile(f);
-    setAcctLabel((prev) => prev || f.name.replace(/\.[^.]+$/, ''));
+    if (list.length === 0) return;
     setOverrides({});
     setResult(null);
     setPdfNotice(null);
 
-    if (isPdf) {
-      setMode('pdf');
-      setRawRows([]);
-      setMapping(null);
+    const pdfs = list.filter(isPdfFile);
+    const others = list.filter((f) => !isPdfFile(f));
+
+    // A single CSV keeps the column-mapping flow.
+    if (list.length === 1 && others.length === 1) {
+      const f = others[0];
+      setFiles([f]);
+      setFileName(f.name);
+      setAcctLabel((prev) => prev || f.name.replace(/\.[^.]+$/, ''));
+      const text = await f.text();
+      setSourceData(text);
+      const all = parseCsv(text);
+      const headerIdx = detectHeaderIndex(all);
+      const rows = headerIdx > 0 ? all.slice(headerIdx) : all;
+      setMode('csv');
       setPdfRows(null);
-      setPdfLoading(true);
-      try {
-        const dataUrl = await fileToBase64(f);
-        setSourceData(dataUrl);
-        const r = await fetch('/api/parse-statement', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ pdf: dataUrl }),
-        });
-        const res = await r.json();
-        if (res?.ok && Array.isArray(res.transactions)) {
-          if (res.currency && currencies.some((c) => c.value === res.currency)) setCurrency(res.currency);
-          setPdfRows(
-            res.transactions.map((t: any) => ({
-              date: t.date || '',
-              desc: t.description || '',
-              outflow: t.direction === 'credit' ? 0 : Number(t.amount) || 0,
-              inflow: t.direction === 'credit' ? Number(t.amount) || 0 : 0,
-              category: t.category || 'OTHER',
-            })),
-          );
-          if (!res.transactions.length) setPdfNotice('No transactions were found in this PDF.');
-        } else if (res?.error === 'not_configured') {
-          setPdfNotice('Reading PDFs needs OPENROUTER_API_KEY set in Railway. You can upload a CSV in the meantime.');
-        } else if (res?.error === 'no_text') {
-          setPdfNotice('This looks like a scanned image PDF (no selectable text). Try your bank’s CSV export, or a text PDF.');
-        } else {
-          setPdfNotice(`Couldn’t read the PDF${res?.detail ? ` (${res.detail})` : ''}. Try a CSV export instead.`);
-        }
-      } catch {
-        setPdfNotice('PDF read failed. Try again, or use a CSV export.');
-      } finally {
-        setPdfLoading(false);
-      }
+      setRawRows(rows);
+      setHasHeader(true);
+      setMapping(detectMapping(rows[0] ?? []));
       return;
     }
 
-    const text = await f.text();
-    setSourceData(text);
-    const all = parseCsv(text);
-    const headerIdx = detectHeaderIndex(all);
-    const rows = headerIdx > 0 ? all.slice(headerIdx) : all;
-    setMode('csv');
+    // One or more PDFs — parse each and merge the transactions.
+    if (pdfs.length === 0) {
+      setPdfNotice('Choose PDF statements (you can pick several), or a single CSV.');
+      return;
+    }
+    if (others.length > 0) setPdfNotice('CSV files import one at a time — only the PDFs were loaded.');
+
+    setFiles(pdfs);
+    setFileName(pdfs.length === 1 ? pdfs[0].name : `${pdfs.length} statements`);
+    setAcctLabel((prev) => prev || pdfs[0].name.replace(/\.[^.]+$/, ''));
+    setMode('pdf');
+    setRawRows([]);
+    setMapping(null);
     setPdfRows(null);
-    setRawRows(rows);
-    setHasHeader(true);
-    setMapping(detectMapping(rows[0] ?? []));
+    setSourceData(pdfs.length === 1 ? await fileToBase64(pdfs[0]) : '');
+    setProgress({ done: 0, total: pdfs.length });
+    setPdfLoading(true);
+
+    const merged: { date: string; desc: string; outflow: number; inflow: number; category: string; source?: string }[] = [];
+    let detectedCurrency = '';
+    let anyError = false;
+    try {
+      for (const f of pdfs) {
+        try {
+          const dataUrl = await fileToBase64(f);
+          const r = await fetch('/api/parse-statement', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ pdf: dataUrl }),
+          });
+          const res = await r.json().catch(() => null);
+          if (res?.ok && Array.isArray(res.transactions)) {
+            if (!detectedCurrency && res.currency && currencies.some((c) => c.value === res.currency)) detectedCurrency = res.currency;
+            for (const t of res.transactions) {
+              merged.push({
+                date: t.date || '',
+                desc: t.description || '',
+                outflow: t.direction === 'credit' ? 0 : Number(t.amount) || 0,
+                inflow: t.direction === 'credit' ? Number(t.amount) || 0 : 0,
+                category: t.category || 'OTHER',
+                source: pdfs.length > 1 ? f.name : undefined,
+              });
+            }
+          } else {
+            anyError = true;
+            if (res?.error === 'not_configured') setPdfNotice('Reading PDFs needs OPENROUTER_API_KEY set in Railway.');
+            else if (res?.error === 'no_text') setPdfNotice((p) => p ?? 'One or more looked like scanned image PDFs (no selectable text).');
+          }
+        } catch {
+          anyError = true;
+        } finally {
+          setProgress((p) => (p ? { ...p, done: p.done + 1 } : p));
+        }
+      }
+      if (detectedCurrency) setCurrency(detectedCurrency);
+      setPdfRows(merged);
+      if (merged.length === 0) setPdfNotice((p) => p ?? (anyError ? 'Could not read those PDFs.' : 'No transactions were found.'));
+    } finally {
+      setPdfLoading(false);
+      setProgress(null);
+    }
   };
 
   const reset = () => {
@@ -274,7 +304,8 @@ export default function StatementImport({
     setResult(null);
     setSourceData('');
     setShowPreview(false);
-    setFile(null);
+    setFiles([]);
+    setProgress(null);
   };
 
   const header = useMemo(() => {
@@ -289,7 +320,7 @@ export default function StatementImport({
   const base = useMemo(() => {
     if (mode === 'pdf') {
       return (pdfRows ?? []).map((r) => ({
-        date: r.date, desc: r.desc, outflow: r.outflow, inflow: r.inflow, category: r.category as string | undefined,
+        date: r.date, desc: r.desc, outflow: r.outflow, inflow: r.inflow, category: r.category as string | undefined, source: r.source,
       }));
     }
     if (mode === 'csv' && mapping) {
@@ -306,7 +337,7 @@ export default function StatementImport({
           if (mapping.expenseSign === 'neg') { if (v < 0) outflow = -v; else inflow = v; }
           else if (v > 0) outflow = v; else inflow = -v;
         }
-        return { date: normalizeDate(cols[mapping.date] ?? '', mapping.dateOrder), desc, outflow, inflow, category: undefined as string | undefined };
+        return { date: normalizeDate(cols[mapping.date] ?? '', mapping.dateOrder), desc, outflow, inflow, category: undefined as string | undefined, source: undefined as string | undefined };
       });
     }
     return [];
@@ -335,6 +366,7 @@ export default function StatementImport({
           category: o.category ?? defCat,
           date: o.date ?? b.date,
           amount: o.amount ?? (baseAmt ? baseAmt.toFixed(2) : '0'),
+          source: b.source,
         };
       }),
     [base, overrides],
@@ -344,6 +376,7 @@ export default function StatementImport({
   const includedTotal = included.reduce((s, t) => s + Number(t.amount), 0);
   const nExpenses = included.filter((t) => t.type === 'expense').length;
   const nIncome = included.filter((t) => t.type === 'income').length;
+  const multiFile = files.length > 1;
 
   const setOv = (i: number, patch: Override) =>
     setOverrides((p) => ({ ...p, [i]: { ...p[i], ...patch } }));
@@ -363,19 +396,22 @@ export default function StatementImport({
     }));
     start(async () => {
       const res = await importStatementLines(items);
-      // Archive the original file to the Statements section (best-effort).
-      if (file) {
+      // Archive each original file to the Statements section (best-effort). The
+      // per-file period is derived from its filename server-side.
+      for (const f of files) {
         try {
           const fd = new FormData();
-          fd.set('file', file);
+          fd.set('file', f);
           fd.set('accountType', acctType);
-          fd.set('accountLabel', acctLabel.trim() || file.name);
+          fd.set('accountLabel', acctLabel.trim() || f.name);
           fd.set('source', 'IMPORT');
-          fd.set('importedExpenses', String(res.expenses));
-          fd.set('importedIncome', String(res.income));
+          if (files.length === 1) {
+            fd.set('importedExpenses', String(res.expenses));
+            fd.set('importedIncome', String(res.income));
+          }
           await saveStatement(fd);
         } catch {
-          // don't fail the import if archiving the file hiccups
+          // don't fail the import if archiving a file hiccups
         }
       }
       setResult(res);
@@ -419,15 +455,15 @@ export default function StatementImport({
         <span className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-brand-light text-brand">
           <UploadCloud size={24} />
         </span>
-        <h2 className="mt-4 text-sm font-semibold">Upload a statement (CSV or PDF)</h2>
+        <h2 className="mt-4 text-sm font-semibold">Upload statements (CSV or PDF)</h2>
         <p className="mx-auto mt-1 max-w-md text-sm text-slate-500">
-          Drop your bank or credit-card statement here. CSVs are mapped automatically; PDFs are read for you.
-          Both money out (expenses) and money in (income) are picked up and categorized — you review every line
-          before anything is added. Income that matches a client payment is reconciled; the rest becomes other income.
+          Pick one CSV, or <span className="font-medium text-slate-600">several PDFs at once</span> — they're read and
+          merged into one review. Money out becomes expenses, money in becomes categorizable income. You review every
+          line before anything is added, and each file is archived to Statements.
         </p>
         <label className="mt-5 inline-flex cursor-pointer items-center gap-2 rounded-xl bg-brand px-4 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-brand-dark">
-          <FileSpreadsheet size={16} /> Choose CSV or PDF
-          <input type="file" accept=".csv,text/csv,.pdf,application/pdf" className="hidden" onChange={onFile} />
+          <FileSpreadsheet size={16} /> Choose CSV or PDF(s)
+          <input type="file" multiple accept=".csv,text/csv,.pdf,application/pdf" className="hidden" onChange={onFile} />
         </label>
       </div>
     );
@@ -441,7 +477,9 @@ export default function StatementImport({
           <Loader2 size={24} className="animate-spin" />
         </span>
         <h2 className="mt-4 text-sm font-semibold">Reading {fileName}…</h2>
-        <p className="mt-1 text-sm text-slate-500">Extracting and structuring the transactions — this can take a few seconds.</p>
+        <p className="mt-1 text-sm text-slate-500">
+          {progress && progress.total > 1 ? `Reading statement ${Math.min(progress.done + 1, progress.total)} of ${progress.total} — this can take a moment.` : 'Extracting and structuring the transactions — this can take a few seconds.'}
+        </p>
         <ProgressBar label="Analyzing the statement…" className="mx-auto mt-4 max-w-xs" />
       </div>
     );
@@ -639,6 +677,7 @@ export default function StatementImport({
                 <th className="px-4 py-3 font-medium">Title</th>
                 <th className="px-4 py-3 font-medium">Category</th>
                 <th className="px-4 py-3 text-right font-medium">Amount</th>
+                {multiFile && <th className="px-4 py-3 font-medium">Source</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -689,6 +728,7 @@ export default function StatementImport({
                       className={`${miniCls} w-28 text-right tabular-nums`}
                     />
                   </td>
+                  {multiFile && <td className="max-w-[180px] truncate px-4 py-2 text-xs text-slate-400" title={t.source}>{t.source}</td>}
                 </tr>
               ))}
             </tbody>
