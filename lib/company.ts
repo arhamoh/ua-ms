@@ -9,6 +9,8 @@ export type Company = {
   gstNumber: string | null;
   qstNumber: string | null;
   neqNumber: string | null;
+  corporationNumber: string | null;
+  identificationNumber: string | null;
   gstRate: number;
   qstRate: number;
 };
@@ -22,6 +24,8 @@ const DEFAULT_COMPANY: Company = {
   gstNumber: null,
   qstNumber: null,
   neqNumber: null,
+  corporationNumber: null,
+  identificationNumber: null,
   gstRate: 5,
   qstRate: 9.975,
 };
@@ -38,6 +42,8 @@ export async function getCompany(): Promise<Company> {
     gstNumber: c.gstNumber,
     qstNumber: c.qstNumber,
     neqNumber: c.neqNumber,
+    corporationNumber: c.corporationNumber,
+    identificationNumber: c.identificationNumber,
     gstRate: c.gstRate,
     qstRate: c.qstRate,
   };

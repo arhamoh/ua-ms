@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { redirect, notFound } from 'next/navigation';
-import { ArrowLeft, Building2, Hash, CalendarClock, FileText, Languages, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, Building2, Hash, CalendarClock, FileText, Languages, AlertTriangle, FileDown } from 'lucide-react';
 import { getSession } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { deleteLetter } from '@/app/actions';
@@ -18,19 +18,40 @@ export default async function LetterBoardPage({ params }: { params: Promise<{ id
   if (!user.roles.includes('SUPER_ADMIN')) redirect('/');
 
   const { id } = await params;
-  const letter = await prisma.letter.findUnique({
-    where: { id },
-    include: { tasks: { orderBy: [{ status: 'asc' }, { order: 'asc' }, { createdAt: 'asc' }] } },
-  });
+  const [letter, statementRows] = await Promise.all([
+    prisma.letter.findUnique({
+      where: { id },
+      include: {
+        tasks: {
+          orderBy: [{ status: 'asc' }, { order: 'asc' }, { createdAt: 'asc' }],
+          include: { attachments: { orderBy: { createdAt: 'asc' } } },
+        },
+      },
+    }),
+    prisma.statement.findMany({
+      orderBy: { createdAt: 'desc' },
+      select: { id: true, fileName: true, accountLabel: true, accountType: true, periodLabel: true },
+    }),
+  ]);
   if (!letter) notFound();
 
   const tasks = letter.tasks.map((t) => ({
     id: t.id,
     title: t.title,
+    titleFr: t.titleFr,
     detail: t.detail,
+    detailFr: t.detailFr,
     status: t.status,
     dueDate: iso(t.dueDate),
+    response: t.response,
+    attachments: t.attachments.map((a) => ({ id: a.id, fileName: a.fileName, kind: a.kind })),
   }));
+  const statements = statementRows.map((s) => ({
+    id: s.id,
+    fileName: s.fileName,
+    label: [s.accountType === 'CREDIT_CARD' ? 'Credit card' : 'Bank', s.accountLabel, s.periodLabel].filter(Boolean).join(' · '),
+  }));
+  const totalAttachments = tasks.reduce((n, t) => n + t.attachments.length, 0);
   const dueDate = iso(letter.dueDate);
   const isFrench = letter.language && letter.language !== 'en';
 
@@ -56,9 +77,14 @@ export default async function LetterBoardPage({ params }: { params: Promise<{ id
                 {dueDate && <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 font-medium text-amber-700"><CalendarClock size={12} /> Due {dueDate}</span>}
               </div>
             </div>
-            <a href={`/api/letters/${letter.id}/file`} target="_blank" rel="noopener noreferrer" className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50 hover:text-brand">
-              <FileText size={15} /> View original
-            </a>
+            <div className="flex shrink-0 flex-wrap items-center gap-2">
+              <a href={`/api/letters/${letter.id}/package`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-xl bg-brand px-3 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-brand-dark">
+                <FileDown size={15} /> Submission PDF
+              </a>
+              <a href={`/api/letters/${letter.id}/file`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50 hover:text-brand">
+                <FileText size={15} /> View original
+              </a>
+            </div>
           </div>
 
           {letter.errorNote && (
@@ -89,8 +115,13 @@ export default async function LetterBoardPage({ params }: { params: Promise<{ id
 
       <FadeIn delay={0.06}>
         <div className="mt-6">
-          <h2 className="mb-3 text-sm font-semibold text-slate-700">Tasks</h2>
-          <LetterBoard letterId={letter.id} tasks={tasks} />
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-slate-700">Tasks</h2>
+            <span className="text-xs text-slate-400">
+              Answer each question and attach documents — then generate the submission PDF{totalAttachments > 0 ? ` (${totalAttachments} attached)` : ''}.
+            </span>
+          </div>
+          <LetterBoard letterId={letter.id} tasks={tasks} statements={statements} />
         </div>
       </FadeIn>
     </div>

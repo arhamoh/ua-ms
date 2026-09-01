@@ -1096,6 +1096,8 @@ export async function saveCompanySettings(formData: FormData) {
     gstNumber: str(formData.get('gstNumber')),
     qstNumber: str(formData.get('qstNumber')),
     neqNumber: str(formData.get('neqNumber')),
+    corporationNumber: str(formData.get('corporationNumber')),
+    identificationNumber: str(formData.get('identificationNumber')),
     gstRate: num(str(formData.get('gstRate')), 5),
     qstRate: num(str(formData.get('qstRate')), 9.975),
   };
@@ -1910,6 +1912,75 @@ export async function deleteLetter(id: string) {
   await prisma.letter.delete({ where: { id } });
   revalidatePath('/letters');
   redirect('/letters');
+}
+
+// ─── Letter task answers & attachments ───────────────────────────────────────
+
+const ATTACH_MAX_BYTES = 15 * 1024 * 1024;
+
+export async function setLetterTaskResponse(taskId: string, response: string | null) {
+  await requireSuperAdmin();
+  if (!taskId) return;
+  const t = await prisma.letterTask.update({
+    where: { id: taskId },
+    data: { response: response?.trim() ? response.trim().slice(0, 8000) : null },
+    select: { letterId: true },
+  });
+  revalidatePath(`/letters/${t.letterId}`);
+}
+
+// Attach a freshly uploaded file to a task (bytes stored inline).
+export async function addTaskUpload(formData: FormData) {
+  await requireSuperAdmin();
+  const taskId = str(formData.get('taskId'));
+  if (!taskId) return;
+  const file = formData.get('file') as { arrayBuffer?: () => Promise<ArrayBuffer>; size?: number; name?: string; type?: string } | null;
+  if (!file || typeof file.arrayBuffer !== 'function' || !file.size) return;
+  if (file.size > ATTACH_MAX_BYTES) throw new Error('File too large (max 15 MB).');
+  const buf = Buffer.from(await file.arrayBuffer());
+  const task = await prisma.letterTask.findUnique({ where: { id: taskId }, select: { letterId: true } });
+  if (!task) return;
+  await prisma.taskAttachment.create({
+    data: {
+      taskId,
+      kind: 'UPLOAD',
+      fileName: (typeof file.name === 'string' && file.name ? file.name : 'attachment').slice(0, 260),
+      mimeType: (typeof file.type === 'string' && file.type ? file.type : 'application/octet-stream').slice(0, 120),
+      size: file.size,
+      data: buf,
+    },
+  });
+  revalidatePath(`/letters/${task.letterId}`);
+}
+
+// Attach an already-archived Statement to a task (reference, no re-upload).
+export async function attachStatementToTask(taskId: string, statementId: string) {
+  await requireSuperAdmin();
+  if (!taskId || !statementId) return;
+  const [task, stmt] = await Promise.all([
+    prisma.letterTask.findUnique({ where: { id: taskId }, select: { letterId: true } }),
+    prisma.statement.findUnique({ where: { id: statementId }, select: { id: true, fileName: true, mimeType: true, size: true } }),
+  ]);
+  if (!task || !stmt) return;
+  await prisma.taskAttachment.create({
+    data: {
+      taskId,
+      kind: 'STATEMENT',
+      statementId: stmt.id,
+      fileName: stmt.fileName.slice(0, 260),
+      mimeType: stmt.mimeType,
+      size: stmt.size,
+    },
+  });
+  revalidatePath(`/letters/${task.letterId}`);
+}
+
+export async function removeTaskAttachment(attachmentId: string) {
+  await requireSuperAdmin();
+  if (!attachmentId) return;
+  const a = await prisma.taskAttachment.findUnique({ where: { id: attachmentId }, select: { task: { select: { letterId: true } } } });
+  await prisma.taskAttachment.delete({ where: { id: attachmentId } });
+  if (a?.task) revalidatePath(`/letters/${a.task.letterId}`);
 }
 
 // ─── Loans / money to recover ────────────────────────────────────────────────

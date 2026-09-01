@@ -107,7 +107,9 @@ export async function POST(req: NextRequest) {
           ? {
               create: analysis.tasks.map((t, i) => ({
                 title: t.title,
+                titleFr: t.titleFr,
                 detail: t.detail,
+                detailFr: t.detailFr,
                 dueDate: safeDate(t.dueDate),
                 order: i,
               })),

@@ -376,6 +376,8 @@ model CompanySetting {
   gstNumber String?
   qstNumber String?
   neqNumber String?
+  corporationNumber    String? // federal corporation / business number
+  identificationNumber String? // Revenu Québec identification number
   gstRate   Float    @default(5)
   qstRate   Float    @default(9.975)
   updatedAt DateTime @updatedAt
@@ -702,6 +704,8 @@ model Statement {
   uploadedById String?
   uploadedBy   User?    @relation("UploadedStatements", fields: [uploadedById], references: [id], onDelete: SetNull)
 
+  taskAttachments TaskAttachment[]
+
   @@index([accountType])
   @@index([createdAt])
 }
@@ -741,7 +745,10 @@ model Letter {
 model LetterTask {
   id        String    @id @default(cuid())
   title     String
+  titleFr   String?   // the action/question phrased in French (for the submission PDF)
   detail    String?
+  detailFr  String?   // French version of the detail
+  response  String?   // the written answer to this task/question
   status    String    @default("TODO") // TODO | DOING | DONE
   dueDate   DateTime?
   order     Int       @default(0)
@@ -751,7 +758,30 @@ model LetterTask {
   letterId String
   letter   Letter @relation(fields: [letterId], references: [id], onDelete: Cascade)
 
+  attachments TaskAttachment[]
+
   @@index([letterId])
+}
+
+// A file attached as evidence to a letter task — either freshly uploaded (bytes
+// stored inline) or a reference to an already-archived Statement.
+model TaskAttachment {
+  id          String     @id @default(cuid())
+  kind        String     @default("UPLOAD") // UPLOAD | STATEMENT
+  fileName    String
+  mimeType    String     @default("application/octet-stream")
+  size        Int        @default(0)
+  data        Bytes?     // present for UPLOAD; null when referencing a Statement
+  createdAt   DateTime   @default(now())
+
+  taskId      String
+  task        LetterTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  statementId String?
+  statement   Statement? @relation(fields: [statementId], references: [id], onDelete: Cascade)
+
+  @@index([taskId])
+  @@index([statementId])
 }
 
 // A saved-for-later statement import: one uploaded statement's parsed + reviewed
