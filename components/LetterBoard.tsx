@@ -2,7 +2,7 @@
 
 import { useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { Plus, Trash2, ChevronLeft, ChevronRight, Pencil, CalendarClock, Paperclip, Upload, Archive, X, MessageSquare } from 'lucide-react';
+import { Plus, Trash2, ChevronLeft, ChevronRight, Pencil, CalendarClock, Paperclip, Upload, Archive, X, MessageSquare, FileBarChart } from 'lucide-react';
 import {
   addLetterTask,
   setLetterTaskStatus,
@@ -12,7 +12,9 @@ import {
   addTaskUpload,
   attachStatementToTask,
   removeTaskAttachment,
+  generateFinanceReport,
 } from '@/app/actions';
+import { REPORT_TYPES, type ReportType } from '@/lib/finance-reports';
 
 type Attachment = { id: string; fileName: string; kind: string };
 type Task = {
@@ -45,8 +47,24 @@ function overdue(due: string | null, status: string) {
 function AnswerPanel({ task, statements, run, pending }: { task: Task; statements: Statement[]; run: Run; pending: boolean }) {
   const [response, setResponse] = useState(task.response ?? '');
   const [pickStatement, setPickStatement] = useState(false);
+  const [showReport, setShowReport] = useState(false);
+  const [rType, setRType] = useState<ReportType>('general_ledger');
+  const [rFrom, setRFrom] = useState('');
+  const [rTo, setRTo] = useState('');
+  const [rTopN, setRTopN] = useState('5');
   const fileRef = useRef<HTMLInputElement>(null);
   const dirty = response.trim() !== (task.response ?? '').trim();
+  const hasTopN = REPORT_TYPES.find((r) => r.value === rType)?.hasTopN;
+
+  const genReport = () => {
+    run(() => generateFinanceReport(task.id, {
+      type: rType,
+      from: rFrom || null,
+      to: rTo || null,
+      topN: hasTopN ? Math.max(1, Math.min(100, Number(rTopN) || 5)) : undefined,
+    }));
+    setShowReport(false);
+  };
 
   const upload = (file: File) => {
     const fd = new FormData();
@@ -119,7 +137,40 @@ function AnswerPanel({ task, statements, run, pending }: { task: Task; statement
           >
             <Archive size={12} /> From statements
           </button>
+          <button
+            onClick={() => setShowReport((v) => !v)}
+            disabled={pending}
+            className="inline-flex items-center gap-1 rounded-md border border-slate-300 px-2 py-1 text-[11px] font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+          >
+            <FileBarChart size={12} /> Finance report
+          </button>
         </div>
+        {showReport && (
+          <div className="mt-1.5 space-y-1.5 rounded-md border border-slate-200 bg-slate-50 p-2">
+            <select value={rType} onChange={(e) => setRType(e.target.value as ReportType)} className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-xs focus:border-brand focus:outline-none">
+              {REPORT_TYPES.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
+            </select>
+            <div className="flex items-center gap-1.5">
+              <label className="flex-1 text-[10px] font-medium uppercase text-slate-400">From
+                <input type="date" value={rFrom} onChange={(e) => setRFrom(e.target.value)} className="mt-0.5 w-full rounded-md border border-slate-300 px-1.5 py-1 text-xs focus:border-brand focus:outline-none" />
+              </label>
+              <label className="flex-1 text-[10px] font-medium uppercase text-slate-400">To
+                <input type="date" value={rTo} onChange={(e) => setRTo(e.target.value)} className="mt-0.5 w-full rounded-md border border-slate-300 px-1.5 py-1 text-xs focus:border-brand focus:outline-none" />
+              </label>
+              {hasTopN && (
+                <label className="w-14 text-[10px] font-medium uppercase text-slate-400">Top
+                  <input type="number" min={1} max={100} value={rTopN} onChange={(e) => setRTopN(e.target.value)} className="mt-0.5 w-full rounded-md border border-slate-300 px-1.5 py-1 text-xs focus:border-brand focus:outline-none" />
+                </label>
+              )}
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] text-slate-400">Leave dates blank for all data. Adds a PDF + CSV.</span>
+              <button onClick={genReport} disabled={pending} className="rounded-md bg-brand px-2.5 py-1 text-[11px] font-medium text-white hover:bg-brand-dark disabled:opacity-50">
+                {pending ? 'Generating…' : 'Generate'}
+              </button>
+            </div>
+          </div>
+        )}
         {pickStatement && (
           statements.length > 0 ? (
             <select

@@ -29,6 +29,9 @@ import { invoiceHtml, receiptHtml } from '@/lib/documents';
 import { getCompany, computeTax } from '@/lib/company';
 import { backOutExpenseTax, backOutTax, collectedFromPayment } from '@/lib/tax';
 import { ruleKey } from '@/lib/txnrules';
+import { EXPENSE_CATEGORY_LABELS, INCOME_CATEGORY_LABELS } from '@/lib/enums';
+import { buildReport, reportToCsv, REPORT_LABELS, type ReportType, type LedgerEntry } from '@/lib/finance-reports';
+import { renderReportPdf } from '@/lib/report-pdf';
 import { DEFAULT_OPTIONS } from '@/lib/options';
 import type { ImportLine } from '@/lib/statement-parse';
 import { getSession } from '@/lib/auth';
@@ -1996,6 +1999,58 @@ export async function removeTaskAttachment(attachmentId: string) {
   const a = await prisma.taskAttachment.findUnique({ where: { id: attachmentId }, select: { task: { select: { letterId: true } } } });
   await prisma.taskAttachment.delete({ where: { id: attachmentId } });
   if (a?.task) revalidatePath(`/letters/${a.task.letterId}`);
+}
+
+const prettifyCat = (c: string) => c.toLowerCase().replace(/_/g, ' ').replace(/\b\w/g, (m) => m.toUpperCase());
+
+// Generate a finance report (PDF + CSV) from imported transactions in a date
+// range, and attach both to a letter task so they flow into the submission PDF.
+export async function generateFinanceReport(
+  taskId: string,
+  opts: { type: ReportType; from?: string | null; to?: string | null; topN?: number },
+) {
+  await requireSuperAdmin();
+  if (!taskId || !opts?.type || !REPORT_LABELS[opts.type]) return;
+  const task = await prisma.letterTask.findUnique({ where: { id: taskId }, select: { letterId: true } });
+  if (!task) return;
+
+  const from = opts.from ? new Date(`${opts.from}T00:00:00Z`) : null;
+  const to = opts.to ? new Date(`${opts.to}T23:59:59Z`) : null;
+  const bound = (field: string) =>
+    from || to ? { [field]: { ...(from ? { gte: from } : {}), ...(to ? { lte: to } : {}) } } : {};
+
+  const [rates, company, expenses, payments, otherIncome] = await Promise.all([
+    getRatesToCad(),
+    getCompany(),
+    prisma.expense.findMany({ where: bound('date'), orderBy: { date: 'asc' } }),
+    prisma.payment.findMany({ where: bound('paidAt'), orderBy: { paidAt: 'asc' }, include: { client: { select: { name: true } } } }),
+    prisma.otherIncome.findMany({ where: bound('date'), orderBy: { date: 'asc' } }),
+  ]);
+
+  const iso = (d: Date) => new Date(d).toISOString().slice(0, 10);
+  const cad = (amt: number, cur: string, amtCad: number | null) => amtCad ?? toCad(amt, cur, rates);
+  const expLabel = (c: string) => EXPENSE_CATEGORY_LABELS[c] ?? prettifyCat(c);
+  const incLabel = (c: string) => INCOME_CATEGORY_LABELS[c] ?? prettifyCat(c);
+
+  const entries: LedgerEntry[] = [
+    ...expenses.map((e) => ({ date: iso(e.date), kind: 'expense' as const, description: e.title, party: expLabel(e.category), amountCad: cad(e.amount, e.currency, e.amountCad), gst: e.gst ?? 0, qst: e.qst ?? 0 })),
+    ...payments.map((p) => ({ date: iso(p.paidAt), kind: 'income' as const, description: p.note?.trim() || 'Client payment', party: p.client?.name || 'Client', amountCad: cad(p.amount, p.currency, p.amountCad), gst: p.gst ?? 0, qst: p.qst ?? 0 })),
+    ...otherIncome.map((o) => ({ date: iso(o.date), kind: 'income' as const, description: o.title, party: incLabel(o.category), amountCad: cad(o.amount, o.currency, o.amountCad), gst: o.gst ?? 0, qst: o.qst ?? 0 })),
+  ];
+
+  const report = buildReport(opts.type, entries, { topN: opts.topN });
+  const periodLabel = from || to ? `${opts.from || '…'} to ${opts.to || '…'}` : 'All imported transactions';
+  const pdf = await renderReportPdf(report, { company, periodLabel });
+  const csv = reportToCsv(report);
+  const csvBuf = Buffer.from(csv, 'utf8');
+  const pdfBuf = Buffer.from(pdf);
+
+  const stamp = `${opts.from || 'all'}${opts.to ? `_${opts.to}` : ''}`;
+  const base = `${REPORT_LABELS[opts.type]} ${stamp}`.replace(/[^\w.\- ]+/g, '').replace(/\s+/g, ' ').trim().slice(0, 90);
+
+  await prisma.taskAttachment.create({ data: { taskId, kind: 'UPLOAD', fileName: `${base}.pdf`, mimeType: 'application/pdf', size: pdfBuf.length, data: pdfBuf } });
+  await prisma.taskAttachment.create({ data: { taskId, kind: 'UPLOAD', fileName: `${base}.csv`, mimeType: 'text/csv', size: csvBuf.length, data: csvBuf } });
+  revalidatePath(`/letters/${task.letterId}`);
 }
 
 // ─── Loans / money to recover ────────────────────────────────────────────────
