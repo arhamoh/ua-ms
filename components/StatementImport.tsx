@@ -307,7 +307,7 @@ export default function StatementImport({
       base.map((b, i) => {
         const isExpense = b.outflow > 0;
         const interest = /interest/i.test(b.desc);
-        const defTitle = interest ? 'Additional credit card fee' : b.desc || (isExpense ? 'Expense' : 'Income');
+        const defTitle = interest ? 'Interest expense' : b.desc || (isExpense ? 'Expense' : 'Income');
         const defCat = interest ? 'FEES' : b.category || guessCategory(b.desc);
         const o = overrides[i] ?? {};
         const baseAmt = b.outflow || b.inflow;
@@ -641,7 +641,7 @@ export default function StatementImport({
                       onChange={(e) => setOv(t.i, { title: e.target.value })}
                       className={`${miniCls} min-w-[200px]`}
                     />
-                    {t.interest && <span className="mt-1 block text-[11px] text-amber-600">renamed from interest</span>}
+                    {t.interest && <span className="mt-1 block text-[11px] text-amber-600">labeled “Interest expense”</span>}
                   </td>
                   <td className="px-4 py-2">
                     <select value={t.category} onChange={(e) => setOv(t.i, { category: e.target.value })} className={`${miniCls} w-36`}>

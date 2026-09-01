@@ -1236,7 +1236,7 @@ type ImportItem = {
 };
 
 // Bulk-create expenses from a parsed bank / credit-card statement. Any line
-// whose description reads as interest is relabelled "Additional credit card fee".
+// whose description reads as interest is relabelled "Interest expense".
 export async function importStatementExpenses(items: ImportItem[]): Promise<{ count: number }> {
   if (!Array.isArray(items) || items.length === 0) return { count: 0 };
 
@@ -1250,7 +1250,7 @@ export async function importStatementExpenses(items: ImportItem[]): Promise<{ co
       let category = EXPENSE_CATEGORIES.includes(it.category ?? '') ? (it.category as string) : 'OTHER';
       // The interest → fee rule, enforced server-side regardless of the client.
       if (/interest/i.test(title)) {
-        title = 'Additional credit card fee';
+        title = 'Interest expense';
         category = 'FEES';
       }
 
@@ -1325,7 +1325,7 @@ export async function importStatementLines(
       let title = (it.title ?? '').trim() || 'Expense';
       let category = EXPENSE_CATEGORIES.includes(it.category ?? '') ? (it.category as string) : 'OTHER';
       if (/interest/i.test(title)) {
-        title = 'Additional credit card fee';
+        title = 'Interest expense';
         category = 'FEES';
       }
       let gst: number | null = null;
