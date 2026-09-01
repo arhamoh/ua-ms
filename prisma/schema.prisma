@@ -97,6 +97,7 @@ model User {
   commentThreads    CommentThread[]    @relation("ThreadCreatedBy")
   comments          Comment[]          @relation("CommentAuthor")
   statements        Statement[]        @relation("UploadedStatements")
+  letters           Letter[]           @relation("LettersCreated")
 
   @@index([email])
 }
@@ -694,6 +695,54 @@ model Statement {
 
   @@index([accountType])
   @@index([createdAt])
+}
+
+// An uploaded letter / document (e.g. a government notice). The original file is
+// stored inline; AI fills in the English translation, summary, and metadata, and
+// each letter gets its own board of tasks (LetterTask) to work through.
+model Letter {
+  id           String    @id @default(cuid())
+  title        String
+  sender       String?
+  reference    String?   // reference / file number on the letter
+  docDate      DateTime? // the date printed on the letter
+  dueDate      DateTime? // overall deadline, if any
+  language     String    @default("en") // detected source language
+  summary      String?   // English summary
+  translation  String?   // English translation (when the source isn't English)
+  originalText String?   // extracted source text
+  status       String    @default("READY") // READY | FAILED
+  errorNote    String?
+  fileName     String
+  mimeType     String    @default("application/pdf")
+  size         Int       @default(0)
+  data         Bytes     // original file bytes
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  createdById  String?
+  createdBy    User?     @relation("LettersCreated", fields: [createdById], references: [id], onDelete: SetNull)
+
+  tasks LetterTask[]
+
+  @@index([createdAt])
+}
+
+// A single action item on a letter's board.
+model LetterTask {
+  id        String    @id @default(cuid())
+  title     String
+  detail    String?
+  status    String    @default("TODO") // TODO | DOING | DONE
+  dueDate   DateTime?
+  order     Int       @default(0)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  letterId String
+  letter   Letter @relation(fields: [letterId], references: [id], onDelete: Cascade)
+
+  @@index([letterId])
 }
 
 // ─── Lead generation ─────────────────────────────────────────────────────────

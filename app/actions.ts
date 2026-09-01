@@ -1558,6 +1558,83 @@ export async function deleteStatement(id: string) {
   revalidatePath('/statements');
 }
 
+// ─── Letters / documents (super-admin) ───────────────────────────────────────
+
+async function requireSuperAdmin() {
+  const s = await getSession();
+  if (!s || !s.roles.includes('SUPER_ADMIN')) throw new Error('Not authorized.');
+  return s;
+}
+
+const LETTER_TASK_STATUSES = ['TODO', 'DOING', 'DONE'];
+
+export async function addLetterTask(letterId: string, title: string, detail: string | null, dueDate: string | null) {
+  await requireSuperAdmin();
+  const t = (title ?? '').trim();
+  if (!letterId || !t) return;
+  const max = await prisma.letterTask.aggregate({ where: { letterId, status: 'TODO' }, _max: { order: true } });
+  await prisma.letterTask.create({
+    data: {
+      letterId,
+      title: t.slice(0, 300),
+      detail: detail?.trim() ? detail.trim().slice(0, 2000) : null,
+      dueDate: dueDate ? new Date(dueDate) : null,
+      status: 'TODO',
+      order: (max._max.order ?? -1) + 1,
+    },
+  });
+  revalidatePath(`/letters/${letterId}`);
+}
+
+export async function setLetterTaskStatus(taskId: string, status: string) {
+  await requireSuperAdmin();
+  if (!taskId || !LETTER_TASK_STATUSES.includes(status)) return;
+  const t = await prisma.letterTask.update({ where: { id: taskId }, data: { status }, select: { letterId: true } });
+  revalidatePath(`/letters/${t.letterId}`);
+}
+
+export async function updateLetterTask(
+  taskId: string,
+  patch: { title?: string; detail?: string | null; dueDate?: string | null },
+) {
+  await requireSuperAdmin();
+  if (!taskId) return;
+  const data: Record<string, any> = {};
+  if (typeof patch.title === 'string') {
+    const v = patch.title.trim();
+    if (v) data.title = v.slice(0, 300);
+  }
+  if (patch.detail !== undefined) data.detail = patch.detail?.trim() ? patch.detail.trim().slice(0, 2000) : null;
+  if (patch.dueDate !== undefined) data.dueDate = patch.dueDate ? new Date(patch.dueDate) : null;
+  if (Object.keys(data).length === 0) return;
+  const t = await prisma.letterTask.update({ where: { id: taskId }, data, select: { letterId: true } });
+  revalidatePath(`/letters/${t.letterId}`);
+}
+
+export async function deleteLetterTask(taskId: string) {
+  await requireSuperAdmin();
+  if (!taskId) return;
+  const t = await prisma.letterTask.findUnique({ where: { id: taskId }, select: { letterId: true } });
+  await prisma.letterTask.delete({ where: { id: taskId } });
+  if (t) revalidatePath(`/letters/${t.letterId}`);
+}
+
+export async function renameLetter(id: string, title: string) {
+  await requireSuperAdmin();
+  const t = (title ?? '').trim();
+  if (!id || !t) return;
+  await prisma.letter.update({ where: { id }, data: { title: t.slice(0, 200) } });
+  revalidatePath(`/letters/${id}`);
+}
+
+export async function deleteLetter(id: string) {
+  await requireSuperAdmin();
+  if (!id) return;
+  await prisma.letter.delete({ where: { id } });
+  revalidatePath('/letters');
+  redirect('/letters');
+}
+
 // ─── Loans / money to recover ────────────────────────────────────────────────
 
 export async function addLoan(formData: FormData) {

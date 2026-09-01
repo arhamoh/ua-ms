@@ -26,6 +26,7 @@ import {
   Target,
   Globe,
   ReceiptText,
+  Mail,
   PanelLeftClose,
   PanelLeftOpen,
   type LucideIcon,
@@ -99,6 +100,7 @@ const navSections: NavSection[] = [
     items: [
       { href: '/messages', label: 'Messages', icon: MessageSquare },
       { href: '/assistant', label: 'Assistant', icon: Sparkles },
+      { href: '/letters', label: 'Letters', icon: Mail, superAdminOnly: true },
       { href: '/logins', label: 'Logins', icon: KeyRound },
       { href: '/settings', label: 'Settings', icon: Settings },
     ],
