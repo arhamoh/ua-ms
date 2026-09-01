@@ -1,8 +1,8 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { ArrowLeft, Send, Check, Plus } from 'lucide-react';
+import { ArrowLeft, Send, Check, Plus, Link2, Unlink, Receipt } from 'lucide-react';
 import { prisma } from '@/lib/prisma';
-import { setInvoiceStatus, emailInvoice, recordPayment, deletePayment } from '@/app/actions';
+import { setInvoiceStatus, emailInvoice, recordPayment, deletePayment, linkPaymentToInvoice, unlinkPaymentFromInvoice, recordInvoiceFee } from '@/app/actions';
 import { emailConfigured } from '@/lib/email';
 import { INVOICE_STATUS_LABELS, INVOICE_STATUS_BADGE, PAYMENT_METHOD_LABELS, PAYMENT_METHODS, CURRENCIES, formatMoney, fxRateNote } from '@/lib/enums';
 import { getCompany, computeTax } from '@/lib/company';
@@ -37,10 +37,20 @@ export default async function InvoiceDetailPage({
   const rates = await getRatesToCad();
   const totalCad = inv.currency !== 'CAD' ? toCad(tax.total, inv.currency, rates) : null;
 
-  // Receivables: how much of this invoice's total (incl. tax, CAD) is paid.
+  // Other payments from this client not yet linked to any invoice — candidates
+  // to attach as (possibly partial) deposits against this invoice.
+  const unlinked = await prisma.payment.findMany({
+    where: { clientId: inv.clientId, invoiceId: null },
+    orderBy: { paidAt: 'desc' },
+    take: 50,
+  });
+
+  // Receivables: how much of this invoice's total (incl. tax, CAD) is deposited.
   const totalCadAll = toCad(tax.total, inv.currency, rates);
   const paidCad = inv.payments.reduce((s, p) => s + (p.amountCad ?? toCad(p.amount, p.currency, rates)), 0);
   const outstandingCad = Math.max(totalCadAll - paidCad, 0);
+  // When settled (PAID) but deposits fall short, the gap is the processing fee.
+  const feeGapCad = inv.status === 'PAID' ? Math.max(totalCadAll - paidCad, 0) : 0;
   const today = new Date().toISOString().split('T')[0];
 
   return (
@@ -175,12 +185,30 @@ export default async function InvoiceDetailPage({
       {/* Payments & reconciliation — screen only */}
       <div className="mt-6 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm print:hidden">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-5 py-4">
-          <h2 className="text-sm font-semibold">Payments</h2>
-          <div className="flex items-center gap-4 text-xs">
-            <span className="text-slate-400">Paid <span className="font-medium tabular-nums text-emerald-700">{formatMoney(paidCad, 'CAD')}</span></span>
-            <span className="text-slate-400">Outstanding <span className={`font-medium tabular-nums ${outstandingCad > 0.5 ? 'text-amber-700' : 'text-slate-400'}`}>{formatMoney(outstandingCad, 'CAD')}</span></span>
+          <h2 className="text-sm font-semibold">Payments &amp; reconciliation</h2>
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
+            <span className="text-slate-400">Total <span className="font-medium tabular-nums text-slate-600">{formatMoney(totalCadAll, 'CAD')}</span></span>
+            <span className="text-slate-400">Deposited <span className="font-medium tabular-nums text-emerald-700">{formatMoney(paidCad, 'CAD')}</span></span>
+            {inv.status === 'PAID' ? (
+              feeGapCad > 0.5 && <span className="text-slate-400">Fee / short <span className="font-medium tabular-nums text-amber-700">{formatMoney(feeGapCad, 'CAD')}</span></span>
+            ) : (
+              <span className="text-slate-400">Outstanding <span className={`font-medium tabular-nums ${outstandingCad > 0.5 ? 'text-amber-700' : 'text-slate-400'}`}>{formatMoney(outstandingCad, 'CAD')}</span></span>
+            )}
           </div>
         </div>
+
+        {feeGapCad > 0.5 && (
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 bg-amber-50/50 px-5 py-2.5 text-xs">
+            <span className="text-amber-800">Deposits are {formatMoney(feeGapCad, 'CAD')} short of the total — likely a withdrawal / processing fee.</span>
+            <form action={recordInvoiceFee}>
+              <input type="hidden" name="invoiceId" value={inv.id} />
+              <input type="hidden" name="amount" value={feeGapCad.toFixed(2)} />
+              <button className="inline-flex items-center gap-1 rounded-lg border border-amber-300 bg-white px-2.5 py-1.5 font-medium text-amber-800 transition hover:bg-amber-50">
+                <Receipt size={13} /> Record as fee expense
+              </button>
+            </form>
+          </div>
+        )}
 
         {inv.payments.length > 0 && (
           <div className="overflow-x-auto">
@@ -191,11 +219,47 @@ export default async function InvoiceDetailPage({
                     <td className="px-5 py-3 text-slate-600">{PAYMENT_METHOD_LABELS[p.method] ?? p.method}{p.bankMatchedAt && <span className="ml-2 rounded-full bg-emerald-50 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700">reconciled</span>}</td>
                     <td className="px-5 py-3 tabular-nums text-slate-500">{p.paidAt.toISOString().slice(0, 10)}</td>
                     <td className="px-5 py-3 text-right tabular-nums">{formatMoney(p.amount, p.currency)}{p.currency !== 'CAD' && <span className="ml-2 text-xs text-slate-400">{formatMoney(p.amountCad ?? toCad(p.amount, p.currency, rates), 'CAD')} CAD</span>}</td>
-                    <td className="px-5 py-3"><RowActions deleteAction={deletePayment.bind(null, p.id)} label="payment" /></td>
+                    <td className="px-5 py-3">
+                      <div className="flex items-center justify-end gap-1">
+                        <form action={unlinkPaymentFromInvoice.bind(null, p.id)}>
+                          <button title="Unlink from this invoice (keeps the payment in the ledger)" className="grid h-8 w-8 place-items-center rounded-lg border border-slate-200 text-slate-500 transition hover:bg-slate-50 hover:text-amber-600">
+                            <Unlink size={15} />
+                          </button>
+                        </form>
+                        <RowActions deleteAction={deletePayment.bind(null, p.id)} label="payment" />
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
+          </div>
+        )}
+
+        {unlinked.length > 0 && (
+          <div className="border-t border-slate-100 px-5 py-4">
+            <div className="text-xs font-medium uppercase tracking-wide text-slate-400">Link a deposit from imported transactions</div>
+            <p className="mt-1 text-xs text-slate-400">
+              Attach bank deposits from {inv.client.name}. Deposits can be partial — link each withdrawal, then Mark paid once the invoice is settled (the shortfall is the processing fee).
+            </p>
+            <ul className="mt-2 divide-y divide-slate-100 overflow-hidden rounded-lg border border-slate-100">
+              {unlinked.map((p) => (
+                <li key={p.id} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
+                  <div className="min-w-0">
+                    <div className="truncate text-slate-700">{p.note || (PAYMENT_METHOD_LABELS[p.method] ?? p.method)}</div>
+                    <div className="text-xs text-slate-400">
+                      {p.paidAt.toISOString().slice(0, 10)} · {formatMoney(p.amount, p.currency)}
+                      {p.currency !== 'CAD' && ` · ${formatMoney(p.amountCad ?? toCad(p.amount, p.currency, rates), 'CAD')} CAD`}
+                    </div>
+                  </div>
+                  <form action={linkPaymentToInvoice.bind(null, p.id, inv.id)}>
+                    <button className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-50 hover:text-brand">
+                      <Link2 size={13} /> Link
+                    </button>
+                  </form>
+                </li>
+              ))}
+            </ul>
           </div>
         )}
 

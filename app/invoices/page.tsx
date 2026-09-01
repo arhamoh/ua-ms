@@ -92,6 +92,7 @@ export default async function InvoicesPage() {
                         <td className="px-5 py-3">
                           <RowActions
                             viewHref={`/invoices/${inv.id}`}
+                            editHref={`/invoices/${inv.id}/edit`}
                             deleteAction={deleteInvoice.bind(null, inv.id)}
                             label="invoice"
                           />

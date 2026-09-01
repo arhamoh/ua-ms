@@ -591,6 +591,11 @@ async function syncInvoiceStatus(invoiceId: string) {
   else if (paidCad + 0.5 >= totalCad) status = 'PAID';
   else status = 'PARTIAL';
 
+  // Respect a settled PAID invoice: deposits are often LESS than the total
+  // (payment-processor/withdrawal fees) and can arrive as several partial
+  // transactions, so never auto-downgrade a PAID invoice back to PARTIAL/SENT.
+  if (inv.status === 'PAID' && status !== 'PAID') return;
+
   if (status !== inv.status) {
     await prisma.invoice.update({ where: { id: invoiceId }, data: { status: status as any } });
   }
@@ -603,6 +608,86 @@ export async function setInvoiceStatus(formData: FormData) {
   await prisma.invoice.update({ where: { id }, data: { status: status as any } });
   revalidatePath(`/invoices/${id}`);
   revalidatePath('/invoices');
+  redirect(`/invoices/${id}`);
+}
+
+// Edit an invoice's core fields. Writes to the DB, which every page reads live,
+// so the change reflects on the invoice, Finance, and the client profile.
+export async function updateInvoice(formData: FormData) {
+  const id = str(formData.get('invoiceId'));
+  if (!id) return;
+  const data: Record<string, any> = {};
+  const clientId = str(formData.get('clientId'));
+  if (clientId) data.clientId = clientId;
+  const amountRaw = str(formData.get('amount'));
+  if (amountRaw != null) { const n = Number(amountRaw); if (!Number.isNaN(n) && n >= 0) data.amount = n; }
+  const currency = str(formData.get('currency'));
+  if (currency && CURRENCIES.includes(currency)) data.currency = currency;
+  const status = str(formData.get('status'));
+  if (status && INVOICE_STATUSES.includes(status)) data.status = status as any;
+  const issued = str(formData.get('issuedAt'));
+  if (issued) data.issuedAt = new Date(issued);
+  const due = formData.get('dueAt');
+  if (due !== null) { const d = str(due); data.dueAt = d ? new Date(d) : null; }
+  const notes = formData.get('notes');
+  if (notes !== null) data.notes = str(notes);
+  if (Object.keys(data).length === 0) redirect(`/invoices/${id}`);
+
+  await prisma.invoice.update({ where: { id }, data });
+  revalidatePath('/invoices');
+  revalidatePath(`/invoices/${id}`);
+  revalidatePath('/finance');
+  revalidatePath('/clients');
+  redirect(`/invoices/${id}`);
+}
+
+// Attach an already-recorded (e.g. bank-imported) payment to an invoice. Several
+// partial deposits can be linked to one invoice; status is recomputed after.
+export async function linkPaymentToInvoice(paymentId: string, invoiceId: string) {
+  if (!paymentId || !invoiceId) return;
+  const [pmt, inv] = await Promise.all([
+    prisma.payment.findUnique({ where: { id: paymentId }, select: { id: true } }),
+    prisma.invoice.findUnique({ where: { id: invoiceId }, select: { id: true, clientId: true } }),
+  ]);
+  if (!pmt || !inv) return;
+  await prisma.payment.update({ where: { id: paymentId }, data: { invoiceId, clientId: inv.clientId, bankMatchedAt: new Date() } });
+  await syncInvoiceStatus(invoiceId);
+  revalidatePath(`/invoices/${invoiceId}`);
+  revalidatePath('/invoices');
+  revalidatePath('/finance');
+}
+
+// Detach a payment from its invoice (keeps the payment in the ledger).
+export async function unlinkPaymentFromInvoice(paymentId: string) {
+  if (!paymentId) return;
+  const p = await prisma.payment.findUnique({ where: { id: paymentId }, select: { invoiceId: true } });
+  await prisma.payment.update({ where: { id: paymentId }, data: { invoiceId: null, bankMatchedAt: null } });
+  if (p?.invoiceId) { await syncInvoiceStatus(p.invoiceId); revalidatePath(`/invoices/${p.invoiceId}`); }
+  revalidatePath('/invoices');
+  revalidatePath('/finance');
+}
+
+// Book the gap between an invoice total and what was actually deposited (the
+// payment-processor / withdrawal fee) as an expense, so the ledger balances.
+export async function recordInvoiceFee(formData: FormData) {
+  const id = str(formData.get('invoiceId'));
+  const amount = Number(str(formData.get('amount')) ?? '');
+  if (!id || Number.isNaN(amount) || amount <= 0) redirect(`/invoices/${id}`);
+  const inv = await prisma.invoice.findUnique({ where: { id }, select: { number: true, externalNumber: true, client: { select: { name: true } } } });
+  const label = inv?.externalNumber ? inv.externalNumber : `#${inv?.number ?? ''}`;
+  await prisma.expense.create({
+    data: {
+      title: `Payment processing fee — invoice ${label}`,
+      category: 'FEES',
+      amount,
+      currency: 'CAD',
+      amountCad: amount,
+      date: new Date(),
+      note: `Withdrawal/processing fee for ${inv?.client?.name ?? 'client'}`.slice(0, 300),
+    },
+  });
+  revalidatePath('/finance');
+  revalidatePath(`/invoices/${id}`);
   redirect(`/invoices/${id}`);
 }
 
@@ -1174,8 +1259,8 @@ export async function importWaveInvoices(): Promise<{ ok: boolean; message: stri
         if (diff <= Math.max(1, targetCad * 0.02) && days <= 120 && diff < bestDiff) { best = { id: p.id }; bestDiff = diff; }
       }
       if (best) {
-        await prisma.payment.update({ where: { id: best.id }, data: { invoiceId } });
-        await prisma.invoice.update({ where: { id: invoiceId }, data: { status: 'PAID' } });
+        await prisma.payment.update({ where: { id: best.id }, data: { invoiceId, bankMatchedAt: new Date() } });
+        await syncInvoiceStatus(invoiceId);
         paymentsLinked++;
       }
     }
