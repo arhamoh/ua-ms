@@ -698,7 +698,7 @@ export default function StatementImport({
           </div>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[760px] text-sm">
+          <table className={`w-full text-sm ${multiFile ? 'min-w-[1240px]' : 'min-w-[1040px]'}`}>
             <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
               <tr>
                 <th className="px-4 py-3 font-medium">
@@ -731,7 +731,7 @@ export default function StatementImport({
                     <input type="checkbox" checked={t.include} onChange={(e) => setOv(t.i, { include: e.target.checked })} className="rounded border-slate-300" />
                   </td>
                   <td className="px-4 py-2">
-                    <input type="date" value={t.date} onChange={(e) => setOv(t.i, { date: e.target.value })} className={`${miniCls} w-36`} />
+                    <input type="date" value={t.date} onChange={(e) => setOv(t.i, { date: e.target.value })} className={`${miniCls} w-40`} />
                   </td>
                   <td className="px-4 py-2">
                     <select
@@ -773,7 +773,7 @@ export default function StatementImport({
                       step="any"
                       value={t.amount}
                       onChange={(e) => setOv(t.i, { amount: e.target.value })}
-                      className={`${miniCls} w-28 text-right tabular-nums`}
+                      className={`${miniCls} w-32 text-right tabular-nums`}
                     />
                   </td>
                   {multiFile && <td className="max-w-[180px] truncate px-4 py-2 text-xs text-slate-400" title={t.source}>{t.source}</td>}
