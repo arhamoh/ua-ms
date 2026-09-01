@@ -186,6 +186,12 @@ export default function StatementImport({
   // Local category lists so newly-added categories show up immediately.
   const [expCats, setExpCats] = useState<Opt[]>(categories);
   const [incCats, setIncCats] = useState<Opt[]>(incomeCategories);
+  // Alphabetical for the dropdowns.
+  const sortedExp = useMemo(() => [...expCats].sort((a, b) => a.label.localeCompare(b.label)), [expCats]);
+  const sortedInc = useMemo(() => [...incCats].sort((a, b) => a.label.localeCompare(b.label)), [incCats]);
+  // In-app "new category" modal (replaces the browser prompt).
+  const [catModal, setCatModal] = useState<{ i: number; type: string } | null>(null);
+  const [catName, setCatName] = useState('');
   const [mode, setMode] = useState<'csv' | 'pdf' | null>(null);
   const [fileName, setFileName] = useState('');
   const [rawRows, setRawRows] = useState<string[][]>([]);
@@ -407,22 +413,31 @@ export default function StatementImport({
 
   const setMap = (patch: Partial<Mapping>) => setMapping((m) => (m ? { ...m, ...patch } : m));
 
-  // Add a new expense/income category on the spot (persists + selects it).
+  // Picking "+ New category…" opens an in-app modal (no browser prompt).
   const onCatChange = (i: number, type: string, value: string) => {
-    if (value !== '__new__') {
-      setOv(i, { category: value });
+    if (value === '__new__') {
+      setCatName('');
+      setCatModal({ i, type });
       return;
     }
-    const name = window.prompt(`New ${type === 'income' ? 'income' : 'expense'} category name`);
-    if (!name || !name.trim()) return;
+    setOv(i, { category: value });
+  };
+
+  const submitNewCat = () => {
+    if (!catModal) return;
+    const name = catName.trim();
+    if (!name) return;
+    const { i, type } = catModal;
     start(async () => {
-      const opt = await addOptionCategory(type === 'income' ? 'incomeCategory' : 'expenseCategory', name.trim());
+      const opt = await addOptionCategory(type === 'income' ? 'incomeCategory' : 'expenseCategory', name);
       if (opt) {
         const add = (p: Opt[]) => (p.some((c) => c.value === opt.value) ? p : [...p, opt]);
         if (type === 'income') setIncCats(add);
         else setExpCats(add);
         setOv(i, { category: opt.value });
       }
+      setCatModal(null);
+      setCatName('');
     });
   };
 
@@ -762,7 +777,7 @@ export default function StatementImport({
                       {!(t.type === 'income' ? incCats : expCats).some((c) => c.value === t.category) && t.category && (
                         <option value={t.category}>{t.category}</option>
                       )}
-                      {(t.type === 'income' ? incCats : expCats).map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+                      {(t.type === 'income' ? sortedInc : sortedExp).map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
                       <option value="__new__">+ New category…</option>
                     </select>
                   </td>
@@ -822,6 +837,31 @@ export default function StatementImport({
           {pending ? 'Importing…' : `Import ${included.length} line${included.length === 1 ? '' : 's'}`}
         </button>
       </div>
+
+      {/* New-category modal (in-app, replaces the browser prompt) */}
+      {catModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4" onClick={() => !pending && setCatModal(null)}>
+          <div className="w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-sm font-semibold">New {catModal.type === 'income' ? 'income' : 'expense'} category</h3>
+            <p className="mt-0.5 text-xs text-slate-400">It’s saved and reusable across imports.</p>
+            <input
+              autoFocus
+              value={catName}
+              onChange={(e) => setCatName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') submitNewCat();
+                if (e.key === 'Escape') setCatModal(null);
+              }}
+              placeholder="e.g. Upwork payment"
+              className="mt-3 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/10"
+            />
+            <div className="mt-4 flex justify-end gap-2">
+              <button onClick={() => setCatModal(null)} disabled={pending} className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50">Cancel</button>
+              <button onClick={submitNewCat} disabled={pending || !catName.trim()} className="rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-dark disabled:opacity-50">{pending ? 'Adding…' : 'Add category'}</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
