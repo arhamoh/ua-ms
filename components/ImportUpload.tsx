@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { UploadCloud, FileSpreadsheet, Loader2 } from 'lucide-react';
+import { UploadCloud, FileSpreadsheet, Loader2, Landmark, CreditCard } from 'lucide-react';
 import { createPendingImport } from '@/app/actions';
 import {
   fileToBase64, parseCsv, detectHeaderIndex, detectMapping, normalizeDate, num, toLines, type ImportLine,
@@ -17,6 +17,7 @@ export default function ImportUpload({ currencies, rules = [] }: { currencies: O
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [type, setType] = useState<'BANK' | 'CREDIT_CARD'>('BANK');
 
   const rulesByKey = new Map<string, { type: string; category: string; title: string | null }>();
   for (const r of rules) rulesByKey.set(r.matchKey, r);
@@ -84,7 +85,7 @@ export default function ImportUpload({ currencies, rules = [] }: { currencies: O
             fileName: f.name,
             mimeType: f.type || (isPdf ? 'application/pdf' : 'text/csv'),
             fileBase64: parsed.base64,
-            accountType: 'BANK',
+            accountType: type,
             accountLabel: f.name.replace(/\.[^.]+$/, ''),
             currency: parsed.currency,
             lines: parsed.lines,
@@ -119,13 +120,31 @@ export default function ImportUpload({ currencies, rules = [] }: { currencies: O
       <span className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-brand-light text-brand"><UploadCloud size={24} /></span>
       <h2 className="mt-4 text-sm font-semibold">Upload statements (CSV or PDF)</h2>
       <p className="mx-auto mt-1 max-w-md text-sm text-slate-500">
-        Pick one or several files. Each becomes a <span className="font-medium text-slate-600">pending import</span> you
-        can open in its own tab, review, and finish whenever — nothing is added until you commit it.
+        Choose what you're uploading, then pick one or several files. Each becomes a{' '}
+        <span className="font-medium text-slate-600">pending import</span> you can review and finish whenever.
       </p>
-      <label className="mt-5 inline-flex cursor-pointer items-center gap-2 rounded-xl bg-brand px-4 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-brand-dark">
-        <FileSpreadsheet size={16} /> Choose files
-        <input type="file" multiple accept=".csv,text/csv,.pdf,application/pdf" className="hidden" onChange={onFile} />
-      </label>
+
+      {/* What am I uploading? */}
+      <div className="mt-4 inline-flex rounded-xl border border-slate-200 p-1">
+        {([['BANK', 'Bank account', Landmark], ['CREDIT_CARD', 'Credit card', CreditCard]] as const).map(([val, label, Icon]) => (
+          <button
+            key={val}
+            onClick={() => setType(val)}
+            className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition ${
+              type === val ? 'bg-brand text-white shadow-sm' : 'text-slate-600 hover:bg-slate-50'
+            }`}
+          >
+            <Icon size={14} /> {label}
+          </button>
+        ))}
+      </div>
+
+      <div>
+        <label className="mt-4 inline-flex cursor-pointer items-center gap-2 rounded-xl bg-brand px-4 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-brand-dark">
+          <FileSpreadsheet size={16} /> Choose {type === 'CREDIT_CARD' ? 'credit card' : 'bank'} statements
+          <input type="file" multiple accept=".csv,text/csv,.pdf,application/pdf" className="hidden" onChange={onFile} />
+        </label>
+      </div>
       {error && <p className="mt-3 text-sm text-rose-600">{error}</p>}
     </div>
   );

@@ -1,11 +1,10 @@
 import Link from 'next/link';
-import { Fragment } from 'react';
-import { ArrowLeft, Camera, FileText, Landmark, CreditCard, ChevronRight } from 'lucide-react';
+import { ArrowLeft, Camera } from 'lucide-react';
 import { getOptions } from '@/lib/options';
 import { prisma } from '@/lib/prisma';
 import FadeIn from '@/components/FadeIn';
 import ImportUpload from '@/components/ImportUpload';
-import PendingTypeToggle from '@/components/PendingTypeToggle';
+import PendingImportsBoard from '@/components/PendingImportsBoard';
 
 export const dynamic = 'force-dynamic';
 
@@ -32,11 +31,6 @@ function periodLabel(name: string): string {
   return '';
 }
 
-const SECTIONS = [
-  { type: 'BANK', label: 'Bank account statements', Icon: Landmark },
-  { type: 'CREDIT_CARD', label: 'Credit card statements', Icon: CreditCard },
-];
-
 export default async function ImportStatementPage() {
   const [currencies, rules, pendingRaw] = await Promise.all([
     getOptions('currency'),
@@ -53,7 +47,6 @@ export default async function ImportStatementPage() {
     return {
       id: p.id, fileName: p.fileName, accountType: p.accountType, accountLabel: p.accountLabel,
       count, year: yearOf(p.fileName), month: monthOf(p.fileName), period: periodLabel(p.fileName),
-      createdAt: p.createdAt,
     };
   });
 
@@ -77,61 +70,13 @@ export default async function ImportStatementPage() {
       <FadeIn><ImportUpload currencies={currencies} rules={rules} /></FadeIn>
 
       {pending.length > 0 && (
-        <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
-          {SECTIONS.map((section, si) => {
-            // Newest year first; within a year, Jan → Dec (unknown last), then by account.
-            const rows = pending
-              .filter((p) => p.accountType === section.type)
-              .sort((a, b) => yearRank(b) - yearRank(a) || (a.month || 13) - (b.month || 13) || a.accountLabel.localeCompare(b.accountLabel));
-            return (
-              <FadeIn key={section.type} delay={0.06 + si * 0.04}>
-                <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-                  <div className="flex items-center gap-2 border-b border-slate-100 px-5 py-4">
-                    <section.Icon size={16} className="text-slate-400" />
-                    <h2 className="text-sm font-semibold">{section.label}</h2>
-                    <span className="text-xs text-slate-400">· {rows.length}</span>
-                  </div>
-                  {rows.length === 0 ? (
-                    <div className="px-5 py-8 text-center text-sm text-slate-400">None yet.</div>
-                  ) : (
-                    <div className="divide-y divide-slate-100">
-                      {rows.map((p, idx) => {
-                        const showYear = p.year > 0 && (idx === 0 || rows[idx - 1].year !== p.year);
-                        return (
-                          <Fragment key={p.id}>
-                            {showYear && (
-                              <div className="bg-slate-50/70 px-5 py-1.5 text-xs font-semibold uppercase tracking-wider text-slate-400">{p.year}</div>
-                            )}
-                            <div className="flex items-center justify-between gap-3 px-5 py-3 transition hover:bg-slate-50">
-                              <Link href={`/finance/import/${p.id}`} className="flex min-w-0 flex-1 items-center gap-3">
-                                <FileText size={16} className="shrink-0 text-slate-400" />
-                                <div className="min-w-0">
-                                  <div className="truncate text-sm font-medium text-slate-800">{p.period || p.accountLabel}</div>
-                                  <div className="truncate text-xs text-slate-400">{p.fileName}</div>
-                                </div>
-                              </Link>
-                              <div className="flex shrink-0 items-center gap-2">
-                                <PendingTypeToggle id={p.id} type={p.accountType} />
-                                <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">{p.count}</span>
-                                <Link href={`/finance/import/${p.id}`} className="text-slate-300 transition hover:text-slate-500"><ChevronRight size={16} /></Link>
-                              </div>
-                            </div>
-                          </Fragment>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              </FadeIn>
-            );
-          })}
-        </div>
+        <FadeIn delay={0.06}>
+          <div className="mt-6">
+            <p className="mb-3 text-xs text-slate-400">Drag a statement between sections, or use the chip, to change its type.</p>
+            <PendingImportsBoard pending={pending} />
+          </div>
+        </FadeIn>
       )}
     </div>
   );
-}
-
-// Statements with no detectable year sort to the bottom.
-function yearRank(p: { year: number }): number {
-  return p.year || -1;
 }
