@@ -4,7 +4,8 @@ import { useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { UploadCloud, FileSpreadsheet, CheckCircle2, RotateCcw, Loader2, Eye } from 'lucide-react';
-import { importStatementLines } from '@/app/actions';
+import { importStatementLines, saveStatement } from '@/app/actions';
+import { STATEMENT_ACCOUNT_TYPES, STATEMENT_ACCOUNT_TYPE_LABELS } from '@/lib/enums';
 import ProgressBar from './ProgressBar';
 
 function fileToBase64(file: File): Promise<string> {
@@ -184,6 +185,10 @@ export default function StatementImport({
   const [taxIncluded, setTaxIncluded] = useState(false);
   const [result, setResult] = useState<ImportResult | null>(null);
   const [pending, start] = useTransition();
+  // The original file, kept so it can be archived to Statements on import.
+  const [file, setFile] = useState<File | null>(null);
+  const [acctType, setAcctType] = useState('BANK');
+  const [acctLabel, setAcctLabel] = useState('');
   // Preview of the original file (PDF data URL / raw CSV text). Temporary trust
   // aid — safe to remove this + the panel below once no longer needed.
   const [sourceData, setSourceData] = useState('');
@@ -195,6 +200,8 @@ export default function StatementImport({
     if (!f) return;
     const isPdf = f.type === 'application/pdf' || /\.pdf$/i.test(f.name);
     setFileName(f.name);
+    setFile(f);
+    setAcctLabel((prev) => prev || f.name.replace(/\.[^.]+$/, ''));
     setOverrides({});
     setResult(null);
     setPdfNotice(null);
@@ -265,6 +272,7 @@ export default function StatementImport({
     setResult(null);
     setSourceData('');
     setShowPreview(false);
+    setFile(null);
   };
 
   const header = useMemo(() => {
@@ -352,6 +360,21 @@ export default function StatementImport({
     }));
     start(async () => {
       const res = await importStatementLines(items);
+      // Archive the original file to the Statements section (best-effort).
+      if (file) {
+        try {
+          const fd = new FormData();
+          fd.set('file', file);
+          fd.set('accountType', acctType);
+          fd.set('accountLabel', acctLabel.trim() || file.name);
+          fd.set('source', 'IMPORT');
+          fd.set('importedExpenses', String(res.expenses));
+          fd.set('importedIncome', String(res.incomeMatched + res.incomeAdded));
+          await saveStatement(fd);
+        } catch {
+          // don't fail the import if archiving the file hiccups
+        }
+      }
       setResult(res);
       router.refresh();
     });
@@ -373,7 +396,7 @@ export default function StatementImport({
         </h2>
         <p className="mt-1 text-sm text-emerald-700">
           Expenses were added and converted to CAD. Bank credits that matched a client payment were marked reconciled;
-          the rest were logged as other income.
+          the rest were logged as other income. The statement file was saved to your Statements archive.
         </p>
         <div className="mt-5 flex items-center justify-center gap-3">
           <Link href="/finance?tab=expenses" className="rounded-xl bg-brand px-4 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-brand-dark">
@@ -663,6 +686,24 @@ export default function StatementImport({
             </tbody>
           </table>
         </div>
+      </div>
+
+      {/* Save-to-archive settings */}
+      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <h2 className="mb-3 text-sm font-semibold">Save this statement to your archive</h2>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <label className="block">
+            <span className="mb-1 block text-xs font-medium text-slate-600">Account type</span>
+            <select value={acctType} onChange={(e) => setAcctType(e.target.value)} className={miniCls}>
+              {STATEMENT_ACCOUNT_TYPES.map((t) => <option key={t} value={t}>{STATEMENT_ACCOUNT_TYPE_LABELS[t]}</option>)}
+            </select>
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-xs font-medium text-slate-600">Account name</span>
+            <input value={acctLabel} onChange={(e) => setAcctLabel(e.target.value)} placeholder="Scotiabank chequing" className={miniCls} />
+          </label>
+        </div>
+        <p className="mt-2 text-xs text-slate-400">The original file is saved to the Statements section so you can open it later.</p>
       </div>
 
       {/* Import bar */}

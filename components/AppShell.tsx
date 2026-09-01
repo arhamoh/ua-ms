@@ -25,6 +25,7 @@ import {
   Clock,
   Target,
   Globe,
+  ReceiptText,
   PanelLeftClose,
   PanelLeftOpen,
   type LucideIcon,
@@ -81,6 +82,7 @@ const navSections: NavSection[] = [
     items: [
       { href: '/invoices', label: 'Invoices', icon: FileText },
       { href: '/finance', label: 'Finance', icon: PiggyBank },
+      { href: '/statements', label: 'Statements', icon: ReceiptText },
       { href: '/commissions', label: 'Commissions', icon: Coins },
     ],
   },

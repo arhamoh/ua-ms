@@ -157,6 +157,17 @@ export const FILE_CATEGORIES = Object.keys(FILE_CATEGORY_LABELS);
 
 export const CURRENCIES = ['USD', 'CAD', 'EUR', 'GBP', 'AUD', 'PKR'];
 
+// Statement archive: bank vs credit-card statements.
+export const STATEMENT_ACCOUNT_TYPES = ['BANK', 'CREDIT_CARD'];
+export const STATEMENT_ACCOUNT_TYPE_LABELS: Record<string, string> = {
+  BANK: 'Bank account',
+  CREDIT_CARD: 'Credit card',
+};
+export const STATEMENT_ACCOUNT_TYPE_BADGE: Record<string, string> = {
+  BANK: 'bg-sky-100 text-sky-700',
+  CREDIT_CARD: 'bg-violet-100 text-violet-700',
+};
+
 export const PAYMENT_METHOD_LABELS: Record<string, string> = {
   BANK_TRANSFER: 'Bank transfer',
   WISE: 'Wise',

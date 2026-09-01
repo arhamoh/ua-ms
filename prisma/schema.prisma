@@ -96,6 +96,7 @@ model User {
   messagesSent      Message[]          @relation("MessagesSent")
   commentThreads    CommentThread[]    @relation("ThreadCreatedBy")
   comments          Comment[]          @relation("CommentAuthor")
+  statements        Statement[]        @relation("UploadedStatements")
 
   @@index([email])
 }
@@ -668,6 +669,31 @@ model QuarterlyFiling {
   updatedAt         DateTime  @updatedAt
 
   @@unique([year, quarter])
+}
+
+// An archived bank / credit-card statement file (PDF or CSV), stored inline in
+// the database so it can be opened and viewed from the platform. Independent of
+// the transactions imported from it.
+model Statement {
+  id           String   @id @default(cuid())
+  accountType  String   @default("BANK") // BANK | CREDIT_CARD
+  accountLabel String                    // free text, e.g. "Scotiabank chequing", "Amex Platinum"
+  fileName     String
+  mimeType     String   @default("application/pdf")
+  size         Int      @default(0)
+  data         Bytes                     // the raw file bytes
+  periodLabel  String?                   // optional, e.g. "June 2026"
+  note         String?
+  source       String   @default("UPLOAD") // UPLOAD | IMPORT
+  importedExpenses Int  @default(0)
+  importedIncome   Int  @default(0)
+  createdAt    DateTime @default(now())
+
+  uploadedById String?
+  uploadedBy   User?    @relation("UploadedStatements", fields: [uploadedById], references: [id], onDelete: SetNull)
+
+  @@index([accountType])
+  @@index([createdAt])
 }
 
 // ─── Lead generation ─────────────────────────────────────────────────────────

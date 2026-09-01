@@ -1476,6 +1476,51 @@ export async function setQuarterlyFiling(formData: FormData) {
   redirect(`/finance?tab=tax&year=${year}`);
 }
 
+// ─── Statement archive ───────────────────────────────────────────────────────
+
+const STATEMENT_TYPES = ['BANK', 'CREDIT_CARD'];
+const MAX_STATEMENT_BYTES = 15 * 1024 * 1024; // 15 MB
+
+// Save an uploaded bank / credit-card statement file into the archive (stored
+// inline in the DB). Used by the standalone upload form and, after an import,
+// by the statement importer (source=IMPORT with the transaction counts).
+export async function saveStatement(formData: FormData) {
+  const file = formData.get('file');
+  if (!(file instanceof File) || file.size === 0) throw new Error('Choose a statement file.');
+  if (file.size > MAX_STATEMENT_BYTES) throw new Error('That file is too large (max 15 MB).');
+
+  const typeRaw = str(formData.get('accountType'));
+  const accountType = STATEMENT_TYPES.includes(typeRaw ?? '') ? (typeRaw as string) : 'BANK';
+  const accountLabel = str(formData.get('accountLabel')) || file.name;
+  const mimeType = file.type || (/\.pdf$/i.test(file.name) ? 'application/pdf' : 'text/csv');
+  const buffer = Buffer.from(await file.arrayBuffer());
+  const session = await getSession();
+
+  await prisma.statement.create({
+    data: {
+      accountType,
+      accountLabel,
+      fileName: file.name,
+      mimeType,
+      size: file.size,
+      data: buffer,
+      periodLabel: str(formData.get('periodLabel')),
+      note: str(formData.get('note')),
+      source: str(formData.get('source')) === 'IMPORT' ? 'IMPORT' : 'UPLOAD',
+      importedExpenses: Number(str(formData.get('importedExpenses'))) || 0,
+      importedIncome: Number(str(formData.get('importedIncome'))) || 0,
+      uploadedById: session?.id ?? null,
+    },
+  });
+  revalidatePath('/statements');
+}
+
+export async function deleteStatement(id: string) {
+  if (!id) return;
+  await prisma.statement.delete({ where: { id } });
+  revalidatePath('/statements');
+}
+
 // ─── Loans / money to recover ────────────────────────────────────────────────
 
 export async function addLoan(formData: FormData) {
