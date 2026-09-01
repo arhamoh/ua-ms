@@ -4,7 +4,7 @@ import { useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { UploadCloud, FileSpreadsheet, CheckCircle2, RotateCcw, Loader2, Eye } from 'lucide-react';
-import { importStatementLines, saveStatement } from '@/app/actions';
+import { importStatementLines, saveStatement, addOptionCategory } from '@/app/actions';
 import { STATEMENT_ACCOUNT_TYPES, STATEMENT_ACCOUNT_TYPE_LABELS } from '@/lib/enums';
 import { ruleKey } from '@/lib/txnrules';
 import ProgressBar from './ProgressBar';
@@ -183,6 +183,9 @@ export default function StatementImport({
     for (const r of rules) m.set(r.matchKey, r);
     return m;
   }, [rules]);
+  // Local category lists so newly-added categories show up immediately.
+  const [expCats, setExpCats] = useState<Opt[]>(categories);
+  const [incCats, setIncCats] = useState<Opt[]>(incomeCategories);
   const [mode, setMode] = useState<'csv' | 'pdf' | null>(null);
   const [fileName, setFileName] = useState('');
   const [rawRows, setRawRows] = useState<string[][]>([]);
@@ -403,6 +406,25 @@ export default function StatementImport({
     setOverrides((p) => ({ ...p, [i]: { ...p[i], ...patch } }));
 
   const setMap = (patch: Partial<Mapping>) => setMapping((m) => (m ? { ...m, ...patch } : m));
+
+  // Add a new expense/income category on the spot (persists + selects it).
+  const onCatChange = (i: number, type: string, value: string) => {
+    if (value !== '__new__') {
+      setOv(i, { category: value });
+      return;
+    }
+    const name = window.prompt(`New ${type === 'income' ? 'income' : 'expense'} category name`);
+    if (!name || !name.trim()) return;
+    start(async () => {
+      const opt = await addOptionCategory(type === 'income' ? 'incomeCategory' : 'expenseCategory', name.trim());
+      if (opt) {
+        const add = (p: Opt[]) => (p.some((c) => c.value === opt.value) ? p : [...p, opt]);
+        if (type === 'income') setIncCats(add);
+        else setExpCats(add);
+        setOv(i, { category: opt.value });
+      }
+    });
+  };
 
   const doImport = () => {
     const items = included.map((t) => ({
@@ -736,8 +758,12 @@ export default function StatementImport({
                     {t.interest && <span className="mt-1 block text-[11px] text-amber-600">labeled “Interest expense”</span>}
                   </td>
                   <td className="px-4 py-2">
-                    <select value={t.category} onChange={(e) => setOv(t.i, { category: e.target.value })} className={`${miniCls} w-40`}>
-                      {(t.type === 'income' ? incomeCategories : categories).map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+                    <select value={t.category} onChange={(e) => onCatChange(t.i, t.type, e.target.value)} className={`${miniCls} w-44`}>
+                      {!(t.type === 'income' ? incCats : expCats).some((c) => c.value === t.category) && t.category && (
+                        <option value={t.category}>{t.category}</option>
+                      )}
+                      {(t.type === 'income' ? incCats : expCats).map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+                      <option value="__new__">+ New category…</option>
                     </select>
                   </td>
                   <td className="px-4 py-2 text-right">

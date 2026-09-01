@@ -1,7 +1,6 @@
 'use client';
 
 import { useTransition } from 'react';
-import { INCOME_CATEGORIES, INCOME_CATEGORY_LABELS } from '@/lib/enums';
 import { updateOtherIncomeCategory, assignIncomeToClient } from '@/app/actions';
 
 // Inline controls for an income row: change its category, or assign it to a
@@ -10,10 +9,12 @@ export default function IncomeControls({
   id,
   category,
   clients,
+  categories,
 }: {
   id: string;
   category: string;
   clients: { id: string; name: string }[];
+  categories: { value: string; label: string }[];
 }) {
   const [pending, start] = useTransition();
   const cls =
@@ -33,8 +34,9 @@ export default function IncomeControls({
         className={cls}
         title="Income category"
       >
-        {INCOME_CATEGORIES.map((c) => (
-          <option key={c} value={c}>{INCOME_CATEGORY_LABELS[c]}</option>
+        {!categories.some((c) => c.value === category) && category && <option value={category}>{category}</option>}
+        {categories.map((c) => (
+          <option key={c.value} value={c.value}>{c.label}</option>
         ))}
       </select>
 

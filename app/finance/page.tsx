@@ -14,7 +14,7 @@ import {
   addOtherIncome,
   deleteOtherIncome,
 } from '@/app/actions';
-import { EXPENSE_CATEGORY_LABELS, EXPENSE_CATEGORY_BADGE, INVOICE_STATUS_LABELS, INVOICE_STATUS_BADGE, INCOME_CATEGORIES, INCOME_CATEGORY_LABELS, INCOME_CATEGORY_BADGE, formatMoney, fxRateNote } from '@/lib/enums';
+import { EXPENSE_CATEGORY_LABELS, EXPENSE_CATEGORY_BADGE, INVOICE_STATUS_LABELS, INVOICE_STATUS_BADGE, INCOME_CATEGORY_LABELS, INCOME_CATEGORY_BADGE, formatMoney, fxRateNote } from '@/lib/enums';
 import IncomeControls from '@/components/IncomeControls';
 import { getOptions, ensureExpenseCategories, ensureOptionDefaults } from '@/lib/options';
 import { getRatesToCad, toCad } from '@/lib/fx';
@@ -61,7 +61,7 @@ export default async function FinancePage({
 
   await Promise.all([ensureExpenseCategories(), ensureOptionDefaults('paymentMethod')]);
   const [
-    rates, company, payments, expenses, salaryPays, commPays, users, expenseCats, currencies, methods, loans,
+    rates, company, payments, expenses, salaryPays, commPays, users, expenseCats, incomeCats, currencies, methods, loans,
     owedExpenses, otherIncomeMonth, invoicesRaw, yearPayments, yearExpenses, filings, clients,
   ] = await Promise.all([
     getRatesToCad(),
@@ -76,6 +76,7 @@ export default async function FinancePage({
     prisma.commissionPayout.findMany({ where: { paidAt: { gte: start, lt: end } } }),
     prisma.user.findMany({ orderBy: { name: 'asc' }, include: { salaries: { orderBy: { effectiveFrom: 'desc' }, take: 1 } } }),
     getOptions('expenseCategory'),
+    getOptions('incomeCategory'),
     getOptions('currency'),
     getOptions('paymentMethod'),
     prisma.loan.findMany({ orderBy: { givenAt: 'desc' } }),
@@ -125,6 +126,11 @@ export default async function FinancePage({
   otherIncomeMonth.forEach((o) => {
     incomeByCategory[o.category] = (incomeByCategory[o.category] ?? 0) + (o.amountCad ?? cadOf(o.amount, o.currency));
   });
+
+  // Labels that gracefully cover custom categories (fall back to the raw value).
+  const prettifyCat = (c: string) => (c ? c.charAt(0) + c.slice(1).toLowerCase().replace(/_/g, ' ') : c);
+  const expLabel = (c: string) => expenseCats.find((o) => o.value === c)?.label ?? EXPENSE_CATEGORY_LABELS[c] ?? prettifyCat(c);
+  const incLabel = (c: string) => incomeCats.find((o) => o.value === c)?.label ?? INCOME_CATEGORY_LABELS[c] ?? prettifyCat(c);
 
   // Receivables: invoice total (incl. tax, CAD) vs. what's been paid.
   const receivables = invoicesRaw.map((inv) => {
@@ -268,14 +274,12 @@ export default async function FinancePage({
                       <td className="px-5 py-3 text-right tabular-nums text-emerald-700">{formatMoney(otherIncomeTotal, 'CAD')}</td>
                     </tr>
                   )}
-                  {Object.keys(EXPENSE_CATEGORY_LABELS).map((cat) =>
-                    byCategory[cat] ? (
-                      <tr key={cat}>
-                        <td className="px-5 py-3 text-slate-600">Expense · {EXPENSE_CATEGORY_LABELS[cat]}</td>
-                        <td className="px-5 py-3 text-right tabular-nums text-slate-600">−{formatMoney(byCategory[cat], 'CAD')}</td>
-                      </tr>
-                    ) : null,
-                  )}
+                  {Object.keys(byCategory).sort((a, b) => byCategory[b] - byCategory[a]).map((cat) => (
+                    <tr key={cat}>
+                      <td className="px-5 py-3 text-slate-600">Expense · {expLabel(cat)}</td>
+                      <td className="px-5 py-3 text-right tabular-nums text-slate-600">−{formatMoney(byCategory[cat], 'CAD')}</td>
+                    </tr>
+                  ))}
                   {salaryTotal > 0 && (
                     <tr><td className="px-5 py-3 text-slate-600">Salaries paid</td><td className="px-5 py-3 text-right tabular-nums text-slate-600">−{formatMoney(salaryTotal, 'CAD')}</td></tr>
                   )}
@@ -305,9 +309,9 @@ export default async function FinancePage({
               {/* Category breakdown */}
               {otherIncomeMonth.length > 0 && (
                 <div className="flex flex-wrap gap-2 border-b border-slate-100 bg-slate-50 px-5 py-3">
-                  {INCOME_CATEGORIES.filter((c) => incomeByCategory[c]).map((c) => (
+                  {Object.keys(incomeByCategory).sort((a, b) => incomeByCategory[b] - incomeByCategory[a]).map((c) => (
                     <span key={c} className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${INCOME_CATEGORY_BADGE[c] ?? 'bg-slate-100 text-slate-500'}`}>
-                      {INCOME_CATEGORY_LABELS[c]} <span className="tabular-nums">{formatMoney(incomeByCategory[c], 'CAD')}</span>
+                      {incLabel(c)} <span className="tabular-nums">{formatMoney(incomeByCategory[c], 'CAD')}</span>
                     </span>
                   ))}
                 </div>
@@ -331,7 +335,7 @@ export default async function FinancePage({
                           <td className="px-5 py-3 font-medium text-slate-800">{o.title}{o.source === 'STATEMENT' && <span className="ml-2 rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-500">from statement</span>}</td>
                           <td className="px-5 py-3 tabular-nums text-slate-500">{o.date.toISOString().slice(0, 10)}</td>
                           <td className="px-5 py-3 text-right tabular-nums text-emerald-700">{formatMoney(o.amount, o.currency)}{o.currency !== 'CAD' && <span className="ml-1 text-xs text-slate-400">({formatMoney(o.amountCad ?? cadOf(o.amount, o.currency), 'CAD')} CAD)</span>}</td>
-                          <td className="px-5 py-3"><IncomeControls id={o.id} category={o.category} clients={clients} /></td>
+                          <td className="px-5 py-3"><IncomeControls id={o.id} category={o.category} clients={clients} categories={incomeCats} /></td>
                           <td className="px-5 py-3"><RowActions deleteAction={deleteOtherIncome.bind(null, o.id)} label="income entry" /></td>
                         </tr>
                       ))}
@@ -344,7 +348,7 @@ export default async function FinancePage({
 
               <form action={addOtherIncome} className="grid grid-cols-1 gap-3 border-t border-slate-100 p-5 sm:grid-cols-2 lg:grid-cols-5">
                 <label className="block"><span className="mb-1 block text-xs font-medium text-slate-600">Title *</span><input name="title" required className={inputCls} placeholder="Tax refund" /></label>
-                <label className="block"><span className="mb-1 block text-xs font-medium text-slate-600">Category</span><select name="category" defaultValue="OTHER" className={inputCls}>{INCOME_CATEGORIES.map((c) => <option key={c} value={c}>{INCOME_CATEGORY_LABELS[c]}</option>)}</select></label>
+                <label className="block"><span className="mb-1 block text-xs font-medium text-slate-600">Category</span><select name="category" defaultValue="OTHER" className={inputCls}>{incomeCats.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}</select></label>
                 <div className="grid grid-cols-3 gap-2">
                   <label className="col-span-2 block"><span className="mb-1 block text-xs font-medium text-slate-600">Amount *</span><input name="amount" type="number" min="0" step="any" required className={inputCls} placeholder="200" /></label>
                   <label className="block"><span className="mb-1 block text-xs font-medium text-slate-600">Cur</span><select name="currency" defaultValue="CAD" className={inputCls}>{currencies.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}</select></label>

@@ -17,8 +17,6 @@ import {
   isTaskApprover,
   canManageLogins,
   LEAD_TYPES,
-  EXPENSE_CATEGORIES,
-  INCOME_CATEGORIES,
   CURRENCIES,
   PAYMENT_METHOD_LABELS,
   FILE_CATEGORIES,
@@ -31,6 +29,7 @@ import { invoiceHtml, receiptHtml } from '@/lib/documents';
 import { getCompany, computeTax } from '@/lib/company';
 import { backOutExpenseTax, collectedFromPayment } from '@/lib/tax';
 import { ruleKey } from '@/lib/txnrules';
+import { DEFAULT_OPTIONS } from '@/lib/options';
 import { getSession } from '@/lib/auth';
 import { driveConfigured, uploadToDrive, testDriveConnection } from '@/lib/drive';
 import { testOpenRouter } from '@/lib/integrations';
@@ -40,6 +39,13 @@ import { notifyUsers, resolveMentions } from '@/lib/notify';
 function str(v: FormDataEntryValue | null): string | null {
   const s = (v ?? '').toString().trim();
   return s.length ? s : null;
+}
+
+// Accept any category value (built-in or a custom one added on the fly),
+// normalized to an uppercase key; empty → OTHER.
+function normCat(v: string | null | undefined): string {
+  const s = (v ?? '').trim().toUpperCase().replace(/[^A-Z0-9_]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 40);
+  return s || 'OTHER';
 }
 
 // ─── Team members ────────────────────────────────────────────────────────────
@@ -1249,7 +1255,7 @@ export async function importStatementExpenses(items: ImportItem[]): Promise<{ co
       if (!amount || Number.isNaN(amount) || amount <= 0) return null;
 
       let title = (it.title ?? '').trim() || 'Expense';
-      let category = EXPENSE_CATEGORIES.includes(it.category ?? '') ? (it.category as string) : 'OTHER';
+      let category = normCat(it.category);
       // The interest → fee rule, enforced server-side regardless of the client.
       if (/interest/i.test(title)) {
         title = 'Interest expense';
@@ -1279,6 +1285,39 @@ export async function importStatementExpenses(items: ImportItem[]): Promise<{ co
   if (data.length) await prisma.expense.createMany({ data });
   revalidatePath('/finance');
   return { count: data.length };
+}
+
+// Add a new expense/income category on the fly (from the import review or the
+// finance forms). Returns the created/existing option so the client can select
+// it immediately. Seeds the built-in defaults into the DB first, so adding a
+// custom one doesn't hide them.
+export async function addOptionCategory(
+  kind: string,
+  label: string,
+): Promise<{ value: string; label: string } | null> {
+  if (kind !== 'expenseCategory' && kind !== 'incomeCategory') return null;
+  const name = (label ?? '').trim();
+  if (!name) return null;
+
+  const rows = await prisma.optionItem.findMany({ where: { kind }, select: { value: true } });
+  if (rows.length === 0) {
+    await prisma.optionItem.createMany({
+      data: (DEFAULT_OPTIONS[kind] ?? []).map((o, i) => ({ kind, value: o.value, label: o.label, order: i })),
+      skipDuplicates: true,
+    });
+  }
+
+  const value = name.toUpperCase().replace(/[^A-Z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 40) || 'CUSTOM';
+  const existing = await prisma.optionItem.findUnique({ where: { kind_value: { kind, value } } }).catch(() => null);
+  if (existing) return { value: existing.value, label: existing.label };
+
+  const max = await prisma.optionItem.aggregate({ where: { kind }, _max: { order: true } });
+  const created = await prisma.optionItem.create({
+    data: { kind, value, label: name, order: (max._max.order ?? -1) + 1 },
+  });
+  revalidatePath('/finance');
+  revalidatePath('/finance/import');
+  return { value: created.value, label: created.label };
 }
 
 // A single reviewed line from a statement, either direction.
@@ -1323,7 +1362,7 @@ export async function importStatementLines(
     .filter((x) => x.it.type !== 'income')
     .map(({ it, amount, currency, date, amountCad, fxRate }) => {
       let title = (it.title ?? '').trim() || 'Expense';
-      let category = EXPENSE_CATEGORIES.includes(it.category ?? '') ? (it.category as string) : 'OTHER';
+      let category = normCat(it.category);
       if (/interest/i.test(title)) {
         title = 'Interest expense';
         category = 'FEES';
@@ -1355,7 +1394,7 @@ export async function importStatementLines(
   const otherIncomeData = clean
     .filter((x) => x.it.type === 'income')
     .map(({ it, currency, date, amount, amountCad, fxRate }) => {
-      const category = INCOME_CATEGORIES.includes(it.category ?? '') ? (it.category as string) : 'OTHER';
+      const category = normCat(it.category);
       return {
         title: (it.title ?? '').trim() || 'Bank credit',
         category,
@@ -1378,8 +1417,7 @@ export async function importStatementLines(
     const key = ruleKey(it.rawDesc || it.title || '');
     if (key.length < 3) continue;
     const type = it.type === 'income' ? 'income' : 'expense';
-    const validCats = type === 'income' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
-    const category = validCats.includes(it.category ?? '') ? (it.category as string) : 'OTHER';
+    const category = normCat(it.category);
     const renamed = (it.title ?? '').trim() && (it.title ?? '').trim().toUpperCase() !== (it.rawDesc ?? '').trim().toUpperCase();
     rules.set(key, { type, category, title: renamed ? (it.title as string).trim() : null });
   }
@@ -1417,7 +1455,7 @@ export async function addOtherIncome(formData: FormData) {
   await prisma.otherIncome.create({
     data: {
       title,
-      category: INCOME_CATEGORIES.includes(categoryRaw ?? '') ? (categoryRaw as string) : 'OTHER',
+      category: normCat(categoryRaw),
       amount,
       currency,
       amountCad: toCad(amount, currency, rates),
@@ -1439,8 +1477,8 @@ export async function deleteOtherIncome(id: string) {
 
 // Re-categorize an income entry (inline, from the income list).
 export async function updateOtherIncomeCategory(id: string, category: string) {
-  if (!id || !INCOME_CATEGORIES.includes(category)) return;
-  await prisma.otherIncome.update({ where: { id }, data: { category } });
+  if (!id) return;
+  await prisma.otherIncome.update({ where: { id }, data: { category: normCat(category) } });
   revalidatePath('/finance');
 }
 
