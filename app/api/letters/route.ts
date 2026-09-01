@@ -7,7 +7,7 @@ export const runtime = 'nodejs';
 export const maxDuration = 60;
 
 // Bump this when the route changes so a live GET can confirm what's deployed.
-const VERSION = 'letters-v3';
+const VERSION = 'letters-v4';
 const MAX_BYTES = 15 * 1024 * 1024;
 
 // A valid Date from a YYYY-MM-DD string, or null — never throws on bad AI dates.
@@ -39,16 +39,20 @@ export async function POST(req: NextRequest) {
     } catch {
       return NextResponse.json({ error: 'bad_request', version: VERSION }, { status: 400 });
     }
-    const file = form.get('file');
-    if (!(file instanceof File) || file.size === 0) return NextResponse.json({ error: 'no_file', version: VERSION }, { status: 400 });
+    // Duck-type the upload — the `File` global isn't available in every Node
+    // route-handler runtime, so `instanceof File` can throw "File is not defined".
+    const file = form.get('file') as { arrayBuffer?: () => Promise<ArrayBuffer>; size?: number; name?: string; type?: string } | null;
+    if (!file || typeof file.arrayBuffer !== 'function' || !file.size) return NextResponse.json({ error: 'no_file', version: VERSION }, { status: 400 });
     if (file.size > MAX_BYTES) return NextResponse.json({ error: 'too_large', version: VERSION }, { status: 400 });
+    const fileName = typeof file.name === 'string' && file.name ? file.name : 'document';
+    const fileType = typeof file.type === 'string' ? file.type : '';
 
     const arrayBuf = await file.arrayBuffer().catch(() => null);
     if (!arrayBuf) return NextResponse.json({ error: 'read', detail: 'Could not read the file.', version: VERSION }, { status: 400 });
     const buffer = Buffer.from(arrayBuf);
-    const isPdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name);
-    const isImage = file.type.startsWith('image/');
-    const mimeType = file.type || (isPdf ? 'application/pdf' : 'application/octet-stream');
+    const isPdf = fileType === 'application/pdf' || /\.pdf$/i.test(fileName);
+    const isImage = fileType.startsWith('image/');
+    const mimeType = fileType || (isPdf ? 'application/pdf' : 'application/octet-stream');
 
     let analysis: LetterAnalysis | null = null;
     let originalText: string | null = null;
@@ -83,7 +87,7 @@ export async function POST(req: NextRequest) {
 
     const letter = await prisma.letter.create({
       data: {
-        title: analysis?.title || file.name.replace(/\.[^.]+$/, ''),
+        title: analysis?.title || fileName.replace(/\.[^.]+$/, ''),
         sender: analysis?.sender ?? null,
         reference: analysis?.reference ?? null,
         docDate: safeDate(analysis?.docDate),
@@ -94,7 +98,7 @@ export async function POST(req: NextRequest) {
         originalText,
         status: analysis ? 'READY' : 'FAILED',
         errorNote,
-        fileName: file.name,
+        fileName,
         mimeType,
         size: file.size,
         data: buffer,

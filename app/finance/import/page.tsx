@@ -3,16 +3,18 @@ import { ArrowLeft, Camera } from 'lucide-react';
 import { getOptions, ensureExpenseCategories } from '@/lib/options';
 import { getRatesToCad } from '@/lib/fx';
 import { INCOME_CATEGORIES, INCOME_CATEGORY_LABELS } from '@/lib/enums';
+import { prisma } from '@/lib/prisma';
 import StatementImport from '@/components/StatementImport';
 
 export const dynamic = 'force-dynamic';
 
 export default async function ImportStatementPage() {
   await ensureExpenseCategories();
-  const [currencies, categories, rates] = await Promise.all([
+  const [currencies, categories, rates, rules] = await Promise.all([
     getOptions('currency'),
     getOptions('expenseCategory'),
     getRatesToCad(),
+    prisma.txnRule.findMany({ orderBy: { hits: 'desc' }, select: { matchKey: true, type: true, category: true, title: true } }),
   ]);
 
   return (
@@ -38,6 +40,7 @@ export default async function ImportStatementPage() {
         categories={categories}
         incomeCategories={INCOME_CATEGORIES.map((v) => ({ value: v, label: INCOME_CATEGORY_LABELS[v] }))}
         rates={rates}
+        rules={rules}
       />
     </div>
   );

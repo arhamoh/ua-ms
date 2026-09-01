@@ -6,7 +6,10 @@ import Link from 'next/link';
 import { UploadCloud, FileSpreadsheet, CheckCircle2, RotateCcw, Loader2, Eye } from 'lucide-react';
 import { importStatementLines, saveStatement } from '@/app/actions';
 import { STATEMENT_ACCOUNT_TYPES, STATEMENT_ACCOUNT_TYPE_LABELS } from '@/lib/enums';
+import { ruleKey } from '@/lib/txnrules';
 import ProgressBar from './ProgressBar';
+
+type Rule = { matchKey: string; type: string; category: string; title: string | null };
 
 function fileToBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -166,13 +169,20 @@ export default function StatementImport({
   categories,
   incomeCategories,
   rates,
+  rules = [],
 }: {
   currencies: Opt[];
   categories: Opt[];
   incomeCategories: Opt[];
   rates: Record<string, number>;
+  rules?: Rule[];
 }) {
   const router = useRouter();
+  const rulesByKey = useMemo(() => {
+    const m = new Map<string, Rule>();
+    for (const r of rules) m.set(r.matchKey, r);
+    return m;
+  }, [rules]);
   const [mode, setMode] = useState<'csv' | 'pdf' | null>(null);
   const [fileName, setFileName] = useState('');
   const [rawRows, setRawRows] = useState<string[][]>([]);
@@ -348,9 +358,12 @@ export default function StatementImport({
       base.map((b, i) => {
         const isExpense = b.outflow > 0;
         const interest = /interest/i.test(b.desc);
-        const defTitle = interest ? 'Interest expense' : b.desc || (isExpense ? 'Expense' : 'Income');
-        // Income rows default to the 'OTHER' income category; expenses guess from text.
-        const defCat = !isExpense ? 'OTHER' : interest ? 'FEES' : b.category || guessCategory(b.desc);
+        // A learned rule for this description (from your past edits) wins over the
+        // guessed defaults — but anything you change here still overrides it.
+        const rule = rulesByKey.get(ruleKey(b.desc));
+        const defType = rule?.type ?? (isExpense ? 'expense' : 'income');
+        const defTitle = rule?.title || (interest ? 'Interest expense' : b.desc || (isExpense ? 'Expense' : 'Income'));
+        const defCat = rule?.category ?? (defType === 'income' ? 'OTHER' : interest ? 'FEES' : b.category || guessCategory(b.desc));
         const o = overrides[i] ?? {};
         const baseAmt = b.outflow || b.inflow;
         return {
@@ -358,10 +371,11 @@ export default function StatementImport({
           rawDesc: b.desc,
           isExpense,
           interest,
+          learned: !!rule,
           // Both directions are included by default now — the review step lets you
           // deselect. Income lines reconcile against client payments on import.
           include: o.include ?? baseAmt > 0,
-          type: o.type ?? (isExpense ? 'expense' : 'income'),
+          type: o.type ?? defType,
           title: o.title ?? defTitle,
           category: o.category ?? defCat,
           date: o.date ?? b.date,
@@ -369,7 +383,14 @@ export default function StatementImport({
           source: b.source,
         };
       }),
-    [base, overrides],
+    [base, overrides, rulesByKey],
+  );
+
+  // Show the review oldest → newest (rows without a date sort last). Sorting the
+  // display only — each row keeps its original index for edits/overrides.
+  const orderedTxns = useMemo(
+    () => [...txns].sort((a, b) => (a.date && b.date ? a.date.localeCompare(b.date) : a.date ? -1 : b.date ? 1 : 0)),
+    [txns],
   );
 
   const included = txns.filter((t) => t.include && Number(t.amount) > 0);
@@ -385,7 +406,7 @@ export default function StatementImport({
 
   const doImport = () => {
     const items = included.map((t) => ({
-      type: t.type,
+      type: (t.type === 'income' ? 'income' : 'expense') as 'expense' | 'income',
       title: t.title,
       category: t.category,
       amount: t.amount,
@@ -393,6 +414,7 @@ export default function StatementImport({
       date: t.date,
       note: note.trim() || 'Imported from statement',
       taxIncluded: t.type === 'expense' && taxIncluded,
+      rawDesc: t.rawDesc,
     }));
     start(async () => {
       const res = await importStatementLines(items);
@@ -681,7 +703,7 @@ export default function StatementImport({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {txns.map((t) => (
+              {orderedTxns.map((t) => (
                 <tr key={t.i} className={`${t.include ? '' : 'opacity-50'} hover:bg-slate-50`}>
                   <td className="px-4 py-2">
                     <input type="checkbox" checked={t.include} onChange={(e) => setOv(t.i, { include: e.target.checked })} className="rounded border-slate-300" />
@@ -699,7 +721,7 @@ export default function StatementImport({
                           category: nt === 'income' ? 'OTHER' : /interest/i.test(t.rawDesc) ? 'FEES' : guessCategory(t.rawDesc),
                         });
                       }}
-                      className={`${miniCls} w-28 ${t.type === 'income' ? 'text-emerald-700' : 'text-rose-700'}`}
+                      className={`${miniCls} w-36 ${t.type === 'income' ? 'text-emerald-700' : 'text-rose-700'}`}
                     >
                       <option value="expense">Expense</option>
                       <option value="income">Income</option>

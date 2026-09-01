@@ -30,6 +30,7 @@ import { sendEmail, verifyEmailConnection } from '@/lib/email';
 import { invoiceHtml, receiptHtml } from '@/lib/documents';
 import { getCompany, computeTax } from '@/lib/company';
 import { backOutExpenseTax, collectedFromPayment } from '@/lib/tax';
+import { ruleKey } from '@/lib/txnrules';
 import { getSession } from '@/lib/auth';
 import { driveConfigured, uploadToDrive, testDriveConnection } from '@/lib/drive';
 import { testOpenRouter } from '@/lib/integrations';
@@ -1290,6 +1291,7 @@ type StatementLine = {
   date?: string;
   note?: string;
   taxIncluded?: boolean; // expenses only — back GST/QST out of the total (CAD)
+  rawDesc?: string;      // original parsed description, for learning rules
 };
 
 // Import a reviewed statement: expenses become Expense rows; every credit
@@ -1367,6 +1369,32 @@ export async function importStatementLines(
       };
     });
   if (otherIncomeData.length) await prisma.otherIncome.createMany({ data: otherIncomeData });
+
+  // ── Learn categorization rules from this import (last choice wins) ──
+  // Keyed by a normalized description; remembers type + category, and the title
+  // only when it was a deliberate rename (not just the raw description).
+  const rules = new Map<string, { type: string; category: string; title: string | null }>();
+  for (const { it } of clean) {
+    const key = ruleKey(it.rawDesc || it.title || '');
+    if (key.length < 3) continue;
+    const type = it.type === 'income' ? 'income' : 'expense';
+    const validCats = type === 'income' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
+    const category = validCats.includes(it.category ?? '') ? (it.category as string) : 'OTHER';
+    const renamed = (it.title ?? '').trim() && (it.title ?? '').trim().toUpperCase() !== (it.rawDesc ?? '').trim().toUpperCase();
+    rules.set(key, { type, category, title: renamed ? (it.title as string).trim() : null });
+  }
+  for (const [matchKey, r] of rules) {
+    try {
+      await prisma.txnRule.upsert({
+        where: { matchKey },
+        // Only overwrite a learned title when this import provided a new rename.
+        create: { matchKey, type: r.type, category: r.category, title: r.title },
+        update: { type: r.type, category: r.category, hits: { increment: 1 }, ...(r.title ? { title: r.title } : {}) },
+      });
+    } catch {
+      // a rule write should never block the import
+    }
+  }
 
   revalidatePath('/finance');
   return { expenses: expenseData.length, income: otherIncomeData.length };

@@ -745,6 +745,20 @@ model LetterTask {
   @@index([letterId])
 }
 
+// Learned categorization for recurring statement transactions. Keyed by a
+// normalized description (see lib/txnrules.ts): remembers the type/category and
+// (for deliberate renames) the title you last chose, so future imports pre-fill.
+model TxnRule {
+  id        String   @id @default(cuid())
+  matchKey  String   @unique
+  type      String   @default("expense") // expense | income
+  category  String
+  title     String?  // learned only when you rename (not just the raw description)
+  hits      Int      @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
 // ─── Lead generation ─────────────────────────────────────────────────────────
 // Sourced prospects (pre-Client). A "won" lead converts into a Client above.
 
