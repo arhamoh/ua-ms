@@ -98,6 +98,7 @@ model User {
   comments          Comment[]          @relation("CommentAuthor")
   statements        Statement[]        @relation("UploadedStatements")
   letters           Letter[]           @relation("LettersCreated")
+  pendingImports    PendingImport[]    @relation("PendingImportsCreated")
 
   @@index([email])
 }
@@ -743,6 +744,28 @@ model LetterTask {
   letter   Letter @relation(fields: [letterId], references: [id], onDelete: Cascade)
 
   @@index([letterId])
+}
+
+// A saved-for-later statement import: one uploaded statement's parsed + reviewed
+// lines (stored as JSON) plus the original file, so it can be reviewed in tabs
+// and committed later. Deleted once committed.
+model PendingImport {
+  id           String   @id @default(cuid())
+  fileName     String
+  accountType  String   @default("BANK") // BANK | CREDIT_CARD
+  accountLabel String
+  currency     String   @default("CAD")
+  note         String?
+  lines        Json     // Line[]: { include, type, title, category, amount, date, rawDesc, tax, clientId }
+  mimeType     String   @default("application/pdf")
+  data         Bytes?   // original file, archived to Statements on commit
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  createdById  String?
+  createdBy    User?    @relation("PendingImportsCreated", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
 }
 
 // Learned categorization for recurring statement transactions. Keyed by a

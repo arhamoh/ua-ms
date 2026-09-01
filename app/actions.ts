@@ -27,9 +27,10 @@ import { getRatesToCad, toCad } from '@/lib/fx';
 import { sendEmail, verifyEmailConnection } from '@/lib/email';
 import { invoiceHtml, receiptHtml } from '@/lib/documents';
 import { getCompany, computeTax } from '@/lib/company';
-import { backOutExpenseTax, collectedFromPayment } from '@/lib/tax';
+import { backOutExpenseTax, backOutTax, collectedFromPayment } from '@/lib/tax';
 import { ruleKey } from '@/lib/txnrules';
 import { DEFAULT_OPTIONS } from '@/lib/options';
+import type { ImportLine } from '@/lib/statement-parse';
 import { getSession } from '@/lib/auth';
 import { driveConfigured, uploadToDrive, testDriveConnection } from '@/lib/drive';
 import { testOpenRouter } from '@/lib/integrations';
@@ -1508,6 +1509,201 @@ export async function assignIncomeToClient(id: string, clientId: string) {
   await prisma.otherIncome.delete({ where: { id } });
   revalidatePath('/finance');
   revalidatePath(`/clients/${clientId}`);
+}
+
+// Quick-add a client from the import review. Agency = business name, contact =
+// person; at least one required. name = agency (or the contact if no agency).
+export async function quickAddClient(
+  agencyName: string,
+  contactName: string,
+): Promise<{ id: string; name: string } | null> {
+  const agency = (agencyName ?? '').trim();
+  const contact = (contactName ?? '').trim();
+  const name = (agency || contact).slice(0, 160);
+  if (!name) return null;
+  const client = await prisma.client.create({
+    data: { name, contactName: agency && contact ? contact.slice(0, 160) : null },
+  });
+  revalidatePath('/clients');
+  return { id: client.id, name: client.name };
+}
+
+// ─── Pending statement imports (saved-for-later drafts) ──────────────────────
+
+const PENDING_TYPES = ['BANK', 'CREDIT_CARD'];
+
+export async function createPendingImport(payload: {
+  fileName: string;
+  mimeType: string;
+  fileBase64: string;
+  accountType: string;
+  accountLabel: string;
+  currency: string;
+  note?: string;
+  lines: ImportLine[];
+}): Promise<{ id: string }> {
+  const session = await getSession();
+  const base64 = (payload.fileBase64 || '').replace(/^data:[^,]+,/, '');
+  const buffer = base64 ? Buffer.from(base64, 'base64') : null;
+  const p = await prisma.pendingImport.create({
+    data: {
+      fileName: (payload.fileName || 'statement').slice(0, 200),
+      accountType: PENDING_TYPES.includes(payload.accountType) ? payload.accountType : 'BANK',
+      accountLabel: (payload.accountLabel || payload.fileName || 'Statement').slice(0, 160),
+      currency: CURRENCIES.includes(payload.currency) ? payload.currency : 'CAD',
+      note: payload.note?.trim() || null,
+      lines: (payload.lines ?? []) as any,
+      mimeType: payload.mimeType || 'application/pdf',
+      data: buffer,
+      createdById: session?.id ?? null,
+    },
+    select: { id: true },
+  });
+  revalidatePath('/finance/import');
+  return { id: p.id };
+}
+
+export async function savePendingImport(
+  id: string,
+  patch: { lines?: ImportLine[]; accountType?: string; accountLabel?: string; currency?: string; note?: string | null },
+) {
+  if (!id) return;
+  const data: Record<string, any> = {};
+  if (patch.lines) data.lines = patch.lines as any;
+  if (patch.accountType) data.accountType = PENDING_TYPES.includes(patch.accountType) ? patch.accountType : 'BANK';
+  if (patch.accountLabel !== undefined) data.accountLabel = (patch.accountLabel || 'Statement').slice(0, 160);
+  if (patch.currency) data.currency = CURRENCIES.includes(patch.currency) ? patch.currency : 'CAD';
+  if (patch.note !== undefined) data.note = patch.note?.trim() || null;
+  if (Object.keys(data).length === 0) return;
+  await prisma.pendingImport.update({ where: { id }, data });
+  revalidatePath('/finance/import');
+  revalidatePath(`/finance/import/${id}`);
+}
+
+export async function deletePendingImport(id: string) {
+  if (!id) return;
+  await prisma.pendingImport.delete({ where: { id } });
+  revalidatePath('/finance/import');
+  redirect('/finance/import');
+}
+
+// Commit a pending import: create expenses / income / client payments from its
+// lines (per-row GST/QST), learn rules, archive the file, then delete the draft.
+export async function commitPendingImport(
+  id: string,
+): Promise<{ expenses: number; income: number; payments: number }> {
+  const p = await prisma.pendingImport.findUnique({ where: { id } });
+  if (!p) return { expenses: 0, income: 0, payments: 0 };
+
+  const lines = ((p.lines as any as ImportLine[]) ?? []).filter((l) => l && l.include && Number(l.amount) > 0);
+  const rates = await getRatesToCad();
+  const company = await getCompany();
+  const currency = CURRENCIES.includes(p.currency) ? p.currency : 'CAD';
+  const now = new Date();
+
+  const expenseData: any[] = [];
+  const otherIncomeData: any[] = [];
+  const paymentData: any[] = [];
+
+  for (const l of lines) {
+    const amount = Number(l.amount);
+    const date = l.date ? new Date(l.date) : now;
+    if (Number.isNaN(date.getTime())) continue;
+    const amountCad = toCad(amount, currency, rates);
+    const fxRate = currency === 'CAD' ? 1 : rates[currency] ?? null;
+
+    if (l.type === 'income') {
+      if (l.clientId) {
+        paymentData.push({
+          clientId: l.clientId,
+          amount,
+          currency,
+          amountCad,
+          fxRate,
+          method: 'BANK_TRANSFER',
+          paidAt: date,
+          note: (l.title || 'From statement').slice(0, 300),
+          bankMatchedAt: now,
+        });
+      } else {
+        otherIncomeData.push({
+          title: (l.title || 'Bank credit').slice(0, 200),
+          category: normCat(l.category),
+          amount,
+          currency,
+          amountCad,
+          fxRate,
+          date,
+          note: 'Imported from statement',
+          source: 'STATEMENT',
+        });
+      }
+    } else {
+      let gst: number | null = null;
+      let qst: number | null = null;
+      if (currency === 'CAD' && (l.tax === 'gst' || l.tax === 'both')) {
+        const t = backOutTax(amount, { gst: true, qst: l.tax === 'both', company });
+        gst = t.gst;
+        qst = l.tax === 'both' ? t.qst : 0;
+      }
+      let title = (l.title || 'Expense').slice(0, 200);
+      let category = normCat(l.category);
+      if (/interest/i.test(title)) {
+        title = 'Interest expense';
+        category = 'FEES';
+      }
+      expenseData.push({ title, category, amount, currency, amountCad, fxRate, gst, qst, date, note: 'Imported from statement', reimbursed: true });
+    }
+  }
+
+  if (expenseData.length) await prisma.expense.createMany({ data: expenseData });
+  if (otherIncomeData.length) await prisma.otherIncome.createMany({ data: otherIncomeData });
+  if (paymentData.length) await prisma.payment.createMany({ data: paymentData });
+
+  // Learn categorization rules (last choice wins).
+  const rules = new Map<string, { type: string; category: string; title: string | null }>();
+  for (const l of lines) {
+    const key = ruleKey(l.rawDesc || l.title || '');
+    if (key.length < 3) continue;
+    const renamed = (l.title ?? '').trim() && (l.title ?? '').trim().toUpperCase() !== (l.rawDesc ?? '').trim().toUpperCase();
+    rules.set(key, { type: l.type === 'income' ? 'income' : 'expense', category: normCat(l.category), title: renamed ? l.title.trim() : null });
+  }
+  for (const [matchKey, r] of rules) {
+    try {
+      await prisma.txnRule.upsert({
+        where: { matchKey },
+        create: { matchKey, type: r.type, category: r.category, title: r.title },
+        update: { type: r.type, category: r.category, hits: { increment: 1 }, ...(r.title ? { title: r.title } : {}) },
+      });
+    } catch {
+      /* rule write must never block commit */
+    }
+  }
+
+  // Archive the original file to Statements.
+  if (p.data) {
+    const bytes = Buffer.from(p.data as Uint8Array);
+    await prisma.statement.create({
+      data: {
+        accountType: p.accountType,
+        accountLabel: p.accountLabel,
+        fileName: p.fileName,
+        mimeType: p.mimeType,
+        size: bytes.length,
+        data: bytes,
+        periodLabel: derivePeriodFromName(p.fileName),
+        source: 'IMPORT',
+        importedExpenses: expenseData.length,
+        importedIncome: otherIncomeData.length + paymentData.length,
+      },
+    });
+  }
+
+  await prisma.pendingImport.delete({ where: { id } });
+  revalidatePath('/finance');
+  revalidatePath('/finance/import');
+  revalidatePath('/statements');
+  redirect('/finance?tab=pnl');
 }
 
 // ─── Quarterly GST/QST filing state ──────────────────────────────────────────
