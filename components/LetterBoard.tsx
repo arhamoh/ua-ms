@@ -143,9 +143,26 @@ function AnswerPanel({ task, statements, run, pending }: { task: Task; statement
   );
 }
 
-function TaskCard({ task, statements, run, pending }: { task: Task; statements: Statement[]; run: Run; pending: boolean }) {
+function TaskCard({
+  task,
+  statements,
+  run,
+  pending,
+  dragging,
+  onDragStart,
+  onDragEnd,
+}: {
+  task: Task;
+  statements: Statement[];
+  run: Run;
+  pending: boolean;
+  dragging: boolean;
+  onDragStart: (id: string) => void;
+  onDragEnd: () => void;
+}) {
   const [editing, setEditing] = useState(false);
   const [open, setOpen] = useState(false);
+  const canDrag = !editing && !open;
   const [title, setTitle] = useState(task.title);
   const [detail, setDetail] = useState(task.detail ?? '');
   const [due, setDue] = useState(task.dueDate ?? '');
@@ -176,7 +193,12 @@ function TaskCard({ task, statements, run, pending }: { task: Task; statements: 
   }
 
   return (
-    <div className="group rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+    <div
+      draggable={canDrag}
+      onDragStart={(e) => { if (!canDrag) return; e.dataTransfer.setData('text/plain', task.id); e.dataTransfer.effectAllowed = 'move'; onDragStart(task.id); }}
+      onDragEnd={onDragEnd}
+      className={`group rounded-xl border border-slate-200 bg-white p-3 shadow-sm transition ${canDrag ? 'cursor-grab active:cursor-grabbing' : ''} ${dragging ? 'opacity-40' : ''}`}
+    >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <p className={task.status === 'DONE' ? 'text-sm text-slate-400 line-through' : 'text-sm font-medium text-slate-800'}>{task.title}</p>
@@ -232,8 +254,16 @@ export default function LetterBoard({ letterId, tasks, statements }: { letterId:
   const router = useRouter();
   const [pending, start] = useTransition();
   const [newTitle, setNewTitle] = useState('');
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [overCol, setOverCol] = useState<string | null>(null);
 
   const run: Run = (fn) => start(async () => { await fn(); router.refresh(); });
+
+  const move = (id: string, status: string) => {
+    const t = tasks.find((x) => x.id === id);
+    if (!t || t.status === status) return;
+    run(() => setLetterTaskStatus(id, status));
+  };
 
   const add = () => {
     const t = newTitle.trim();
@@ -246,14 +276,32 @@ export default function LetterBoard({ letterId, tasks, statements }: { letterId:
     <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
       {COLUMNS.map((col) => {
         const items = tasks.filter((t) => t.status === col.key);
+        const isOver = overCol === col.key;
         return (
-          <div key={col.key} className="rounded-2xl border border-slate-200 bg-slate-50/60 p-3">
+          <div
+            key={col.key}
+            onDragOver={(e) => { if (!dragId) return; e.preventDefault(); e.dataTransfer.dropEffect = 'move'; if (overCol !== col.key) setOverCol(col.key); }}
+            onDragLeave={(e) => { if (e.currentTarget === e.target) setOverCol(null); }}
+            onDrop={(e) => { e.preventDefault(); const id = e.dataTransfer.getData('text/plain') || dragId; setOverCol(null); setDragId(null); if (id) move(id, col.key); }}
+            className={`rounded-2xl border p-3 transition ${isOver ? 'border-brand bg-brand-light/40 ring-2 ring-brand/20' : 'border-slate-200 bg-slate-50/60'}`}
+          >
             <div className="mb-2 flex items-center justify-between px-1">
               <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">{col.label}</h3>
               <span className="text-xs text-slate-400">{items.length}</span>
             </div>
             <div className="space-y-2">
-              {items.map((t) => <TaskCard key={t.id} task={t} statements={statements} run={run} pending={pending} />)}
+              {items.map((t) => (
+                <TaskCard
+                  key={t.id}
+                  task={t}
+                  statements={statements}
+                  run={run}
+                  pending={pending}
+                  dragging={dragId === t.id}
+                  onDragStart={setDragId}
+                  onDragEnd={() => { setDragId(null); setOverCol(null); }}
+                />
+              ))}
               {col.key === 'TODO' ? (
                 <div className="flex items-center gap-1.5 pt-1">
                   <input
