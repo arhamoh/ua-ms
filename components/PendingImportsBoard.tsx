@@ -3,8 +3,8 @@
 import { Fragment, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { FileText, Landmark, CreditCard, ChevronRight, GripVertical } from 'lucide-react';
-import { setPendingImportType } from '@/app/actions';
+import { FileText, Landmark, CreditCard, ChevronRight, GripVertical, Trash2 } from 'lucide-react';
+import { setPendingImportType, deletePendingImport } from '@/app/actions';
 import PendingTypeToggle from './PendingTypeToggle';
 
 type P = { id: string; fileName: string; accountType: string; accountLabel: string; count: number; year: number; month: number; period: string };
@@ -25,6 +25,14 @@ export default function PendingImportsBoard({ pending }: { pending: P[] }) {
     if (!item || item.accountType === type) return;
     start(async () => {
       await setPendingImportType(id, type);
+      router.refresh();
+    });
+  };
+
+  const del = (id: string, label: string) => {
+    if (!window.confirm(`Delete pending import "${label}"? Its parsed lines and the saved file will be removed.`)) return;
+    start(async () => {
+      await deletePendingImport(id);
       router.refresh();
     });
   };
@@ -85,6 +93,9 @@ export default function PendingImportsBoard({ pending }: { pending: P[] }) {
                         <div className="flex shrink-0 items-center gap-2">
                           <PendingTypeToggle id={p.id} type={p.accountType} />
                           <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">{p.count}</span>
+                          <button onClick={() => del(p.id, p.period || p.accountLabel)} title="Delete this pending import" className="grid h-7 w-7 place-items-center rounded-lg text-slate-300 transition hover:bg-rose-50 hover:text-rose-600">
+                            <Trash2 size={14} />
+                          </button>
                           <Link href={`/finance/import/${p.id}`} className="text-slate-300 transition hover:text-slate-500"><ChevronRight size={16} /></Link>
                         </div>
                       </div>
