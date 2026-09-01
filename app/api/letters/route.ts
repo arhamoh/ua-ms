@@ -8,6 +8,13 @@ export const maxDuration = 60;
 
 const MAX_BYTES = 15 * 1024 * 1024;
 
+// A valid Date from a YYYY-MM-DD string, or null — never throws on bad AI dates.
+const safeDate = (s: string | null | undefined): Date | null => {
+  if (!s) return null;
+  const d = new Date(`${s}T00:00:00Z`);
+  return Number.isNaN(d.getTime()) ? null : d;
+};
+
 // Upload a letter/document → extract + AI-analyze (translate, summarize, pull
 // tasks) → create the Letter and its task board. Super admins only.
 export async function POST(req: NextRequest) {
@@ -25,7 +32,9 @@ export async function POST(req: NextRequest) {
   if (!(file instanceof File) || file.size === 0) return NextResponse.json({ error: 'no_file' }, { status: 400 });
   if (file.size > MAX_BYTES) return NextResponse.json({ error: 'too_large' }, { status: 400 });
 
-  const buffer = Buffer.from(await file.arrayBuffer());
+  const arrayBuf = await file.arrayBuffer().catch(() => null);
+  if (!arrayBuf) return NextResponse.json({ error: 'read', detail: 'Could not read the file.' }, { status: 400 });
+  const buffer = Buffer.from(arrayBuf);
   const isPdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name);
   const isImage = file.type.startsWith('image/');
   const mimeType = file.type || (isPdf ? 'application/pdf' : 'application/octet-stream');
@@ -61,37 +70,41 @@ export async function POST(req: NextRequest) {
     errorNote = `Could not analyze the document (${e?.message?.slice(0, 120) ?? 'unknown error'}).`;
   }
 
-  const letter = await prisma.letter.create({
-    data: {
-      title: analysis?.title || file.name.replace(/\.[^.]+$/, ''),
-      sender: analysis?.sender ?? null,
-      reference: analysis?.reference ?? null,
-      docDate: analysis?.docDate ? new Date(analysis.docDate) : null,
-      dueDate: analysis?.dueDate ? new Date(analysis.dueDate) : null,
-      language: analysis?.language ?? 'en',
-      summary: analysis?.summary ?? null,
-      translation: analysis?.translation ?? null,
-      originalText,
-      status: analysis ? 'READY' : 'FAILED',
-      errorNote,
-      fileName: file.name,
-      mimeType,
-      size: file.size,
-      data: buffer,
-      createdById: session.id,
-      tasks: analysis?.tasks?.length
-        ? {
-            create: analysis.tasks.map((t, i) => ({
-              title: t.title,
-              detail: t.detail,
-              dueDate: t.dueDate ? new Date(t.dueDate) : null,
-              order: i,
-            })),
-          }
-        : undefined,
-    },
-    select: { id: true },
-  });
-
-  return NextResponse.json({ id: letter.id, taskCount: analysis?.tasks?.length ?? 0, note: errorNote });
+  try {
+    const letter = await prisma.letter.create({
+      data: {
+        title: analysis?.title || file.name.replace(/\.[^.]+$/, ''),
+        sender: analysis?.sender ?? null,
+        reference: analysis?.reference ?? null,
+        docDate: safeDate(analysis?.docDate),
+        dueDate: safeDate(analysis?.dueDate),
+        language: analysis?.language ?? 'en',
+        summary: analysis?.summary ?? null,
+        translation: analysis?.translation ?? null,
+        originalText,
+        status: analysis ? 'READY' : 'FAILED',
+        errorNote,
+        fileName: file.name,
+        mimeType,
+        size: file.size,
+        data: buffer,
+        createdById: session.id,
+        tasks: analysis?.tasks?.length
+          ? {
+              create: analysis.tasks.map((t, i) => ({
+                title: t.title,
+                detail: t.detail,
+                dueDate: safeDate(t.dueDate),
+                order: i,
+              })),
+            }
+          : undefined,
+      },
+      select: { id: true },
+    });
+    return NextResponse.json({ id: letter.id, taskCount: analysis?.tasks?.length ?? 0, note: errorNote });
+  } catch (e: any) {
+    console.error('letter create failed', e);
+    return NextResponse.json({ error: 'server', detail: e?.message?.slice(0, 300) ?? 'Could not save the document.' }, { status: 500 });
+  }
 }

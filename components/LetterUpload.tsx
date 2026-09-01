@@ -28,15 +28,15 @@ export default function LetterUpload() {
       const fd = new FormData();
       fd.set('file', f);
       const r = await fetch('/api/letters', { method: 'POST', body: fd });
-      const data = await r.json().catch(() => ({}));
+      const data = await r.json().catch(() => ({} as any));
       if (!r.ok || !data?.id) {
-        setError(ERRORS[data?.error] ?? 'Upload failed — try again.');
+        setError(ERRORS[data?.error] ?? data?.detail ?? `Upload failed (${r.status}). Try again.`);
         setBusy(false);
         return;
       }
       router.push(`/letters/${data.id}`);
-    } catch {
-      setError('Upload failed — try again.');
+    } catch (e: any) {
+      setError(`Upload failed — ${e?.message ?? 'network error'}. Try again.`);
       setBusy(false);
     }
   };
