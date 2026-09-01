@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { ArrowLeft, Camera } from 'lucide-react';
 import { getOptions, ensureExpenseCategories } from '@/lib/options';
 import { getRatesToCad } from '@/lib/fx';
+import { INCOME_CATEGORIES, INCOME_CATEGORY_LABELS } from '@/lib/enums';
 import StatementImport from '@/components/StatementImport';
 
 export const dynamic = 'force-dynamic';
@@ -23,7 +24,8 @@ export default async function ImportStatementPage() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Import statement</h1>
           <p className="mt-1 text-sm text-slate-500">
-            Upload a bank or credit-card statement — CSV or PDF — review the lines, and add them to expenses.
+            Upload a bank or credit-card statement — CSV or PDF. Review the lines: debits become expenses, credits
+            become categorizable income.
           </p>
         </div>
         <Link href="/finance/bill" className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50 hover:text-brand">
@@ -31,7 +33,12 @@ export default async function ImportStatementPage() {
         </Link>
       </div>
 
-      <StatementImport currencies={currencies} categories={categories} rates={rates} />
+      <StatementImport
+        currencies={currencies}
+        categories={categories}
+        incomeCategories={INCOME_CATEGORIES.map((v) => ({ value: v, label: INCOME_CATEGORY_LABELS[v] }))}
+        rates={rates}
+      />
     </div>
   );
 }

@@ -157,6 +157,29 @@ export const FILE_CATEGORIES = Object.keys(FILE_CATEGORY_LABELS);
 
 export const CURRENCIES = ['USD', 'CAD', 'EUR', 'GBP', 'AUD', 'PKR'];
 
+// Income categories for non-client / statement-credit income (OtherIncome).
+export const INCOME_CATEGORY_LABELS: Record<string, string> = {
+  CLIENT_PAYMENT: 'Client payment',
+  LOAN_RECEIVED: 'Loan received',
+  LOAN_REPAYMENT: 'Loan repayment',
+  REFUND: 'Refund',
+  INTEREST: 'Interest',
+  TRANSFER: 'Transfer',
+  TAX_REFUND: 'Tax refund',
+  OTHER: 'Other',
+};
+export const INCOME_CATEGORIES = Object.keys(INCOME_CATEGORY_LABELS);
+export const INCOME_CATEGORY_BADGE: Record<string, string> = {
+  CLIENT_PAYMENT: 'bg-emerald-100 text-emerald-700',
+  LOAN_RECEIVED: 'bg-indigo-100 text-indigo-700',
+  LOAN_REPAYMENT: 'bg-sky-100 text-sky-700',
+  REFUND: 'bg-amber-100 text-amber-700',
+  INTEREST: 'bg-teal-100 text-teal-700',
+  TRANSFER: 'bg-slate-100 text-slate-600',
+  TAX_REFUND: 'bg-violet-100 text-violet-700',
+  OTHER: 'bg-slate-100 text-slate-500',
+};
+
 // Statement archive: bank vs credit-card statements.
 export const STATEMENT_ACCOUNT_TYPES = ['BANK', 'CREDIT_CARD'];
 export const STATEMENT_ACCOUNT_TYPE_LABELS: Record<string, string> = {

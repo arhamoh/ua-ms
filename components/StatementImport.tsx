@@ -159,15 +159,17 @@ function detectMapping(header: string[]): Mapping {
 // ── Component ────────────────────────────────────────────────────────────────
 
 type Override = { include?: boolean; type?: 'expense' | 'income'; title?: string; category?: string; date?: string; amount?: string };
-type ImportResult = { expenses: number; incomeMatched: number; incomeAdded: number };
+type ImportResult = { expenses: number; income: number };
 
 export default function StatementImport({
   currencies,
   categories,
+  incomeCategories,
   rates,
 }: {
   currencies: Opt[];
   categories: Opt[];
+  incomeCategories: Opt[];
   rates: Record<string, number>;
 }) {
   const router = useRouter();
@@ -316,7 +318,8 @@ export default function StatementImport({
         const isExpense = b.outflow > 0;
         const interest = /interest/i.test(b.desc);
         const defTitle = interest ? 'Interest expense' : b.desc || (isExpense ? 'Expense' : 'Income');
-        const defCat = interest ? 'FEES' : b.category || guessCategory(b.desc);
+        // Income rows default to the 'OTHER' income category; expenses guess from text.
+        const defCat = !isExpense ? 'OTHER' : interest ? 'FEES' : b.category || guessCategory(b.desc);
         const o = overrides[i] ?? {};
         const baseAmt = b.outflow || b.inflow;
         return {
@@ -369,7 +372,7 @@ export default function StatementImport({
           fd.set('accountLabel', acctLabel.trim() || file.name);
           fd.set('source', 'IMPORT');
           fd.set('importedExpenses', String(res.expenses));
-          fd.set('importedIncome', String(res.incomeMatched + res.incomeAdded));
+          fd.set('importedIncome', String(res.income));
           await saveStatement(fd);
         } catch {
           // don't fail the import if archiving the file hiccups
@@ -384,8 +387,7 @@ export default function StatementImport({
   if (result !== null) {
     const parts: string[] = [];
     if (result.expenses) parts.push(`${result.expenses} expense${result.expenses === 1 ? '' : 's'}`);
-    if (result.incomeMatched) parts.push(`${result.incomeMatched} payment${result.incomeMatched === 1 ? '' : 's'} reconciled`);
-    if (result.incomeAdded) parts.push(`${result.incomeAdded} other-income entr${result.incomeAdded === 1 ? 'y' : 'ies'}`);
+    if (result.income) parts.push(`${result.income} income entr${result.income === 1 ? 'y' : 'ies'}`);
     return (
       <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-10 text-center shadow-sm">
         <span className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-emerald-100 text-emerald-600">
@@ -395,8 +397,8 @@ export default function StatementImport({
           {parts.length ? `Imported ${parts.join(' · ')}` : 'Nothing to import'}
         </h2>
         <p className="mt-1 text-sm text-emerald-700">
-          Expenses were added and converted to CAD. Bank credits that matched a client payment were marked reconciled;
-          the rest were logged as other income. The statement file was saved to your Statements archive.
+          Expenses were added and converted to CAD. Every credit was saved as a categorizable income entry (see
+          Finance → P&amp;L → Income). The statement file was saved to your Statements archive.
         </p>
         <div className="mt-5 flex items-center justify-center gap-3">
           <Link href="/finance?tab=expenses" className="rounded-xl bg-brand px-4 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-brand-dark">
@@ -651,7 +653,13 @@ export default function StatementImport({
                   <td className="px-4 py-2">
                     <select
                       value={t.type}
-                      onChange={(e) => setOv(t.i, { type: e.target.value as 'expense' | 'income' })}
+                      onChange={(e) => {
+                        const nt = e.target.value as 'expense' | 'income';
+                        setOv(t.i, {
+                          type: nt,
+                          category: nt === 'income' ? 'OTHER' : /interest/i.test(t.rawDesc) ? 'FEES' : guessCategory(t.rawDesc),
+                        });
+                      }}
                       className={`${miniCls} w-28 ${t.type === 'income' ? 'text-emerald-700' : 'text-rose-700'}`}
                     >
                       <option value="expense">Expense</option>
@@ -667,8 +675,8 @@ export default function StatementImport({
                     {t.interest && <span className="mt-1 block text-[11px] text-amber-600">labeled “Interest expense”</span>}
                   </td>
                   <td className="px-4 py-2">
-                    <select value={t.category} onChange={(e) => setOv(t.i, { category: e.target.value })} className={`${miniCls} w-36`}>
-                      {categories.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+                    <select value={t.category} onChange={(e) => setOv(t.i, { category: e.target.value })} className={`${miniCls} w-40`}>
+                      {(t.type === 'income' ? incomeCategories : categories).map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
                     </select>
                   </td>
                   <td className="px-4 py-2 text-right">

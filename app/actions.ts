@@ -18,6 +18,7 @@ import {
   canManageLogins,
   LEAD_TYPES,
   EXPENSE_CATEGORIES,
+  INCOME_CATEGORIES,
   CURRENCIES,
   PAYMENT_METHOD_LABELS,
   FILE_CATEGORIES,
@@ -1291,16 +1292,13 @@ type StatementLine = {
   taxIncluded?: boolean; // expenses only — back GST/QST out of the total (CAD)
 };
 
-const DAY = 86_400_000;
-
-// Import a reviewed statement: expenses become Expense rows; income (credits) is
-// reconciled against existing client payments — a close match just marks that
-// payment as seen in the bank (no new revenue), and anything unmatched is logged
-// as OtherIncome so it's still captured without double-counting client revenue.
+// Import a reviewed statement: expenses become Expense rows; every credit
+// becomes a categorizable Income (OtherIncome) row so nothing is dropped — the
+// full set of bank credits is captured for review/audit and can be recategorized.
 export async function importStatementLines(
   items: StatementLine[],
-): Promise<{ expenses: number; incomeMatched: number; incomeAdded: number }> {
-  if (!Array.isArray(items) || items.length === 0) return { expenses: 0, incomeMatched: 0, incomeAdded: 0 };
+): Promise<{ expenses: number; income: number }> {
+  if (!Array.isArray(items) || items.length === 0) return { expenses: 0, income: 0 };
 
   const rates = await getRatesToCad();
   const company = await getCompany();
@@ -1351,54 +1349,27 @@ export async function importStatementLines(
     });
   if (expenseData.length) await prisma.expense.createMany({ data: expenseData });
 
-  // ── Income: reconcile against existing, unmatched client payments ──
-  const incomeLines = clean.filter((x) => x.it.type === 'income');
-  let incomeMatched = 0;
-  const otherIncomeData: any[] = [];
-
-  if (incomeLines.length) {
-    const candidates = await prisma.payment.findMany({
-      where: { bankMatchedAt: null },
-      select: { id: true, amount: true, amountCad: true, currency: true, paidAt: true },
+  // ── Income: every credit becomes a categorizable Income row ──
+  const otherIncomeData = clean
+    .filter((x) => x.it.type === 'income')
+    .map(({ it, currency, date, amount, amountCad, fxRate }) => {
+      const category = INCOME_CATEGORIES.includes(it.category ?? '') ? (it.category as string) : 'OTHER';
+      return {
+        title: (it.title ?? '').trim() || 'Bank credit',
+        category,
+        amount,
+        currency,
+        amountCad,
+        fxRate,
+        date,
+        note: (it.note ?? '').trim() || 'Imported from statement',
+        source: 'STATEMENT',
+      };
     });
-    const used = new Set<string>();
-    const matchedIds: string[] = [];
-
-    for (const { it, currency, date, amountCad } of incomeLines) {
-      const tol = Math.max(1, amountCad * 0.02);
-      const match = candidates.find((p) => {
-        if (used.has(p.id)) return false;
-        const pCad = p.amountCad ?? toCad(p.amount, p.currency, rates);
-        return Math.abs(pCad - amountCad) <= tol && Math.abs(p.paidAt.getTime() - date.getTime()) <= 7 * DAY;
-      });
-      if (match) {
-        used.add(match.id);
-        matchedIds.push(match.id);
-        incomeMatched++;
-      } else {
-        const category = (it.category ?? '').trim() || 'OTHER';
-        otherIncomeData.push({
-          title: (it.title ?? '').trim() || 'Bank credit',
-          category,
-          amount: typeof it.amount === 'string' ? Number(it.amount) : it.amount,
-          currency,
-          amountCad,
-          fxRate: currency === 'CAD' ? 1 : rates[currency] ?? null,
-          date,
-          note: (it.note ?? '').trim() || 'Unmatched credit from statement',
-          source: 'STATEMENT',
-        });
-      }
-    }
-
-    if (matchedIds.length) {
-      await prisma.payment.updateMany({ where: { id: { in: matchedIds } }, data: { bankMatchedAt: new Date() } });
-    }
-    if (otherIncomeData.length) await prisma.otherIncome.createMany({ data: otherIncomeData });
-  }
+  if (otherIncomeData.length) await prisma.otherIncome.createMany({ data: otherIncomeData });
 
   revalidatePath('/finance');
-  return { expenses: expenseData.length, incomeMatched, incomeAdded: otherIncomeData.length };
+  return { expenses: expenseData.length, income: otherIncomeData.length };
 }
 
 // ─── Other income (non-client) ───────────────────────────────────────────────
@@ -1414,10 +1385,11 @@ export async function addOtherIncome(formData: FormData) {
   const dateRaw = str(formData.get('date'));
   const rates = await getRatesToCad();
 
+  const categoryRaw = str(formData.get('category'));
   await prisma.otherIncome.create({
     data: {
       title,
-      category: str(formData.get('category')) || 'OTHER',
+      category: INCOME_CATEGORIES.includes(categoryRaw ?? '') ? (categoryRaw as string) : 'OTHER',
       amount,
       currency,
       amountCad: toCad(amount, currency, rates),
@@ -1435,6 +1407,41 @@ export async function deleteOtherIncome(id: string) {
   if (!id) return;
   await prisma.otherIncome.delete({ where: { id } });
   revalidatePath('/finance');
+}
+
+// Re-categorize an income entry (inline, from the income list).
+export async function updateOtherIncomeCategory(id: string, category: string) {
+  if (!id || !INCOME_CATEGORIES.includes(category)) return;
+  await prisma.otherIncome.update({ where: { id }, data: { category } });
+  revalidatePath('/finance');
+}
+
+// Attribute an income entry to a client: converts it into a client Payment (so
+// it shows on the client's profile) and removes the standalone income row.
+export async function assignIncomeToClient(id: string, clientId: string) {
+  if (!id || !clientId) return;
+  const inc = await prisma.otherIncome.findUnique({ where: { id } });
+  if (!inc) return;
+  const client = await prisma.client.findUnique({ where: { id: clientId }, select: { id: true } });
+  if (!client) return;
+
+  const rates = await getRatesToCad();
+  await prisma.payment.create({
+    data: {
+      clientId,
+      amount: inc.amount,
+      currency: inc.currency,
+      amountCad: inc.amountCad ?? toCad(inc.amount, inc.currency, rates),
+      fxRate: inc.fxRate ?? (inc.currency === 'CAD' ? 1 : rates[inc.currency] ?? null),
+      method: 'BANK_TRANSFER',
+      paidAt: inc.date,
+      note: inc.note ? `${inc.title} — ${inc.note}` : inc.title,
+      bankMatchedAt: inc.source === 'STATEMENT' ? new Date() : null,
+    },
+  });
+  await prisma.otherIncome.delete({ where: { id } });
+  revalidatePath('/finance');
+  revalidatePath(`/clients/${clientId}`);
 }
 
 // ─── Quarterly GST/QST filing state ──────────────────────────────────────────

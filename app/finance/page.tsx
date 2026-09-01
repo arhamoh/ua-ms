@@ -14,7 +14,8 @@ import {
   addOtherIncome,
   deleteOtherIncome,
 } from '@/app/actions';
-import { EXPENSE_CATEGORY_LABELS, EXPENSE_CATEGORY_BADGE, INVOICE_STATUS_LABELS, INVOICE_STATUS_BADGE, formatMoney, fxRateNote } from '@/lib/enums';
+import { EXPENSE_CATEGORY_LABELS, EXPENSE_CATEGORY_BADGE, INVOICE_STATUS_LABELS, INVOICE_STATUS_BADGE, INCOME_CATEGORIES, INCOME_CATEGORY_LABELS, INCOME_CATEGORY_BADGE, formatMoney, fxRateNote } from '@/lib/enums';
+import IncomeControls from '@/components/IncomeControls';
 import { getOptions, ensureExpenseCategories, ensureOptionDefaults } from '@/lib/options';
 import { getRatesToCad, toCad } from '@/lib/fx';
 import { getCompany, computeTax } from '@/lib/company';
@@ -61,7 +62,7 @@ export default async function FinancePage({
   await Promise.all([ensureExpenseCategories(), ensureOptionDefaults('paymentMethod')]);
   const [
     rates, company, payments, expenses, salaryPays, commPays, users, expenseCats, currencies, methods, loans,
-    owedExpenses, otherIncomeMonth, invoicesRaw, yearPayments, yearExpenses, filings,
+    owedExpenses, otherIncomeMonth, invoicesRaw, yearPayments, yearExpenses, filings, clients,
   ] = await Promise.all([
     getRatesToCad(),
     getCompany(),
@@ -91,6 +92,7 @@ export default async function FinancePage({
     prisma.payment.findMany({ where: { paidAt: { gte: yearStart, lt: yearEnd } }, include: { client: { select: { taxRegion: true } } } }),
     prisma.expense.findMany({ where: { date: { gte: yearStart, lt: yearEnd } }, select: { date: true, gst: true, qst: true } }),
     prisma.quarterlyFiling.findMany({ where: { year: taxYear } }),
+    prisma.client.findMany({ orderBy: { name: 'asc' }, select: { id: true, name: true } }),
   ]);
 
   const cadOf = (amt: number, cur: string) => toCad(amt, cur, rates);
@@ -116,6 +118,12 @@ export default async function FinancePage({
   const byCategory: Record<string, number> = {};
   expenses.forEach((e) => {
     byCategory[e.category] = (byCategory[e.category] ?? 0) + (e.amountCad ?? cadOf(e.amount, e.currency));
+  });
+
+  // Income (statement credits + manual) subtotals by category, for the month.
+  const incomeByCategory: Record<string, number> = {};
+  otherIncomeMonth.forEach((o) => {
+    incomeByCategory[o.category] = (incomeByCategory[o.category] ?? 0) + (o.amountCad ?? cadOf(o.amount, o.currency));
   });
 
   // Receivables: invoice total (incl. tax, CAD) vs. what's been paid.
@@ -266,34 +274,60 @@ export default async function FinancePage({
             </div>
           </FadeIn>
 
-          {/* Other income (non-client) */}
+          {/* Income (statement credits + manual), categorizable */}
           <FadeIn delay={0.14}>
             <div className="mt-6 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
               <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
                 <div>
-                  <h2 className="text-sm font-semibold">Other income — {monthLabel}</h2>
-                  <p className="mt-0.5 text-xs text-slate-400">Non-client money in (refunds, interest, unmatched bank credits). Not part of GST/QST collected.</p>
+                  <h2 className="text-sm font-semibold">Income — {monthLabel}</h2>
+                  <p className="mt-0.5 text-xs text-slate-400">Every bank credit and manual income entry. Categorize each, or assign one to a client to move it to their profile.</p>
                 </div>
                 <span className="text-sm font-medium">{formatMoney(otherIncomeTotal, 'CAD')}</span>
               </div>
+
+              {/* Category breakdown */}
               {otherIncomeMonth.length > 0 && (
+                <div className="flex flex-wrap gap-2 border-b border-slate-100 bg-slate-50 px-5 py-3">
+                  {INCOME_CATEGORIES.filter((c) => incomeByCategory[c]).map((c) => (
+                    <span key={c} className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${INCOME_CATEGORY_BADGE[c] ?? 'bg-slate-100 text-slate-500'}`}>
+                      {INCOME_CATEGORY_LABELS[c]} <span className="tabular-nums">{formatMoney(incomeByCategory[c], 'CAD')}</span>
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              {otherIncomeMonth.length > 0 ? (
                 <div className="overflow-x-auto">
-                  <table className="w-full min-w-[520px] text-sm">
+                  <table className="w-full min-w-[680px] text-sm">
+                    <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+                      <tr>
+                        <th className="px-5 py-3 font-medium">Income</th>
+                        <th className="px-5 py-3 font-medium">Date</th>
+                        <th className="px-5 py-3 text-right font-medium">Amount</th>
+                        <th className="px-5 py-3 text-right font-medium">Category / assign</th>
+                        <th className="px-5 py-3 text-right font-medium">Actions</th>
+                      </tr>
+                    </thead>
                     <tbody className="divide-y divide-slate-100">
                       {otherIncomeMonth.map((o) => (
                         <tr key={o.id} className="hover:bg-slate-50">
                           <td className="px-5 py-3 font-medium text-slate-800">{o.title}{o.source === 'STATEMENT' && <span className="ml-2 rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-500">from statement</span>}</td>
                           <td className="px-5 py-3 tabular-nums text-slate-500">{o.date.toISOString().slice(0, 10)}</td>
                           <td className="px-5 py-3 text-right tabular-nums text-emerald-700">{formatMoney(o.amount, o.currency)}{o.currency !== 'CAD' && <span className="ml-1 text-xs text-slate-400">({formatMoney(o.amountCad ?? cadOf(o.amount, o.currency), 'CAD')} CAD)</span>}</td>
+                          <td className="px-5 py-3"><IncomeControls id={o.id} category={o.category} clients={clients} /></td>
                           <td className="px-5 py-3"><RowActions deleteAction={deleteOtherIncome.bind(null, o.id)} label="income entry" /></td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
                 </div>
+              ) : (
+                <div className="px-5 py-8 text-center text-sm text-slate-500">No income entries this month. Import a statement, or add one below.</div>
               )}
-              <form action={addOtherIncome} className="grid grid-cols-1 gap-3 border-t border-slate-100 p-5 sm:grid-cols-2 lg:grid-cols-4">
+
+              <form action={addOtherIncome} className="grid grid-cols-1 gap-3 border-t border-slate-100 p-5 sm:grid-cols-2 lg:grid-cols-5">
                 <label className="block"><span className="mb-1 block text-xs font-medium text-slate-600">Title *</span><input name="title" required className={inputCls} placeholder="Tax refund" /></label>
+                <label className="block"><span className="mb-1 block text-xs font-medium text-slate-600">Category</span><select name="category" defaultValue="OTHER" className={inputCls}>{INCOME_CATEGORIES.map((c) => <option key={c} value={c}>{INCOME_CATEGORY_LABELS[c]}</option>)}</select></label>
                 <div className="grid grid-cols-3 gap-2">
                   <label className="col-span-2 block"><span className="mb-1 block text-xs font-medium text-slate-600">Amount *</span><input name="amount" type="number" min="0" step="any" required className={inputCls} placeholder="200" /></label>
                   <label className="block"><span className="mb-1 block text-xs font-medium text-slate-600">Cur</span><select name="currency" defaultValue="CAD" className={inputCls}>{currencies.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}</select></label>
