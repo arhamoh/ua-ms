@@ -167,45 +167,45 @@ export default function PendingReview({
           </div>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[1180px] text-sm">
-            <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+          <table className="w-full min-w-[1120px] text-sm">
+            <thead className="bg-slate-50 text-center text-xs uppercase tracking-wide text-slate-500">
               <tr>
-                <th className="px-3 py-3">
+                <th className="px-2.5 py-3">
                   <input type="checkbox" checked={included.length > 0 && included.length === lines.filter((l) => Number(l.amount) > 0).length}
                     onChange={(e) => { const on = e.target.checked; setLines((ls) => ls.map((l) => ({ ...l, include: on }))); }} className="rounded border-slate-300" />
                 </th>
-                <th className="px-3 py-3 font-medium">Date</th>
-                <th className="px-3 py-3 font-medium">Type</th>
-                <th className="px-3 py-3 font-medium">Title</th>
-                <th className="px-3 py-3 font-medium">Category</th>
-                <th className="px-3 py-3 font-medium">Client</th>
-                <th className="px-3 py-3 font-medium">Tax</th>
-                <th className="px-3 py-3 text-right font-medium">Amount</th>
-                <th className="px-3 py-3 font-medium">Notes</th>
+                <th className="px-2.5 py-3 font-medium">Date</th>
+                <th className="px-2.5 py-3 font-medium">Type</th>
+                <th className="px-2.5 py-3 font-medium">Title</th>
+                <th className="px-2.5 py-3 font-medium">Category</th>
+                <th className="px-2.5 py-3 font-medium">Client</th>
+                <th className="px-2.5 py-3 font-medium">Tax</th>
+                <th className="px-2.5 py-3 font-medium">Amount</th>
+                <th className="px-2.5 py-3 font-medium">Notes</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {order.map(({ l, i }) => (
                 <tr key={i} className={`${l.include ? '' : 'opacity-50'} hover:bg-slate-50`}>
-                  <td className="px-3 py-2"><input type="checkbox" checked={l.include} onChange={(e) => setLine(i, { include: e.target.checked })} className="rounded border-slate-300" /></td>
-                  <td className="px-3 py-2"><input type="date" value={l.date} onChange={(e) => setLine(i, { date: e.target.value })} className={`${mini} w-36`} /></td>
-                  <td className="px-3 py-2">
+                  <td className="px-2.5 py-2"><input type="checkbox" checked={l.include} onChange={(e) => setLine(i, { include: e.target.checked })} className="rounded border-slate-300" /></td>
+                  <td className="px-2.5 py-2"><input type="date" value={l.date} onChange={(e) => setLine(i, { date: e.target.value })} className={`${mini} w-36`} /></td>
+                  <td className="px-2.5 py-2">
                     <select value={l.type} onChange={(e) => setLine(i, { type: e.target.value as 'expense' | 'income' })} className={`${mini} w-32 ${l.type === 'income' ? 'text-emerald-700' : 'text-rose-700'}`}>
                       <option value="expense">Expense</option>
                       <option value="income">Income</option>
                     </select>
                   </td>
-                  <td className="px-3 py-2"><input value={l.title} onChange={(e) => setLine(i, { title: e.target.value })} className={`${mini} w-full min-w-[160px]`} /></td>
-                  <td className="px-3 py-2">
-                    <select value={l.category} onChange={(e) => onCatChange(i, l.type, e.target.value)} className={`${mini} w-44`}>
+                  <td className="px-2.5 py-2"><input value={l.title} onChange={(e) => setLine(i, { title: e.target.value })} className={`${mini} w-full min-w-[160px]`} /></td>
+                  <td className="px-2.5 py-2">
+                    <select value={l.category} onChange={(e) => onCatChange(i, l.type, e.target.value)} className={`${mini} w-40`}>
                       {!(l.type === 'income' ? incCats : expCats).some((c) => c.value === l.category) && l.category && <option value={l.category}>{l.category}</option>}
                       {(l.type === 'income' ? sortedInc : sortedExp).map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
                       <option value="__new__">+ New category…</option>
                     </select>
                   </td>
-                  <td className="px-3 py-2">
+                  <td className="px-2.5 py-2">
                     {l.type === 'income' ? (
-                      <select value={l.clientId ?? ''} onChange={(e) => onClientChange(i, e.target.value)} className={`${mini} w-48 ${l.clientId ? 'text-slate-800' : 'text-slate-500'}`} title="Assign this income to a client">
+                      <select value={l.clientId ?? ''} onChange={(e) => onClientChange(i, e.target.value)} className={`${mini} w-40 ${l.clientId ? 'text-slate-800' : 'text-slate-500'}`} title="Assign this income to a client">
                         <option value="">— unassigned —</option>
                         {clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
                         <option value="__new__">+ Quick-add client…</option>
@@ -214,15 +214,15 @@ export default function PendingReview({
                       <span className="pl-2 text-slate-300">—</span>
                     )}
                   </td>
-                  <td className="px-3 py-2">
+                  <td className="px-2.5 py-2">
                     <select value={l.tax} onChange={(e) => setLine(i, { tax: e.target.value as ImportLine['tax'] })} className={`${mini} w-32`} title={l.type === 'income' ? 'GST/QST collected' : 'GST/QST paid'}>
                       <option value="both">GST + QST</option>
                       <option value="gst">GST only</option>
                       <option value="none">No tax</option>
                     </select>
                   </td>
-                  <td className="px-3 py-2 text-right"><input type="number" min="0" step="any" value={l.amount} onChange={(e) => setLine(i, { amount: Number(e.target.value) || 0 })} className={`${mini} w-32 text-right tabular-nums`} /></td>
-                  <td className="px-3 py-2"><input value={l.note ?? ''} onChange={(e) => setLine(i, { note: e.target.value })} placeholder="Optional" className={`${mini} w-full min-w-[140px]`} /></td>
+                  <td className="px-2.5 py-2 text-right"><input type="number" min="0" step="any" value={l.amount} onChange={(e) => setLine(i, { amount: Number(e.target.value) || 0 })} className={`${mini} w-32 text-right tabular-nums`} /></td>
+                  <td className="px-2.5 py-2"><input value={l.note ?? ''} onChange={(e) => setLine(i, { note: e.target.value })} placeholder="Optional" className={`${mini} w-full min-w-[140px]`} /></td>
                 </tr>
               ))}
             </tbody>
