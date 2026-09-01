@@ -62,7 +62,7 @@ export default async function FinancePage({
   await Promise.all([ensureExpenseCategories(), ensureOptionDefaults('paymentMethod')]);
   const [
     rates, company, payments, expenses, salaryPays, commPays, users, expenseCats, incomeCats, currencies, methods, loans,
-    owedExpenses, otherIncomeMonth, invoicesRaw, yearPayments, yearExpenses, filings, clients,
+    owedExpenses, otherIncomeMonth, invoicesRaw, yearPayments, yearExpenses, yearOtherIncome, filings, clients,
   ] = await Promise.all([
     getRatesToCad(),
     getCompany(),
@@ -92,6 +92,7 @@ export default async function FinancePage({
     }),
     prisma.payment.findMany({ where: { paidAt: { gte: yearStart, lt: yearEnd } }, include: { client: { select: { taxRegion: true } } } }),
     prisma.expense.findMany({ where: { date: { gte: yearStart, lt: yearEnd } }, select: { date: true, gst: true, qst: true } }),
+    prisma.otherIncome.findMany({ where: { date: { gte: yearStart, lt: yearEnd } }, select: { date: true, gst: true, qst: true, amount: true, amountCad: true, currency: true } }),
     prisma.quarterlyFiling.findMany({ where: { year: taxYear } }),
     prisma.client.findMany({ orderBy: { name: 'asc' }, select: { id: true, name: true } }),
   ]);
@@ -148,12 +149,13 @@ export default async function FinancePage({
     const { start: qs, end: qe } = quarterRange(taxYear, qn);
     const qp = yearPayments.filter((p) => p.paidAt >= qs && p.paidAt < qe);
     const qx = yearExpenses.filter((e) => e.date >= qs && e.date < qe);
+    const qoi = yearOtherIncome.filter((o) => o.date >= qs && o.date < qe);
     const filing = filings.find((f) => f.quarter === qn);
     const overridden = filing?.incomeOverrideCad != null;
 
-    let incomeCad = qp
-      .filter((p) => p.client.taxRegion === 'QC' || p.client.taxRegion === 'CA')
-      .reduce((s, p) => s + (p.amountCad ?? cadOf(p.amount, p.currency)), 0);
+    // GST/QST collected: use the tax stored on each income record (set on import);
+    // fall back to backing it out by the client's province for older payments.
+    let incomeCad = 0;
     let gstCollected = 0;
     let qstCollected = 0;
     if (overridden) {
@@ -163,9 +165,22 @@ export default async function FinancePage({
       qstCollected = t.qst;
     } else {
       for (const p of qp) {
-        const t = collectedFromPayment(p.amountCad ?? cadOf(p.amount, p.currency), p.client.taxRegion, company);
-        gstCollected += t.gst;
-        qstCollected += t.qst;
+        const cad = p.amountCad ?? cadOf(p.amount, p.currency);
+        if (p.gst != null || p.qst != null) {
+          gstCollected += p.gst ?? 0;
+          qstCollected += p.qst ?? 0;
+          if ((p.gst ?? 0) + (p.qst ?? 0) > 0) incomeCad += cad;
+        } else {
+          const t = collectedFromPayment(cad, p.client.taxRegion, company);
+          gstCollected += t.gst;
+          qstCollected += t.qst;
+          if (t.gst + t.qst > 0) incomeCad += cad;
+        }
+      }
+      for (const o of qoi) {
+        gstCollected += o.gst ?? 0;
+        qstCollected += o.qst ?? 0;
+        if ((o.gst ?? 0) + (o.qst ?? 0) > 0) incomeCad += o.amountCad ?? cadOf(o.amount, o.currency);
       }
     }
     const gstPaid = qx.reduce((s, e) => s + (e.gst ?? 0), 0);

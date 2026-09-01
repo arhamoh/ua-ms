@@ -83,7 +83,7 @@ export default function PendingReview({
     });
   };
 
-  const applyTaxAll = (tax: ImportLine['tax']) => setLines((ls) => ls.map((l) => (l.type === 'expense' ? { ...l, tax } : l)));
+  const applyTaxAll = (tax: ImportLine['tax']) => setLines((ls) => ls.map((l) => ({ ...l, tax })));
 
   const submitNewCat = () => {
     if (!catModal) return;
@@ -216,15 +216,11 @@ export default function PendingReview({
                     )}
                   </td>
                   <td className="px-4 py-2">
-                    {l.type === 'expense' ? (
-                      <select value={l.tax} onChange={(e) => setLine(i, { tax: e.target.value as ImportLine['tax'] })} className={`${mini} w-32`} title="Tax to back out">
-                        <option value="both">GST + QST</option>
-                        <option value="gst">GST only</option>
-                        <option value="none">No tax</option>
-                      </select>
-                    ) : (
-                      <span className="pl-2 text-slate-300">—</span>
-                    )}
+                    <select value={l.tax} onChange={(e) => setLine(i, { tax: e.target.value as ImportLine['tax'] })} className={`${mini} w-32`} title={l.type === 'income' ? 'GST/QST collected' : 'GST/QST paid'}>
+                      <option value="both">GST + QST</option>
+                      <option value="gst">GST only</option>
+                      <option value="none">No tax</option>
+                    </select>
                   </td>
                   <td className="px-4 py-2 text-right"><input type="number" min="0" step="any" value={l.amount} onChange={(e) => setLine(i, { amount: Number(e.target.value) || 0 })} className={`${mini} w-32 text-right tabular-nums`} /></td>
                   <td className="px-4 py-2"><input value={l.note ?? ''} onChange={(e) => setLine(i, { note: e.target.value })} placeholder="Optional" className={`${mini} min-w-[160px]`} /></td>

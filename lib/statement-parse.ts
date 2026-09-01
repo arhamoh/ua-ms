@@ -176,7 +176,9 @@ export function toLines(
         amount: Math.abs(amt),
         date: b.date,
         rawDesc: b.desc,
-        tax: (type === 'expense' ? 'both' : 'none') as ImportLine['tax'],
+        // Default: expenses GST+QST paid; income only taxable when it's a client
+        // payment (loans/transfers/refunds/foreign income default to no tax).
+        tax: (type === 'expense' || category === 'CLIENT_PAYMENT' ? 'both' : 'none') as ImportLine['tax'],
         clientId: null,
       };
     })

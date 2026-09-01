@@ -1500,6 +1500,8 @@ export async function assignIncomeToClient(id: string, clientId: string) {
       currency: inc.currency,
       amountCad: inc.amountCad ?? toCad(inc.amount, inc.currency, rates),
       fxRate: inc.fxRate ?? (inc.currency === 'CAD' ? 1 : rates[inc.currency] ?? null),
+      gst: inc.gst,
+      qst: inc.qst,
       method: 'BANK_TRANSFER',
       paidAt: inc.date,
       note: inc.note ? `${inc.title} — ${inc.note}` : inc.title,
@@ -1612,6 +1614,15 @@ export async function commitPendingImport(
     const amountCad = toCad(amount, currency, rates);
     const fxRate = currency === 'CAD' ? 1 : rates[currency] ?? null;
 
+    // GST/QST for this line (collected on income, paid on expenses). Only CAD.
+    let gst: number | null = null;
+    let qst: number | null = null;
+    if (currency === 'CAD' && (l.tax === 'gst' || l.tax === 'both')) {
+      const t = backOutTax(amount, { gst: true, qst: l.tax === 'both', company });
+      gst = t.gst;
+      qst = l.tax === 'both' ? t.qst : 0;
+    }
+
     if (l.type === 'income') {
       if (l.clientId) {
         paymentData.push({
@@ -1620,6 +1631,8 @@ export async function commitPendingImport(
           currency,
           amountCad,
           fxRate,
+          gst,
+          qst,
           method: 'BANK_TRANSFER',
           paidAt: date,
           note: (l.note?.trim() || l.title || 'From statement').slice(0, 300),
@@ -1633,19 +1646,14 @@ export async function commitPendingImport(
           currency,
           amountCad,
           fxRate,
+          gst,
+          qst,
           date,
           note: l.note?.trim() || 'Imported from statement',
           source: 'STATEMENT',
         });
       }
     } else {
-      let gst: number | null = null;
-      let qst: number | null = null;
-      if (currency === 'CAD' && (l.tax === 'gst' || l.tax === 'both')) {
-        const t = backOutTax(amount, { gst: true, qst: l.tax === 'both', company });
-        gst = t.gst;
-        qst = l.tax === 'both' ? t.qst : 0;
-      }
       let title = (l.title || 'Expense').slice(0, 200);
       let category = normCat(l.category);
       if (/interest/i.test(title)) {

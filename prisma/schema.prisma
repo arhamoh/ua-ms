@@ -614,6 +614,11 @@ model Payment {
   note      String?
   createdAt DateTime      @default(now())
 
+  // GST/QST collected on this payment (CAD). Set on import; when null the
+  // quarterly calc falls back to backing it out by the client's province.
+  gst       Float?
+  qst       Float?
+
   // Bank reconciliation: set when this payment was matched to a statement credit.
   bankMatchedAt DateTime?
 
@@ -644,6 +649,9 @@ model OtherIncome {
   currency  String   @default("CAD")
   amountCad Float?
   fxRate    Float?
+  // GST/QST collected on this income (CAD), when tax was charged.
+  gst       Float?
+  qst       Float?
   date      DateTime
   note      String?
   source    String   @default("MANUAL") // MANUAL | STATEMENT
