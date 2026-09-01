@@ -3,16 +3,31 @@
 
 export type ImportLine = {
   include: boolean;
-  type: 'expense' | 'income';
+  type: 'expense' | 'income' | 'transfer';
   title: string;
   category: string;
   amount: number; // positive
   date: string; // YYYY-MM-DD
   rawDesc: string;
-  tax: 'none' | 'gst' | 'both'; // expense tax treatment; income is always 'none'
+  tax: 'none' | 'gst' | 'both'; // expense tax treatment; income/transfer are 'none'
   clientId?: string | null; // income → assign to a client (becomes a payment)
   note?: string; // optional per-line note
 };
+
+// A bank debit that just pays down / moves money to a credit card (or between
+// own accounts) — NOT an expense. The real expenses are the purchases on the
+// credit-card statement, so these must be treated as transfers to avoid
+// double-counting (and they carry no GST/QST).
+export function isCardPaymentTransfer(desc: string): boolean {
+  const s = desc || '';
+  return (
+    /credit\s*card\s*payment/i.test(s) ||
+    /transfer\s*to\s*(cr\.?|credit)\s*card/i.test(s) ||
+    /\bpay(?:ment|mt)?\b\s*(to|-|:)?\s*(the\s*)?(cr\.?\s*card|credit\s*card|mastercard|master\s*card|visa|amex|american express)\b/i.test(s) ||
+    /\b(mastercard|visa|amex)\b\s*(pmt|payment)/i.test(s) ||
+    /paiement.*carte\s*(de\s*)?cr[ée]dit/i.test(s)
+  );
+}
 
 export function fileToBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -164,10 +179,15 @@ export function toLines(
       if (!amt) return null;
       const isExpense = b.outflow > 0;
       const interest = /interest/i.test(b.desc);
+      const cardPmt = isCardPaymentTransfer(b.desc);
       const rule = rulesByKey.get(ruleKeyLocal(b.desc));
-      const type: 'expense' | 'income' = (rule?.type as any) ?? (isExpense ? 'expense' : 'income');
-      const title = rule?.title || (interest ? 'Interest expense' : b.desc || (isExpense ? 'Expense' : 'Income'));
-      const category = rule?.category ?? (type === 'income' ? 'OTHER' : interest ? 'FEES' : b.category || guessCategory(b.desc));
+      const type: 'expense' | 'income' | 'transfer' =
+        (rule?.type as any) ?? (cardPmt ? 'transfer' : isExpense ? 'expense' : 'income');
+      const title =
+        rule?.title || (cardPmt ? 'Credit card payment' : interest ? 'Interest expense' : b.desc || (isExpense ? 'Expense' : 'Income'));
+      const category =
+        rule?.category ??
+        (type === 'transfer' ? 'CREDIT_CARD_PAYMENT' : type === 'income' ? 'OTHER' : interest ? 'FEES' : b.category || guessCategory(b.desc));
       return {
         include: true,
         type,
@@ -177,7 +197,7 @@ export function toLines(
         date: b.date,
         rawDesc: b.desc,
         // Default: expenses GST+QST paid; income only taxable when it's a client
-        // payment (loans/transfers/refunds/foreign income default to no tax).
+        // payment; transfers (e.g. credit-card payments) carry no tax.
         tax: (type === 'expense' || category === 'CLIENT_PAYMENT' ? 'both' : 'none') as ImportLine['tax'],
         clientId: null,
       };

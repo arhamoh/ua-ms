@@ -13,6 +13,7 @@ import {
   deleteLoan,
   addOtherIncome,
   deleteOtherIncome,
+  deleteTransfer,
 } from '@/app/actions';
 import { EXPENSE_CATEGORY_LABELS, EXPENSE_CATEGORY_BADGE, INVOICE_STATUS_LABELS, INVOICE_STATUS_BADGE, INCOME_CATEGORY_LABELS, INCOME_CATEGORY_BADGE, formatMoney, fxRateNote } from '@/lib/enums';
 import IncomeControls from '@/components/IncomeControls';
@@ -25,6 +26,8 @@ import FadeIn from '@/components/FadeIn';
 import RowActions from '@/components/RowActions';
 import Pill from '@/components/Pill';
 import AnimatedButton from '@/components/AnimatedButton';
+import ReclassifyCCButton from '@/components/ReclassifyCCButton';
+import TableTools from '@/components/TableTools';
 
 export const dynamic = 'force-dynamic';
 
@@ -33,7 +36,7 @@ const inputCls =
 
 const pad = (n: number) => String(n).padStart(2, '0');
 
-const TABS = ['pnl', 'receivables', 'expenses', 'salaries', 'loans', 'tax'] as const;
+const TABS = ['pnl', 'receivables', 'expenses', 'transfers', 'salaries', 'loans', 'tax'] as const;
 
 export default async function FinancePage({
   searchParams,
@@ -62,7 +65,7 @@ export default async function FinancePage({
   await Promise.all([ensureExpenseCategories(), ensureOptionDefaults('paymentMethod')]);
   const [
     rates, company, payments, expenses, salaryPays, commPays, users, expenseCats, incomeCats, currencies, methods, loans,
-    owedExpenses, otherIncomeMonth, invoicesRaw, yearPayments, yearExpenses, yearOtherIncome, filings, clients,
+    owedExpenses, otherIncomeMonth, monthTransfers, invoicesRaw, yearPayments, yearExpenses, yearOtherIncome, filings, clients,
   ] = await Promise.all([
     getRatesToCad(),
     getCompany(),
@@ -85,6 +88,7 @@ export default async function FinancePage({
       include: { paidBy: { select: { name: true } } },
     }),
     prisma.otherIncome.findMany({ where: { date: { gte: start, lt: end } }, orderBy: { date: 'desc' } }),
+    prisma.transfer.findMany({ where: { date: { gte: start, lt: end } }, orderBy: { date: 'desc' } }),
     prisma.invoice.findMany({
       where: { status: { not: 'VOID' } },
       orderBy: { number: 'desc' },
@@ -209,7 +213,7 @@ export default async function FinancePage({
     }`;
   const tabHref = (t: string) => (t === 'tax' ? `/finance?tab=tax&year=${taxYear}` : `/finance?tab=${t}&month=${month}`);
   const tabLabel: Record<string, string> = {
-    pnl: 'P&L', receivables: 'Receivables', expenses: 'Expenses', salaries: 'Salaries', loans: 'Loans', tax: 'GST/QST',
+    pnl: 'P&L', receivables: 'Receivables', expenses: 'Expenses', transfers: 'Transfers', salaries: 'Salaries', loans: 'Loans', tax: 'GST/QST',
   };
 
   return (
@@ -553,6 +557,65 @@ export default async function FinancePage({
                 <AnimatedButton className="shrink-0 rounded-xl bg-brand px-5 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-brand-dark">Add expense</AnimatedButton>
               </div>
             </form>
+          </FadeIn>
+        </div>
+      )}
+
+      {tab === 'transfers' && (
+        <div className="space-y-6">
+          <FadeIn>
+            <div className="rounded-2xl border border-amber-200 bg-amber-50/50 p-5 shadow-sm">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-sm font-semibold text-amber-900">Credit-card payments &amp; transfers</h2>
+                  <p className="mt-0.5 max-w-2xl text-xs text-amber-800">
+                    Paying down your credit card from the bank is a transfer, not an expense — the real expenses are the
+                    purchases on the card statement. Transfers are recorded here but kept out of the P&amp;L and GST, so a
+                    card payment isn&apos;t double-counted against the card&apos;s purchases.
+                  </p>
+                </div>
+                <ReclassifyCCButton />
+              </div>
+            </div>
+          </FadeIn>
+
+          <FadeIn delay={0.06}>
+            <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+              <div className="border-b border-slate-100 px-5 py-4">
+                <h2 className="text-sm font-semibold">Transfers — {monthLabel}</h2>
+              </div>
+              {monthTransfers.length === 0 ? (
+                <div className="px-5 py-10 text-center text-sm text-slate-400">No transfers this month.</div>
+              ) : (
+                <TableTools searchPlaceholder="Search transfers…">
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-[560px] text-sm">
+                      <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+                        <tr>
+                          <th className="px-5 py-3 font-medium">Date</th>
+                          <th className="px-5 py-3 font-medium">Description</th>
+                          <th className="px-5 py-3 text-right font-medium">Amount</th>
+                          <th className="px-5 py-3 text-right font-medium">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {monthTransfers.map((t) => (
+                          <tr key={t.id} className="hover:bg-slate-50">
+                            <td className="px-5 py-3 tabular-nums text-slate-500">{t.date.toISOString().slice(0, 10)}</td>
+                            <td className="px-5 py-3">
+                              <div className="font-medium text-slate-700">{t.title}</div>
+                              {t.note && <div className="text-xs text-slate-400">{t.note}</div>}
+                            </td>
+                            <td className="px-5 py-3 text-right font-medium tabular-nums">{formatMoney(t.amountCad ?? cadOf(t.amount, t.currency), 'CAD')}</td>
+                            <td className="px-5 py-3"><RowActions deleteAction={deleteTransfer.bind(null, t.id)} label="transfer" /></td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </TableTools>
+              )}
+            </div>
           </FadeIn>
         </div>
       )}

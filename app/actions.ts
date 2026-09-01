@@ -1672,6 +1672,40 @@ export async function deleteOtherIncome(id: string) {
   revalidatePath('/finance');
 }
 
+// ─── Transfers (non-P&L money movements, e.g. credit-card payments) ───────────
+
+export async function deleteTransfer(id: string) {
+  if (!id) return;
+  await prisma.transfer.delete({ where: { id } });
+  revalidatePath('/finance');
+}
+
+// One-off: convert expenses that were mis-imported as "Credit card payment" into
+// transfers, so they leave the P&L and their GST/QST input tax credits.
+export async function reclassifyCreditCardPayments(): Promise<{ ok: boolean; message: string }> {
+  await requireSuperAdmin();
+  const exps = await prisma.expense.findMany({ where: { category: 'CREDIT_CARD_PAYMENT' } });
+  if (exps.length === 0) return { ok: true, message: 'No credit-card-payment expenses to reclassify.' };
+  for (const e of exps) {
+    await prisma.transfer.create({
+      data: {
+        title: e.title,
+        category: 'CREDIT_CARD_PAYMENT',
+        amount: e.amount,
+        currency: e.currency,
+        amountCad: e.amountCad,
+        fxRate: e.fxRate,
+        date: e.date,
+        note: e.note,
+        source: 'RECLASSIFIED',
+      },
+    });
+    await prisma.expense.delete({ where: { id: e.id } });
+  }
+  revalidatePath('/finance');
+  return { ok: true, message: `Reclassified ${exps.length} credit-card payment${exps.length === 1 ? '' : 's'} as transfers (removed from P&L and GST).` };
+}
+
 // Re-categorize an income entry (inline, from the income list).
 export async function updateOtherIncomeCategory(id: string, category: string) {
   if (!id) return;
@@ -1809,6 +1843,7 @@ export async function commitPendingImport(
   const expenseData: any[] = [];
   const otherIncomeData: any[] = [];
   const paymentData: any[] = [];
+  const transferData: any[] = [];
 
   for (const l of lines) {
     const amount = Number(l.amount);
@@ -1816,6 +1851,19 @@ export async function commitPendingImport(
     if (Number.isNaN(date.getTime())) continue;
     const amountCad = toCad(amount, currency, rates);
     const fxRate = currency === 'CAD' ? 1 : rates[currency] ?? null;
+
+    // Transfers (e.g. paying down the credit card) are not income or expenses
+    // and carry no GST — record them, but keep them out of the P&L / GST.
+    if (l.type === 'transfer') {
+      transferData.push({
+        title: (l.title || 'Transfer').slice(0, 200),
+        category: normCat(l.category) || 'CREDIT_CARD_PAYMENT',
+        amount, currency, amountCad, fxRate, date,
+        note: l.note?.trim() || 'Imported from statement',
+        source: 'STATEMENT',
+      });
+      continue;
+    }
 
     // GST/QST for this line (collected on income, paid on expenses). Only CAD.
     let gst: number | null = null;
@@ -1870,6 +1918,7 @@ export async function commitPendingImport(
   if (expenseData.length) await prisma.expense.createMany({ data: expenseData });
   if (otherIncomeData.length) await prisma.otherIncome.createMany({ data: otherIncomeData });
   if (paymentData.length) await prisma.payment.createMany({ data: paymentData });
+  if (transferData.length) await prisma.transfer.createMany({ data: transferData });
 
   // Learn categorization rules (last choice wins).
   const rules = new Map<string, { type: string; category: string; title: string | null }>();
@@ -1877,7 +1926,8 @@ export async function commitPendingImport(
     const key = ruleKey(l.rawDesc || l.title || '');
     if (key.length < 3) continue;
     const renamed = (l.title ?? '').trim() && (l.title ?? '').trim().toUpperCase() !== (l.rawDesc ?? '').trim().toUpperCase();
-    rules.set(key, { type: l.type === 'income' ? 'income' : 'expense', category: normCat(l.category), title: renamed ? l.title.trim() : null });
+    const learnType = l.type === 'income' ? 'income' : l.type === 'transfer' ? 'transfer' : 'expense';
+    rules.set(key, { type: learnType, category: normCat(l.category), title: renamed ? l.title.trim() : null });
   }
   for (const [matchKey, r] of rules) {
     try {

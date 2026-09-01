@@ -60,7 +60,17 @@ export default function PendingReview({
   const included = lines.filter((l) => l.include && Number(l.amount) > 0);
   const nExp = included.filter((l) => l.type === 'expense').length;
   const nInc = included.filter((l) => l.type === 'income').length;
+  const nTrf = included.filter((l) => l.type === 'transfer').length;
   const total = included.reduce((s, l) => s + Number(l.amount), 0);
+
+  // Switching type: transfers carry no tax and no client; only income has a client.
+  const onTypeChange = (i: number, value: string) => {
+    const type = value as ImportLine['type'];
+    const patch: Partial<ImportLine> = { type };
+    if (type === 'transfer') { patch.tax = 'none'; patch.clientId = null; }
+    else if (type !== 'income') patch.clientId = null;
+    setLine(i, patch);
+  };
 
   const meta = () => ({ accountType: acctType, accountLabel: acctLabel, currency, note });
 
@@ -163,7 +173,7 @@ export default function PendingReview({
               <button onClick={() => applyTaxAll('gst')} className="rounded-md border border-slate-200 px-2 py-1 font-medium text-slate-600 hover:bg-slate-50">All GST</button>
               <button onClick={() => applyTaxAll('none')} className="rounded-md border border-slate-200 px-2 py-1 font-medium text-slate-600 hover:bg-slate-50">Clear</button>
             </div>
-            <span className="text-xs text-slate-400">{nExp} exp · {nInc} inc · {total.toLocaleString('en-US', { style: 'currency', currency: currencies.some((c) => c.value === currency) ? currency : 'CAD' })}</span>
+            <span className="text-xs text-slate-400">{nExp} exp · {nInc} inc{nTrf ? ` · ${nTrf} transfer` : ''} · {total.toLocaleString('en-US', { style: 'currency', currency: currencies.some((c) => c.value === currency) ? currency : 'CAD' })}</span>
           </div>
         </div>
         <div className="overflow-x-auto">
@@ -190,9 +200,10 @@ export default function PendingReview({
                   <td className="px-2.5 py-2"><input type="checkbox" checked={l.include} onChange={(e) => setLine(i, { include: e.target.checked })} className="rounded border-slate-300" /></td>
                   <td className="px-2.5 py-2"><input type="date" value={l.date} onChange={(e) => setLine(i, { date: e.target.value })} className={`${mini} w-36`} /></td>
                   <td className="px-2.5 py-2">
-                    <select value={l.type} onChange={(e) => setLine(i, { type: e.target.value as 'expense' | 'income' })} className={`${mini} w-32 ${l.type === 'income' ? 'text-emerald-700' : 'text-rose-700'}`}>
+                    <select value={l.type} onChange={(e) => onTypeChange(i, e.target.value)} className={`${mini} w-32 ${l.type === 'income' ? 'text-emerald-700' : l.type === 'transfer' ? 'text-indigo-700' : 'text-rose-700'}`}>
                       <option value="expense">Expense</option>
                       <option value="income">Income</option>
+                      <option value="transfer">Transfer</option>
                     </select>
                   </td>
                   <td className="px-2.5 py-2"><input value={l.title} onChange={(e) => setLine(i, { title: e.target.value })} className={`${mini} w-full min-w-[160px]`} /></td>
@@ -215,11 +226,15 @@ export default function PendingReview({
                     )}
                   </td>
                   <td className="px-2.5 py-2">
-                    <select value={l.tax} onChange={(e) => setLine(i, { tax: e.target.value as ImportLine['tax'] })} className={`${mini} w-32`} title={l.type === 'income' ? 'GST/QST collected' : 'GST/QST paid'}>
-                      <option value="both">GST + QST</option>
-                      <option value="gst">GST only</option>
-                      <option value="none">No tax</option>
-                    </select>
+                    {l.type === 'transfer' ? (
+                      <span className="pl-2 text-slate-300" title="Transfers carry no GST/QST">—</span>
+                    ) : (
+                      <select value={l.tax} onChange={(e) => setLine(i, { tax: e.target.value as ImportLine['tax'] })} className={`${mini} w-32`} title={l.type === 'income' ? 'GST/QST collected' : 'GST/QST paid'}>
+                        <option value="both">GST + QST</option>
+                        <option value="gst">GST only</option>
+                        <option value="none">No tax</option>
+                      </select>
+                    )}
                   </td>
                   <td className="px-2.5 py-2 text-right"><input type="number" min="0" step="any" value={l.amount} onChange={(e) => setLine(i, { amount: Number(e.target.value) || 0 })} className={`${mini} w-32 text-right tabular-nums`} /></td>
                   <td className="px-2.5 py-2"><input value={l.note ?? ''} onChange={(e) => setLine(i, { note: e.target.value })} placeholder="Optional" className={`${mini} w-full min-w-[140px]`} /></td>

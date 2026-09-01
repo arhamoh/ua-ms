@@ -811,6 +811,26 @@ model PendingImport {
   @@index([createdAt])
 }
 
+// A money movement that is NOT income or an expense — e.g. paying down the
+// business credit card from the bank, or moving money between own accounts.
+// Recorded for visibility/audit but excluded from the P&L and GST/QST, so a
+// credit-card payment isn't double-counted against the card's purchases.
+model Transfer {
+  id        String   @id @default(cuid())
+  title     String
+  category  String   @default("CREDIT_CARD_PAYMENT") // CREDIT_CARD_PAYMENT | INTERNAL | OTHER
+  amount    Float
+  currency  String   @default("CAD")
+  amountCad Float?
+  fxRate    Float?
+  date      DateTime
+  note      String?
+  source    String   @default("STATEMENT") // STATEMENT | MANUAL | RECLASSIFIED
+  createdAt DateTime @default(now())
+
+  @@index([date])
+}
+
 // Learned categorization for recurring statement transactions. Keyed by a
 // normalized description (see lib/txnrules.ts): remembers the type/category and
 // (for deliberate renames) the title you last chose, so future imports pre-fill.
