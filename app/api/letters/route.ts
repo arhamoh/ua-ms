@@ -6,6 +6,8 @@ import { extractPdfText, analyzeLetterText, analyzeLetterImage, type LetterAnaly
 export const runtime = 'nodejs';
 export const maxDuration = 60;
 
+// Bump this when the route changes so a live GET can confirm what's deployed.
+const VERSION = 'letters-v3';
 const MAX_BYTES = 15 * 1024 * 1024;
 
 // A valid Date from a YYYY-MM-DD string, or null — never throws on bad AI dates.
@@ -15,62 +17,70 @@ const safeDate = (s: string | null | undefined): Date | null => {
   return Number.isNaN(d.getTime()) ? null : d;
 };
 
+// Diagnostics: visit /api/letters in the browser to see which build is live and
+// whether the AI key is configured.
+export async function GET() {
+  const session = await getSession();
+  if (!session) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+  return NextResponse.json({ version: VERSION, openrouter: !!process.env.OPENROUTER_API_KEY });
+}
+
 // Upload a letter/document → extract + AI-analyze (translate, summarize, pull
 // tasks) → create the Letter and its task board. Super admins only.
 export async function POST(req: NextRequest) {
-  const session = await getSession();
-  if (!session) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
-  if (!session.roles.includes('SUPER_ADMIN')) return NextResponse.json({ error: 'forbidden' }, { status: 403 });
-
-  let form: FormData;
   try {
-    form = await req.formData();
-  } catch {
-    return NextResponse.json({ error: 'bad_request' }, { status: 400 });
-  }
-  const file = form.get('file');
-  if (!(file instanceof File) || file.size === 0) return NextResponse.json({ error: 'no_file' }, { status: 400 });
-  if (file.size > MAX_BYTES) return NextResponse.json({ error: 'too_large' }, { status: 400 });
+    const session = await getSession();
+    if (!session) return NextResponse.json({ error: 'unauthorized', version: VERSION }, { status: 401 });
+    if (!session.roles.includes('SUPER_ADMIN')) return NextResponse.json({ error: 'forbidden', version: VERSION }, { status: 403 });
 
-  const arrayBuf = await file.arrayBuffer().catch(() => null);
-  if (!arrayBuf) return NextResponse.json({ error: 'read', detail: 'Could not read the file.' }, { status: 400 });
-  const buffer = Buffer.from(arrayBuf);
-  const isPdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name);
-  const isImage = file.type.startsWith('image/');
-  const mimeType = file.type || (isPdf ? 'application/pdf' : 'application/octet-stream');
-
-  let analysis: LetterAnalysis | null = null;
-  let originalText: string | null = null;
-  let errorNote: string | null = null;
-
-  try {
-    if (isPdf) {
-      const text = await extractPdfText(buffer);
-      originalText = text || null;
-      if (text.length < 20) {
-        errorNote = 'This looks like a scanned PDF with no selectable text — upload a photo/image of it for AI reading, or add tasks manually.';
-      } else if (!process.env.OPENROUTER_API_KEY) {
-        errorNote = 'AI is not configured (OPENROUTER_API_KEY) — add tasks manually.';
-      } else {
-        analysis = await analyzeLetterText(text);
-        if (!analysis) errorNote = 'AI analysis failed — you can add tasks manually.';
-      }
-    } else if (isImage) {
-      if (!process.env.OPENROUTER_API_KEY) {
-        errorNote = 'AI is not configured (OPENROUTER_API_KEY) — add tasks manually.';
-      } else {
-        const dataUrl = `data:${mimeType};base64,${buffer.toString('base64')}`;
-        analysis = await analyzeLetterImage(dataUrl);
-        if (!analysis) errorNote = 'AI analysis failed — you can add tasks manually.';
-      }
-    } else {
-      errorNote = 'Unsupported file type — upload a PDF or an image.';
+    let form: FormData;
+    try {
+      form = await req.formData();
+    } catch {
+      return NextResponse.json({ error: 'bad_request', version: VERSION }, { status: 400 });
     }
-  } catch (e: any) {
-    errorNote = `Could not analyze the document (${e?.message?.slice(0, 120) ?? 'unknown error'}).`;
-  }
+    const file = form.get('file');
+    if (!(file instanceof File) || file.size === 0) return NextResponse.json({ error: 'no_file', version: VERSION }, { status: 400 });
+    if (file.size > MAX_BYTES) return NextResponse.json({ error: 'too_large', version: VERSION }, { status: 400 });
 
-  try {
+    const arrayBuf = await file.arrayBuffer().catch(() => null);
+    if (!arrayBuf) return NextResponse.json({ error: 'read', detail: 'Could not read the file.', version: VERSION }, { status: 400 });
+    const buffer = Buffer.from(arrayBuf);
+    const isPdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name);
+    const isImage = file.type.startsWith('image/');
+    const mimeType = file.type || (isPdf ? 'application/pdf' : 'application/octet-stream');
+
+    let analysis: LetterAnalysis | null = null;
+    let originalText: string | null = null;
+    let errorNote: string | null = null;
+
+    try {
+      if (isPdf) {
+        const text = await extractPdfText(buffer);
+        originalText = text || null;
+        if (text.length < 20) {
+          errorNote = 'This looks like a scanned PDF with no selectable text — upload a photo/image of it for AI reading, or add tasks manually.';
+        } else if (!process.env.OPENROUTER_API_KEY) {
+          errorNote = 'AI is not configured (OPENROUTER_API_KEY) — add tasks manually.';
+        } else {
+          analysis = await analyzeLetterText(text);
+          if (!analysis) errorNote = 'AI analysis failed — you can add tasks manually.';
+        }
+      } else if (isImage) {
+        if (!process.env.OPENROUTER_API_KEY) {
+          errorNote = 'AI is not configured (OPENROUTER_API_KEY) — add tasks manually.';
+        } else {
+          const dataUrl = `data:${mimeType};base64,${buffer.toString('base64')}`;
+          analysis = await analyzeLetterImage(dataUrl);
+          if (!analysis) errorNote = 'AI analysis failed — you can add tasks manually.';
+        }
+      } else {
+        errorNote = 'Unsupported file type — upload a PDF or an image.';
+      }
+    } catch (e: any) {
+      errorNote = `Could not analyze the document (${e?.message?.slice(0, 120) ?? 'unknown error'}).`;
+    }
+
     const letter = await prisma.letter.create({
       data: {
         title: analysis?.title || file.name.replace(/\.[^.]+$/, ''),
@@ -102,9 +112,12 @@ export async function POST(req: NextRequest) {
       },
       select: { id: true },
     });
-    return NextResponse.json({ id: letter.id, taskCount: analysis?.tasks?.length ?? 0, note: errorNote });
+    return NextResponse.json({ id: letter.id, taskCount: analysis?.tasks?.length ?? 0, note: errorNote, version: VERSION });
   } catch (e: any) {
-    console.error('letter create failed', e);
-    return NextResponse.json({ error: 'server', detail: e?.message?.slice(0, 300) ?? 'Could not save the document.' }, { status: 500 });
+    console.error('POST /api/letters failed', e);
+    return NextResponse.json(
+      { error: 'server', detail: e?.message?.slice(0, 400) ?? 'Unknown server error.', version: VERSION },
+      { status: 500 },
+    );
   }
 }
