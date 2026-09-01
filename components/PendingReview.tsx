@@ -8,6 +8,7 @@ import {
 } from '@/app/actions';
 import { STATEMENT_ACCOUNT_TYPES, STATEMENT_ACCOUNT_TYPE_LABELS } from '@/lib/enums';
 import type { ImportLine } from '@/lib/statement-parse';
+import ConfirmModal from './ConfirmModal';
 
 type Opt = { value: string; label: string };
 type Client = { id: string; name: string };
@@ -76,12 +77,12 @@ export default function PendingReview({
       await commitPendingImport(pending.id);
     });
 
-  const remove = () => {
-    if (!window.confirm('Discard this pending import? The parsed lines and the saved file will be deleted.')) return;
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
+  const remove = () => setConfirmDiscard(true);
+  const doDiscard = () =>
     start(async () => {
       await deletePendingImport(pending.id);
     });
-  };
 
   const applyTaxAll = (tax: ImportLine['tax']) => setLines((ls) => ls.map((l) => ({ ...l, tax })));
 
@@ -282,6 +283,17 @@ export default function PendingReview({
           </div>
         </div>
       )}
+
+      <ConfirmModal
+        open={confirmDiscard}
+        title="Discard this pending import?"
+        message="The parsed lines and the saved file will be deleted."
+        confirmLabel="Discard"
+        danger
+        pending={pendingTx}
+        onConfirm={doDiscard}
+        onCancel={() => setConfirmDiscard(false)}
+      />
       </div>
     </div>
   );

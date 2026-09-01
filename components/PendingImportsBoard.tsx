@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { FileText, Landmark, CreditCard, ChevronRight, GripVertical, Trash2 } from 'lucide-react';
 import { setPendingImportType, deletePendingImport } from '@/app/actions';
 import PendingTypeToggle from './PendingTypeToggle';
+import ConfirmModal from './ConfirmModal';
 
 type P = { id: string; fileName: string; accountType: string; accountLabel: string; count: number; year: number; month: number; period: string };
 
@@ -19,6 +20,7 @@ export default function PendingImportsBoard({ pending }: { pending: P[] }) {
   const [, start] = useTransition();
   const [overType, setOverType] = useState<string | null>(null);
   const [dragId, setDragId] = useState<string | null>(null);
+  const [confirmDel, setConfirmDel] = useState<{ id: string; label: string } | null>(null);
 
   const move = (id: string, type: string) => {
     const item = pending.find((p) => p.id === id);
@@ -29,10 +31,12 @@ export default function PendingImportsBoard({ pending }: { pending: P[] }) {
     });
   };
 
-  const del = (id: string, label: string) => {
-    if (!window.confirm(`Delete pending import "${label}"? Its parsed lines and the saved file will be removed.`)) return;
+  const confirmDelete = () => {
+    if (!confirmDel) return;
+    const { id } = confirmDel;
     start(async () => {
       await deletePendingImport(id);
+      setConfirmDel(null);
       router.refresh();
     });
   };
@@ -93,7 +97,7 @@ export default function PendingImportsBoard({ pending }: { pending: P[] }) {
                         <div className="flex shrink-0 items-center gap-2">
                           <PendingTypeToggle id={p.id} type={p.accountType} />
                           <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">{p.count}</span>
-                          <button onClick={() => del(p.id, p.period || p.accountLabel)} title="Delete this pending import" className="grid h-7 w-7 place-items-center rounded-lg text-slate-300 transition hover:bg-rose-50 hover:text-rose-600">
+                          <button onClick={() => setConfirmDel({ id: p.id, label: p.period || p.accountLabel })} title="Delete this pending import" className="grid h-7 w-7 place-items-center rounded-lg text-slate-300 transition hover:bg-rose-50 hover:text-rose-600">
                             <Trash2 size={14} />
                           </button>
                           <Link href={`/finance/import/${p.id}`} className="text-slate-300 transition hover:text-slate-500"><ChevronRight size={16} /></Link>
@@ -107,6 +111,15 @@ export default function PendingImportsBoard({ pending }: { pending: P[] }) {
           </div>
         );
       })}
+      <ConfirmModal
+        open={!!confirmDel}
+        title={confirmDel ? `Delete "${confirmDel.label}"?` : ''}
+        message="Its parsed lines and the saved file will be removed."
+        confirmLabel="Delete"
+        danger
+        onConfirm={confirmDelete}
+        onCancel={() => setConfirmDel(null)}
+      />
     </div>
   );
 }
