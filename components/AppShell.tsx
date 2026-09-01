@@ -333,6 +333,16 @@ export default function AppShell({
             <Menu size={18} />
           </button>
 
+          {/* Desktop: quick collapse/expand toggle for the sidebar */}
+          <button
+            onClick={toggleCollapsed}
+            aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            className="hidden h-9 w-9 shrink-0 place-items-center rounded-lg border border-slate-200 text-slate-600 transition hover:bg-slate-50 hover:text-brand lg:grid"
+          >
+            {collapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
+          </button>
+
           {/* Logo on mobile — tap to go back to the dashboard (sidebar is a drawer) */}
           <Link href="/" aria-label="Dashboard" className="lg:hidden">
             {/* eslint-disable-next-line @next/next/no-img-element */}
