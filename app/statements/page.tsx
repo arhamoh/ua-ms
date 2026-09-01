@@ -23,8 +23,25 @@ function humanSize(bytes: number): string {
 // The statement's year — read from the free-text period ("June 2026") when it
 // carries one, otherwise the date it was added.
 function yearOf(s: { periodLabel: string | null; createdAt: Date }): number {
-  const m = s.periodLabel?.match(/(20\d{2})/);
-  return m ? Number(m[1]) : s.createdAt.getUTCFullYear();
+  const m = s.periodLabel?.match(/(19|20)\d{2}/);
+  return m ? Number(m[0]) : s.createdAt.getUTCFullYear();
+}
+
+const MONTH_NAMES = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+
+// The statement's month (1–12) parsed from the free-text period. Handles month
+// names/abbreviations ("January", "Jan") and plain numbers ("1", "01", "06/2026").
+// Returns 0 when no month can be determined (those sort last within a year).
+function monthOf(period: string | null): number {
+  if (!period) return 0;
+  const s = period.toLowerCase();
+  for (let i = 0; i < 12; i++) {
+    if (new RegExp(`\\b${MONTH_NAMES[i]}`).test(s)) return i + 1;
+  }
+  // Strip any 4-digit year first so "06/2026" doesn't read the year as a month.
+  const noYear = s.replace(/\b(19|20)\d{2}\b/g, ' ');
+  const m = noYear.match(/\b(0?[1-9]|1[0-2])\b/);
+  return m ? Number(m[1]) : 0;
 }
 
 export default async function StatementsPage() {
@@ -89,14 +106,20 @@ export default async function StatementsPage() {
         </FadeIn>
       ) : (
         STATEMENT_ACCOUNT_TYPES.map((type, ti) => {
+          // Newest year first; within a year, months run Jan → Dec (unknown
+          // months last), then by account name.
           const rows = byType(type)
             .slice()
-            .sort(
-              (a, b) =>
+            .sort((a, b) => {
+              const ma = monthOf(a.periodLabel) || 13;
+              const mb = monthOf(b.periodLabel) || 13;
+              return (
                 yearOf(b) - yearOf(a) ||
+                ma - mb ||
                 a.accountLabel.localeCompare(b.accountLabel) ||
-                b.createdAt.getTime() - a.createdAt.getTime(),
-            );
+                b.createdAt.getTime() - a.createdAt.getTime()
+              );
+            });
           if (rows.length === 0) return null;
           const Icon = type === 'CREDIT_CARD' ? CreditCard : Landmark;
           return (
