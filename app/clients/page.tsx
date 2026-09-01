@@ -6,6 +6,7 @@ import { getRatesToCad, toCad } from '@/lib/fx';
 import { deleteClient } from '@/app/actions';
 import RowActions from '@/components/RowActions';
 import Pill from '@/components/Pill';
+import TableTools from '@/components/TableTools';
 
 export const dynamic = 'force-dynamic';
 
@@ -67,6 +68,7 @@ export default async function ClientsPage() {
         </div>
       ) : (
         <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <TableTools searchPlaceholder="Search clients…">
           <div className="overflow-x-auto">
             <table className="w-full min-w-[760px] text-sm">
               <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
@@ -137,6 +139,7 @@ export default async function ClientsPage() {
               </tfoot>
             </table>
           </div>
+          </TableTools>
         </div>
       )}
       <p className="mt-2 text-xs text-slate-400">

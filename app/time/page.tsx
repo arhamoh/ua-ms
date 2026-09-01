@@ -9,6 +9,7 @@ import CheckInOut from '@/components/CheckInOut';
 import RowActions from '@/components/RowActions';
 import Pill from '@/components/Pill';
 import FadeIn from '@/components/FadeIn';
+import TableTools from '@/components/TableTools';
 
 export const dynamic = 'force-dynamic';
 
@@ -89,6 +90,7 @@ export default async function TimePage() {
             {entries.length === 0 ? (
               <div className="px-5 py-10 text-center text-sm text-slate-500">No sessions yet. Check in to start.</div>
             ) : (
+              <TableTools searchPlaceholder="Search entries…">
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[560px] text-sm">
                   <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
@@ -135,6 +137,7 @@ export default async function TimePage() {
                   </tbody>
                 </table>
               </div>
+              </TableTools>
             )}
           </div>
         </FadeIn>

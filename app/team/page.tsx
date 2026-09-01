@@ -3,6 +3,7 @@ import { createTeamMember, deleteUser } from '@/app/actions';
 import { ROLES, ROLE_LABELS } from '@/lib/enums';
 import RowActions from '@/components/RowActions';
 import AnimatedButton from '@/components/AnimatedButton';
+import TableTools from '@/components/TableTools';
 
 export const dynamic = 'force-dynamic';
 
@@ -72,6 +73,7 @@ export default async function TeamPage() {
               No team members yet. Add your first one using the form.
             </div>
           ) : (
+            <TableTools searchPlaceholder="Search members…">
             <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
               <table className="w-full min-w-[480px] text-sm">
                 <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
@@ -115,6 +117,7 @@ export default async function TeamPage() {
                 </tbody>
               </table>
             </div>
+            </TableTools>
           )}
         </div>
       </div>

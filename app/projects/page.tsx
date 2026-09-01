@@ -13,6 +13,7 @@ import FadeIn from '@/components/FadeIn';
 import RowActions from '@/components/RowActions';
 import Pill from '@/components/Pill';
 import { deleteProject } from '@/app/actions';
+import TableTools from '@/components/TableTools';
 
 export const dynamic = 'force-dynamic';
 
@@ -51,6 +52,7 @@ export default async function ProjectsPage() {
               <Link href="/onboard" className="font-medium text-brand hover:underline">Onboard your first client</Link>
             </div>
           ) : (
+            <TableTools searchPlaceholder="Search projects…">
             <div className="overflow-x-auto">
               <table className="w-full min-w-[820px] text-sm">
                 <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
@@ -129,6 +131,7 @@ export default async function ProjectsPage() {
                 </tbody>
               </table>
             </div>
+            </TableTools>
           )}
         </div>
       </FadeIn>

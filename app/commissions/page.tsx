@@ -8,6 +8,7 @@ import { getLeadTypeRates, getOptions, ensureOptionDefaults } from '@/lib/option
 import FadeIn from '@/components/FadeIn';
 import RowActions from '@/components/RowActions';
 import AnimatedButton from '@/components/AnimatedButton';
+import TableTools from '@/components/TableTools';
 
 export const dynamic = 'force-dynamic';
 
@@ -156,6 +157,7 @@ export default async function CommissionsPage() {
               and a PM to projects.
             </div>
           ) : (
+            <TableTools searchPlaceholder="Search…">
             <div className="overflow-x-auto">
               <table className="w-full min-w-[720px] text-sm">
                 <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
@@ -216,6 +218,7 @@ export default async function CommissionsPage() {
                 </tfoot>
               </table>
             </div>
+            </TableTools>
           )}
         </div>
       </FadeIn>

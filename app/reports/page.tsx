@@ -7,6 +7,7 @@ import { getRatesToCad, toCad } from '@/lib/fx';
 import { formatMoney, fxRateNote } from '@/lib/enums';
 import FadeIn from '@/components/FadeIn';
 import PrintButton from '@/components/PrintButton';
+import TableTools from '@/components/TableTools';
 
 export const dynamic = 'force-dynamic';
 
@@ -190,6 +191,7 @@ export default async function ReportsPage({
           {rows.length === 0 ? (
             <div className="px-5 py-12 text-center text-sm text-slate-500">No data for this range.</div>
           ) : (
+            <TableTools searchPlaceholder="Search…">
             <div className="overflow-x-auto">
               <table className="w-full min-w-[720px] text-sm">
                 <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
@@ -239,6 +241,7 @@ export default async function ReportsPage({
                 </tfoot>
               </table>
             </div>
+            </TableTools>
           )}
         </div>
       </FadeIn>

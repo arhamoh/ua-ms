@@ -5,6 +5,7 @@ import FadeIn from '@/components/FadeIn';
 import RowActions from '@/components/RowActions';
 import Pill from '@/components/Pill';
 import WaveImportButton from '@/components/WaveImportButton';
+import TableTools from '@/components/TableTools';
 import { deleteInvoice } from '@/app/actions';
 import { getSession } from '@/lib/auth';
 import { waveConfigured } from '@/lib/wave';
@@ -52,6 +53,7 @@ export default async function InvoicesPage() {
               No invoices yet. Onboard a client or add a project to generate one.
             </div>
           ) : (
+            <TableTools searchPlaceholder="Search invoices…">
             <div className="overflow-x-auto">
               <table className="w-full min-w-[760px] text-sm">
                 <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
@@ -103,6 +105,7 @@ export default async function InvoicesPage() {
                 </tbody>
               </table>
             </div>
+            </TableTools>
           )}
         </div>
       </FadeIn>
