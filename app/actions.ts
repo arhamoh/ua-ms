@@ -32,6 +32,7 @@ import { ruleKey } from '@/lib/txnrules';
 import { EXPENSE_CATEGORY_LABELS, INCOME_CATEGORY_LABELS } from '@/lib/enums';
 import { buildReport, reportToCsv, REPORT_LABELS, type ReportType, type LedgerEntry } from '@/lib/finance-reports';
 import { renderReportPdf } from '@/lib/report-pdf';
+import { waveConfigured, getWaveBusinesses, getWaveInvoices, mapWaveStatus, testWave } from '@/lib/wave';
 import { DEFAULT_OPTIONS } from '@/lib/options';
 import type { ImportLine } from '@/lib/statement-parse';
 import { getSession } from '@/lib/auth';
@@ -1078,9 +1079,114 @@ export async function testIntegration(id: string): Promise<{ ok: boolean; messag
       return verifyEmailConnection();
     case 'openrouter':
       return testOpenRouter();
+    case 'wave':
+      return testWave();
     default:
       return { ok: false, message: 'Nothing to test for this integration.' };
   }
+}
+
+// ─── Wave Accounting: import invoices → link to clients & payments ────────────
+
+export async function importWaveInvoices(): Promise<{ ok: boolean; message: string }> {
+  await requireSuperAdmin();
+  if (!waveConfigured()) return { ok: false, message: 'Wave is not configured (set WAVE_FULL_ACCESS_TOKEN).' };
+
+  let businesses;
+  try {
+    businesses = await getWaveBusinesses();
+  } catch (e: any) {
+    return { ok: false, message: e?.message?.slice(0, 200) ?? 'Wave connection failed.' };
+  }
+  const bizId = process.env.WAVE_BUSINESS_ID?.trim() || businesses[0]?.id;
+  if (!bizId) return { ok: false, message: 'No Wave business found on this account.' };
+
+  let invoices;
+  try {
+    invoices = await getWaveInvoices(bizId);
+  } catch (e: any) {
+    return { ok: false, message: e?.message?.slice(0, 200) ?? 'Could not load Wave invoices.' };
+  }
+  if (invoices.length === 0) return { ok: true, message: 'No invoices found in Wave.' };
+
+  const rates = await getRatesToCad();
+  const existingClients = await prisma.client.findMany({ select: { id: true, name: true, email: true } });
+  const byName = new Map(existingClients.map((c) => [c.name.trim().toLowerCase(), c.id]));
+  const byEmail = new Map(existingClients.filter((c) => c.email).map((c) => [c.email!.trim().toLowerCase(), c.id]));
+
+  let created = 0, updated = 0, clientsCreated = 0, paymentsLinked = 0;
+
+  for (const inv of invoices) {
+    const cname = (inv.customerName || 'Wave customer').trim();
+    const cemail = inv.customerEmail?.trim() || null;
+    let clientId = (cemail ? byEmail.get(cemail.toLowerCase()) : undefined) || byName.get(cname.toLowerCase()) || null;
+    if (!clientId) {
+      const c = await prisma.client.create({ data: { name: cname.slice(0, 200), email: cemail, taxRegion: 'QC' }, select: { id: true } });
+      clientId = c.id;
+      clientsCreated++;
+      byName.set(cname.toLowerCase(), c.id);
+      if (cemail) byEmail.set(cemail.toLowerCase(), c.id);
+    }
+
+    const status = mapWaveStatus(inv.status);
+    const issuedAt = inv.invoiceDate ? new Date(`${inv.invoiceDate}T00:00:00Z`) : new Date();
+    const dueAt = inv.dueDate ? new Date(`${inv.dueDate}T00:00:00Z`) : null;
+    const currency = CURRENCIES.includes(inv.currency) ? inv.currency : 'CAD';
+    const data = {
+      amount: inv.total,
+      currency,
+      status: status as any,
+      clientId,
+      issuedAt,
+      dueAt,
+      externalSource: 'WAVE',
+      externalNumber: inv.invoiceNumber,
+      notes: `Wave invoice ${inv.invoiceNumber ?? inv.id}`,
+    };
+
+    const existing = await prisma.invoice.findUnique({ where: { externalId: inv.id }, select: { id: true } });
+    let invoiceId: string;
+    if (existing) {
+      await prisma.invoice.update({ where: { id: existing.id }, data });
+      invoiceId = existing.id;
+      updated++;
+    } else {
+      const c = await prisma.invoice.create({ data: { ...data, externalId: inv.id }, select: { id: true } });
+      invoiceId = c.id;
+      created++;
+    }
+
+    // Best-effort: link one existing unlinked payment (from bank import) whose
+    // amount closely matches the invoice total, within ~120 days. Conservative
+    // to avoid mis-linking; partial/multi-payment matching is left manual.
+    const targetCad = toCad(inv.total, currency, rates);
+    if (targetCad > 0) {
+      const candidates = await prisma.payment.findMany({
+        where: { clientId, invoiceId: null },
+        select: { id: true, amount: true, currency: true, amountCad: true, paidAt: true },
+      });
+      let best: { id: string } | null = null;
+      let bestDiff = Infinity;
+      for (const p of candidates) {
+        const pCad = p.amountCad ?? toCad(p.amount, p.currency, rates);
+        const diff = Math.abs(pCad - targetCad);
+        const days = Math.abs((p.paidAt.getTime() - issuedAt.getTime()) / 86400000);
+        if (diff <= Math.max(1, targetCad * 0.02) && days <= 120 && diff < bestDiff) { best = { id: p.id }; bestDiff = diff; }
+      }
+      if (best) {
+        await prisma.payment.update({ where: { id: best.id }, data: { invoiceId } });
+        await prisma.invoice.update({ where: { id: invoiceId }, data: { status: 'PAID' } });
+        paymentsLinked++;
+      }
+    }
+  }
+
+  revalidatePath('/invoices');
+  revalidatePath('/finance');
+  return {
+    ok: true,
+    message: `Imported ${created} new + ${updated} updated invoice(s); created ${clientsCreated} client(s); linked ${paymentsLinked} payment(s).`,
+  };
 }
 
 // ─── Company settings ────────────────────────────────────────────────────────

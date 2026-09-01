@@ -34,6 +34,7 @@ export async function getIntegrations(): Promise<IntegrationStatus[]> {
   const resend = isSet(e.RESEND_API_KEY) && isSet(e.INVOICE_FROM_EMAIL);
   const authSet = isSet(e.AUTH_SECRET);
   const orSet = isSet(e.OPENROUTER_API_KEY);
+  const waveSet = isSet(e.WAVE_FULL_ACCESS_TOKEN);
   const drive = driveConfigured();
 
   return [
@@ -101,6 +102,20 @@ export async function getIntegrations(): Promise<IntegrationStatus[]> {
         { name: 'OPENROUTER_VISION_MODEL', set: isSet(e.OPENROUTER_VISION_MODEL) },
       ],
       testable: orSet,
+    },
+    {
+      id: 'wave',
+      name: 'Wave Accounting',
+      description: 'Import invoices from Wave and match them to clients & payments.',
+      status: waveSet ? 'connected' : 'off',
+      summary: waveSet
+        ? 'Token present — run a test to confirm (requires Wave Pro).'
+        : 'Not configured — set WAVE_FULL_ACCESS_TOKEN (requires a Wave Pro plan).',
+      vars: [
+        { name: 'WAVE_FULL_ACCESS_TOKEN', set: waveSet, required: true },
+        { name: 'WAVE_BUSINESS_ID', set: isSet(e.WAVE_BUSINESS_ID) },
+      ],
+      testable: waveSet,
     },
   ];
 }

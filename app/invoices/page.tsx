@@ -4,23 +4,32 @@ import { INVOICE_STATUS_LABELS, INVOICE_STATUS_BADGE, formatMoney } from '@/lib/
 import FadeIn from '@/components/FadeIn';
 import RowActions from '@/components/RowActions';
 import Pill from '@/components/Pill';
+import WaveImportButton from '@/components/WaveImportButton';
 import { deleteInvoice } from '@/app/actions';
+import { getSession } from '@/lib/auth';
+import { waveConfigured } from '@/lib/wave';
 
 export const dynamic = 'force-dynamic';
 
 export default async function InvoicesPage() {
-  const invoices = await prisma.invoice.findMany({
-    orderBy: { number: 'desc' },
-    include: { client: true, project: true },
-  });
+  const [invoices, session] = await Promise.all([
+    prisma.invoice.findMany({ orderBy: { number: 'desc' }, include: { client: true, project: true } }),
+    getSession(),
+  ]);
+  const canWave = !!session?.roles?.includes('SUPER_ADMIN') && waveConfigured();
 
   return (
     <div>
       <FadeIn>
-        <h1 className="text-2xl font-bold tracking-tight">Invoices</h1>
-        <p className="mt-1 text-sm text-slate-500">
-          An invoice is created automatically when a project is added. Open one to send or print it.
-        </p>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">Invoices</h1>
+            <p className="mt-1 text-sm text-slate-500">
+              An invoice is created automatically when a project is added. Open one to send or print it.
+            </p>
+          </div>
+          {canWave && <WaveImportButton />}
+        </div>
       </FadeIn>
 
       <FadeIn delay={0.06}>

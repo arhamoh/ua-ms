@@ -460,6 +460,11 @@ model Invoice {
   sentAt    DateTime?
   createdAt DateTime      @default(now())
 
+  // Source tracking for invoices synced from an external system (e.g. Wave).
+  externalSource String? // e.g. "WAVE"
+  externalId     String? @unique // the source system's invoice id (dedupe key)
+  externalNumber String? // the human invoice number from the source
+
   clientId String
   client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
 
