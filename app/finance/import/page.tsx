@@ -5,6 +5,7 @@ import { getOptions } from '@/lib/options';
 import { prisma } from '@/lib/prisma';
 import FadeIn from '@/components/FadeIn';
 import ImportUpload from '@/components/ImportUpload';
+import PendingTypeToggle from '@/components/PendingTypeToggle';
 
 export const dynamic = 'force-dynamic';
 
@@ -101,19 +102,20 @@ export default async function ImportStatementPage() {
                             {showYear && (
                               <div className="bg-slate-50/70 px-5 py-1.5 text-xs font-semibold uppercase tracking-wider text-slate-400">{p.year}</div>
                             )}
-                            <Link href={`/finance/import/${p.id}`} className="flex items-center justify-between gap-3 px-5 py-3 transition hover:bg-slate-50">
-                              <div className="flex min-w-0 items-center gap-3">
+                            <div className="flex items-center justify-between gap-3 px-5 py-3 transition hover:bg-slate-50">
+                              <Link href={`/finance/import/${p.id}`} className="flex min-w-0 flex-1 items-center gap-3">
                                 <FileText size={16} className="shrink-0 text-slate-400" />
                                 <div className="min-w-0">
                                   <div className="truncate text-sm font-medium text-slate-800">{p.period || p.accountLabel}</div>
                                   <div className="truncate text-xs text-slate-400">{p.fileName}</div>
                                 </div>
-                              </div>
+                              </Link>
                               <div className="flex shrink-0 items-center gap-2">
+                                <PendingTypeToggle id={p.id} type={p.accountType} />
                                 <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">{p.count}</span>
-                                <ChevronRight size={16} className="text-slate-300" />
+                                <Link href={`/finance/import/${p.id}`} className="text-slate-300 transition hover:text-slate-500"><ChevronRight size={16} /></Link>
                               </div>
-                            </Link>
+                            </div>
                           </Fragment>
                         );
                       })}

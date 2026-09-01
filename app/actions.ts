@@ -1582,6 +1582,13 @@ export async function savePendingImport(
   revalidatePath(`/finance/import/${id}`);
 }
 
+// Flip a pending import's account type (Bank ↔ Credit card) from the list.
+export async function setPendingImportType(id: string, type: string) {
+  if (!id || !PENDING_TYPES.includes(type)) return;
+  await prisma.pendingImport.update({ where: { id }, data: { accountType: type } });
+  revalidatePath('/finance/import');
+}
+
 export async function deletePendingImport(id: string) {
   if (!id) return;
   await prisma.pendingImport.delete({ where: { id } });
