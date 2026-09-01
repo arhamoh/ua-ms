@@ -112,27 +112,31 @@ function AnswerPanel({ task, statements, run, pending }: { task: Task; statement
             className="hidden"
             onChange={(e) => { const f = e.target.files?.[0]; if (f) upload(f); e.target.value = ''; }}
           />
-          {statements.length > 0 && (
-            <button
-              onClick={() => setPickStatement((v) => !v)}
-              disabled={pending}
-              className="inline-flex items-center gap-1 rounded-md border border-slate-300 px-2 py-1 text-[11px] font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50"
-            >
-              <Archive size={12} /> From statements
-            </button>
-          )}
-        </div>
-        {pickStatement && statements.length > 0 && (
-          <select
-            defaultValue=""
-            onChange={(e) => { const id = e.target.value; if (id) { run(() => attachStatementToTask(task.id, id)); setPickStatement(false); } }}
-            className="mt-1.5 w-full rounded-md border border-slate-300 px-2 py-1.5 text-xs focus:border-brand focus:outline-none"
+          <button
+            onClick={() => setPickStatement((v) => !v)}
+            disabled={pending}
+            className="inline-flex items-center gap-1 rounded-md border border-slate-300 px-2 py-1 text-[11px] font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50"
           >
-            <option value="" disabled>Choose an archived statement…</option>
-            {statements.map((s) => (
-              <option key={s.id} value={s.id}>{s.label || s.fileName}</option>
-            ))}
-          </select>
+            <Archive size={12} /> From statements
+          </button>
+        </div>
+        {pickStatement && (
+          statements.length > 0 ? (
+            <select
+              defaultValue=""
+              onChange={(e) => { const id = e.target.value; if (id) { run(() => attachStatementToTask(task.id, id)); setPickStatement(false); } }}
+              className="mt-1.5 w-full rounded-md border border-slate-300 px-2 py-1.5 text-xs focus:border-brand focus:outline-none"
+            >
+              <option value="" disabled>Choose an archived statement…</option>
+              {statements.map((s) => (
+                <option key={s.id} value={s.id}>{s.label || s.fileName}</option>
+              ))}
+            </select>
+          ) : (
+            <p className="mt-1.5 rounded-md bg-slate-50 px-2 py-1.5 text-[11px] text-slate-400">
+              No statements in your archive yet — upload one under Finance → Import, or use Upload above.
+            </p>
+          )
         )}
       </div>
     </div>
