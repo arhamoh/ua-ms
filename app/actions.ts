@@ -1487,38 +1487,68 @@ export async function setQuarterlyFiling(formData: FormData) {
 
 const STATEMENT_TYPES = ['BANK', 'CREDIT_CARD'];
 const MAX_STATEMENT_BYTES = 15 * 1024 * 1024; // 15 MB
+const MONTH_FULL = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+const MONTH_ABBR = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
 
-// Save an uploaded bank / credit-card statement file into the archive (stored
-// inline in the DB). Used by the standalone upload form and, after an import,
-// by the statement importer (source=IMPORT with the transaction counts).
+// Best-effort "June 2026" period from a filename like "statement-2026-06.pdf".
+function derivePeriodFromName(name: string): string | null {
+  const s = name.toLowerCase();
+  const yearM = s.match(/(19|20)\d{2}/);
+  const year = yearM ? yearM[0] : null;
+  let month = 0;
+  for (let i = 0; i < 12; i++) if (new RegExp(`\\b${MONTH_ABBR[i]}`).test(s)) { month = i + 1; break; }
+  if (!month) {
+    const noYear = s.replace(/\b(19|20)\d{2}\b/g, ' ');
+    const m = noYear.match(/\b(0?[1-9]|1[0-2])\b/);
+    if (m) month = Number(m[1]);
+  }
+  if (month && year) return `${MONTH_FULL[month - 1]} ${year}`;
+  if (year) return year;
+  return null;
+}
+
+// Save one or more uploaded statement files into the archive (stored inline in
+// the DB). Used by the standalone upload form (which allows multiple files) and,
+// after an import, by the statement importer (source=IMPORT, one file).
 export async function saveStatement(formData: FormData) {
-  const file = formData.get('file');
-  if (!(file instanceof File) || file.size === 0) throw new Error('Choose a statement file.');
-  if (file.size > MAX_STATEMENT_BYTES) throw new Error('That file is too large (max 15 MB).');
+  const files = formData.getAll('file').filter((f): f is File => f instanceof File && f.size > 0);
+  const valid = files.filter((f) => f.size <= MAX_STATEMENT_BYTES);
+  if (valid.length === 0) {
+    throw new Error(files.length ? 'Those files are too large (max 15 MB each).' : 'Choose at least one statement file.');
+  }
 
   const typeRaw = str(formData.get('accountType'));
   const accountType = STATEMENT_TYPES.includes(typeRaw ?? '') ? (typeRaw as string) : 'BANK';
-  const accountLabel = str(formData.get('accountLabel')) || file.name;
-  const mimeType = file.type || (/\.pdf$/i.test(file.name) ? 'application/pdf' : 'text/csv');
-  const buffer = Buffer.from(await file.arrayBuffer());
+  const accountLabel = str(formData.get('accountLabel'));
+  const providedPeriod = str(formData.get('periodLabel'));
+  const note = str(formData.get('note'));
+  const source = str(formData.get('source')) === 'IMPORT' ? 'IMPORT' : 'UPLOAD';
+  const importedExpenses = Number(str(formData.get('importedExpenses'))) || 0;
+  const importedIncome = Number(str(formData.get('importedIncome'))) || 0;
   const session = await getSession();
 
-  await prisma.statement.create({
-    data: {
-      accountType,
-      accountLabel,
-      fileName: file.name,
-      mimeType,
-      size: file.size,
-      data: buffer,
-      periodLabel: str(formData.get('periodLabel')),
-      note: str(formData.get('note')),
-      source: str(formData.get('source')) === 'IMPORT' ? 'IMPORT' : 'UPLOAD',
-      importedExpenses: Number(str(formData.get('importedExpenses'))) || 0,
-      importedIncome: Number(str(formData.get('importedIncome'))) || 0,
-      uploadedById: session?.id ?? null,
-    },
-  });
+  for (const file of valid) {
+    const buffer = Buffer.from(await file.arrayBuffer());
+    // With several files at once, prefer the period parsed from each filename so
+    // months differ per statement; fall back to whatever was typed.
+    const period = (valid.length > 1 ? derivePeriodFromName(file.name) : providedPeriod) || providedPeriod || derivePeriodFromName(file.name);
+    await prisma.statement.create({
+      data: {
+        accountType,
+        accountLabel: accountLabel || file.name,
+        fileName: file.name,
+        mimeType: file.type || (/\.pdf$/i.test(file.name) ? 'application/pdf' : 'text/csv'),
+        size: file.size,
+        data: buffer,
+        periodLabel: period,
+        note,
+        source,
+        importedExpenses,
+        importedIncome,
+        uploadedById: session?.id ?? null,
+      },
+    });
+  }
   revalidatePath('/statements');
 }
 

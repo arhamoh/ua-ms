@@ -220,6 +220,23 @@ export default async function FinancePage({
 
       {tab === 'pnl' && (
         <div>
+          <FadeIn>
+            <div className="mb-6 flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h2 className="flex items-center gap-2 text-sm font-semibold"><Upload size={16} className="text-brand" /> Import a bank / credit-card statement</h2>
+                <p className="mt-0.5 text-xs text-slate-400">Upload a CSV or PDF — debits become expenses, credits become categorizable income. The file is archived to Statements too.</p>
+              </div>
+              <div className="flex shrink-0 items-center gap-2">
+                <Link href="/finance/import" className="inline-flex items-center gap-1.5 rounded-xl bg-brand px-4 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-brand-dark">
+                  <Upload size={15} /> Import statement
+                </Link>
+                <Link href="/finance/bill" className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-600 transition hover:bg-slate-50 hover:text-brand">
+                  <Camera size={15} /> Scan a bill
+                </Link>
+              </div>
+            </div>
+          </FadeIn>
+
           <section className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             {[
               { label: `Income — ${monthLabel}`, value: formatMoney(income, 'CAD'), icon: TrendingUp, tint: 'bg-emerald-50 text-emerald-600' },

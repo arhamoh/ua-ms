@@ -70,7 +70,7 @@ export default async function StatementsPage() {
       {/* Upload */}
       <FadeIn delay={0.05}>
         <form action={saveStatement} className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <h2 className="mb-4 flex items-center gap-2 text-sm font-semibold"><Upload size={16} className="text-brand" /> Upload a statement</h2>
+          <h2 className="mb-4 flex items-center gap-2 text-sm font-semibold"><Upload size={16} className="text-brand" /> Upload statements</h2>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <label className="block">
               <span className="mb-1 block text-xs font-medium text-slate-600">Type</span>
@@ -83,17 +83,17 @@ export default async function StatementsPage() {
               <input name="accountLabel" required className={inputCls} placeholder="Scotiabank chequing" />
             </label>
             <label className="block">
-              <span className="mb-1 block text-xs font-medium text-slate-600">Period</span>
+              <span className="mb-1 block text-xs font-medium text-slate-600">Period (optional)</span>
               <input name="periodLabel" className={inputCls} placeholder="June 2026" />
             </label>
             <label className="block">
-              <span className="mb-1 block text-xs font-medium text-slate-600">File * (PDF or CSV)</span>
-              <input name="file" type="file" accept=".pdf,application/pdf,.csv,text/csv" required className="w-full text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-brand file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-white" />
+              <span className="mb-1 block text-xs font-medium text-slate-600">Files * (PDF or CSV)</span>
+              <input name="file" type="file" multiple accept=".pdf,application/pdf,.csv,text/csv" required className="w-full text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-brand file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-white" />
             </label>
           </div>
           <div className="mt-4 flex items-center justify-between gap-3">
-            <span className="text-xs text-slate-400">Stored securely in the platform (max 15 MB). Only your team can open it.</span>
-            <AnimatedButton className="shrink-0 rounded-xl bg-brand px-5 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-brand-dark">Save statement</AnimatedButton>
+            <span className="text-xs text-slate-400">Pick one or several files. With multiple, the month/year is read from each filename (max 15 MB each).</span>
+            <AnimatedButton className="shrink-0 rounded-xl bg-brand px-5 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-brand-dark">Save statements</AnimatedButton>
           </div>
         </form>
       </FadeIn>
