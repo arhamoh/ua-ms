@@ -145,14 +145,25 @@ export default async function FinancePage({
   const eTo = validYm(sp.eto);
   const eTax = ['none', 'gst', 'both'].includes(sp.etax ?? '') ? sp.etax! : '';
   const { start: expStart, end: expEnd } = rangeOf(eFrom, eTo);
+  // Preserve the date range when switching the tax chip.
+  const expHref = (val: string) => {
+    const p = new URLSearchParams({ tab: 'expenses' });
+    if (eFrom) p.set('efrom', eFrom);
+    if (eTo) p.set('eto', eTo);
+    if (val) p.set('etax', val);
+    return `/finance?${p.toString()}`;
+  };
   type ExpRow = { id: string; title: string; category: string; amount: number; currency: string; amountCad: number | null; gst: number | null; qst: number | null; date: Date; paidById: string | null; reimbursed: boolean; paidBy: { name: string } | null };
   let tabExpenses: ExpRow[] = [];
   let expTabTotal = 0;
   let gstTab = 0;
   let qstTab = 0;
+  const taxCounts = { all: 0, none: 0, gst: 0, both: 0 };
   if (tab === 'expenses') {
-    tabExpenses = await prisma.expense.findMany({ where: dateWhere('date', expStart, expEnd), orderBy: { date: 'desc' }, include: { paidBy: { select: { name: true } } } });
-    if (eTax) tabExpenses = tabExpenses.filter((e) => taxOf(e.gst, e.qst) === eTax);
+    const allExp = await prisma.expense.findMany({ where: dateWhere('date', expStart, expEnd), orderBy: { date: 'desc' }, include: { paidBy: { select: { name: true } } } });
+    taxCounts.all = allExp.length;
+    for (const e of allExp) taxCounts[taxOf(e.gst, e.qst)]++;
+    tabExpenses = eTax ? allExp.filter((e) => taxOf(e.gst, e.qst) === eTax) : allExp;
     expTabTotal = tabExpenses.reduce((s, e) => s + (e.amountCad ?? cadOf(e.amount, e.currency)), 0);
     gstTab = tabExpenses.reduce((s, e) => s + (e.gst ?? 0), 0);
     qstTab = tabExpenses.reduce((s, e) => s + (e.qst ?? 0), 0);
@@ -575,17 +586,22 @@ export default async function FinancePage({
                 <input type="hidden" name="tab" value="expenses" />
                 <label className="block"><span className="mb-1 block text-xs font-medium text-slate-500">From</span><input type="month" name="efrom" defaultValue={eFrom} className={inputCls} /></label>
                 <label className="block"><span className="mb-1 block text-xs font-medium text-slate-500">To</span><input type="month" name="eto" defaultValue={eTo} className={inputCls} /></label>
-                <label className="block"><span className="mb-1 block text-xs font-medium text-slate-500">Tax</span>
-                  <select name="etax" defaultValue={eTax} className={inputCls}>
-                    <option value="">All tax</option>
-                    <option value="none">No tax</option>
-                    <option value="gst">GST only</option>
-                    <option value="both">GST + QST</option>
-                  </select>
-                </label>
+                {eTax && <input type="hidden" name="etax" value={eTax} />}
                 <button className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium hover:bg-slate-50">Apply</button>
-                <span className="ml-auto self-center text-xs text-slate-400">Filter to <span className="font-medium text-slate-500">No tax</span> to spot expenses missing GST/QST claims.</span>
+                <span className="ml-auto self-center text-xs text-slate-400">All expenses by default — leave dates blank for all time.</span>
               </form>
+              <div className="flex flex-wrap items-center gap-1.5 border-b border-slate-100 px-5 py-2.5">
+                <span className="mr-1 text-xs font-medium text-slate-500">Tax:</span>
+                {([['', 'All', taxCounts.all], ['none', 'No tax', taxCounts.none], ['gst', 'GST only', taxCounts.gst], ['both', 'GST + QST', taxCounts.both]] as const).map(([val, label, count]) => {
+                  const active = eTax === val;
+                  return (
+                    <Link key={label} href={expHref(val)} className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition ${active ? 'border-brand bg-brand-light text-brand' : 'border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
+                      {label} <span className={`tabular-nums ${active ? 'text-brand' : 'text-slate-400'}`}>{count}</span>
+                    </Link>
+                  );
+                })}
+                {eTax === 'none' && taxCounts.none > 0 && <span className="ml-1 text-xs text-amber-700">← Canadian vendors here should likely be GST/QST to claim the credit.</span>}
+              </div>
               {(gstTab > 0 || qstTab > 0) && (
                 <div className="flex items-center gap-4 border-b border-slate-100 bg-slate-50 px-5 py-2 text-xs text-slate-500">
                   <span className="inline-flex items-center gap-1"><ReceiptText size={13} /> Input tax credits ({rangeLabel(eFrom, eTo)}):</span>

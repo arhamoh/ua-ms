@@ -85,6 +85,16 @@ function AnswerPanel({ task, statements, run, pending }: { task: Task; statement
     setRQuarters(new Set());
   };
 
+  const genAllQuarters = () => {
+    run(async () => {
+      for (const def of QUARTERS) {
+        await generateFinanceReport(task.id, { type: rType, from: `${rYear}-${def.from}`, to: `${rYear}-${def.to}`, topN: hasTopN ? clamp() : undefined });
+      }
+    });
+    setShowReport(false);
+    setRQuarters(new Set());
+  };
+
   const attachPicked = () => {
     if (pickedStmts.size === 0) return;
     const ids = [...pickedStmts];
@@ -199,11 +209,16 @@ function AnswerPanel({ task, statements, run, pending }: { task: Task; statement
                 ))}
               </div>
             </div>
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-2">
               <span className="text-[10px] text-slate-400">{rQuarters.size ? `${rQuarters.size} quarter${rQuarters.size === 1 ? '' : 's'} of ${rYear}` : 'No quarter = all data'}</span>
-              <button onClick={genReport} disabled={pending} className="rounded-md bg-brand px-2.5 py-1 text-[11px] font-medium text-white hover:bg-brand-dark disabled:opacity-50">
-                {pending ? 'Generating…' : 'Generate & attach'}
-              </button>
+              <div className="flex gap-1.5">
+                <button onClick={genAllQuarters} disabled={pending} title={`Generate a ledger for each quarter of ${rYear}`} className="rounded-md border border-slate-300 px-2 py-1 text-[11px] font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50">
+                  All {rYear} (Q1–Q4)
+                </button>
+                <button onClick={genReport} disabled={pending} className="rounded-md bg-brand px-2.5 py-1 text-[11px] font-medium text-white hover:bg-brand-dark disabled:opacity-50">
+                  {pending ? 'Generating…' : 'Generate & attach'}
+                </button>
+              </div>
             </div>
           </div>
         )}
