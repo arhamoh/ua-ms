@@ -3,7 +3,7 @@ import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from 'pdf
 import { prisma } from '@/lib/prisma';
 import { getSession } from '@/lib/auth';
 import { getCompany } from '@/lib/company';
-import { decryptPdf } from '@/lib/pdf-decrypt';
+import { decryptPdfDetailed } from '@/lib/pdf-decrypt';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -209,9 +209,13 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
         if (src.isEncrypted) {
           // Try to strip encryption (empty-password bank e-statements) so the
           // pages merge inline instead of being appended as a separate file.
-          const dec = await decryptPdf(new Uint8Array(d.bytes));
-          if (dec) { try { src = await PDFDocument.load(dec, { ignoreEncryption: true }); } catch { /* keep original */ } }
-          if (src.isEncrypted) { notePage(`${noteLabel}: "${d.fileName}" is password-protected and is attached as a separate file (it opens on its own).`); return; }
+          const dec = await decryptPdfDetailed(new Uint8Array(d.bytes));
+          if (dec.ok) { try { src = await PDFDocument.load(dec.bytes, { ignoreEncryption: true }); } catch { /* keep original */ } }
+          if (src.isEncrypted) {
+            const why = dec.ok ? 'reload-encrypted' : dec.reason;
+            notePage(`${noteLabel}: "${d.fileName}" is password-protected and is attached as a separate file (it opens on its own). [diag: ${why}]`);
+            return;
+          }
         }
         const pages = await doc.copyPages(src, src.getPageIndices());
         pages.forEach((p) => doc.addPage(p));
