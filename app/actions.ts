@@ -2164,6 +2164,20 @@ export async function commitPendingImport(id: string): Promise<void> {
   redirect(r.targetMonth ? `/finance?tab=pnl&month=${r.targetMonth}` : '/finance?tab=pnl');
 }
 
+// Commit a chosen set of pending imports at once.
+export async function commitSelectedPendingImports(ids: string[]): Promise<{ ok: boolean; message: string }> {
+  const list = Array.from(new Set((ids ?? []).filter((x) => typeof x === 'string' && x)));
+  if (list.length === 0) return { ok: false, message: 'Nothing selected.' };
+  let done = 0;
+  for (const id of list) {
+    try { const r = await commitPendingCore(id); if (r.ok) done++; } catch { /* skip a bad one */ }
+  }
+  revalidatePath('/finance');
+  revalidatePath('/finance/import');
+  revalidatePath('/statements');
+  return { ok: true, message: `Committed ${done} statement${done === 1 ? '' : 's'} — see them in Finance.` };
+}
+
 // Commit every pending import at once (uses each one's reviewed lines as-is).
 export async function commitAllPendingImports(): Promise<{ ok: boolean; message: string }> {
   const pend = await prisma.pendingImport.findMany({ select: { id: true }, orderBy: { createdAt: 'asc' } });
