@@ -186,7 +186,20 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   // card statements, then ledgers & other documents. ─────────────────────────
   const notePage = (msg: string) => {
     const p = doc.addPage([PAGE_W, PAGE_H]);
-    p.drawText(winAnsi(msg), { x: MARGIN, y: PAGE_H - MARGIN - 20, size: 11, font: italic, color: MUTED });
+    const size = 11;
+    const maxW = PAGE_W - MARGIN * 2;
+    // Word-wrap so long notes (incl. any diagnostic tag) don't clip off-page.
+    const words = winAnsi(msg).split(/\s+/);
+    const lines: string[] = [];
+    let cur = '';
+    for (const w of words) {
+      const test = cur ? `${cur} ${w}` : w;
+      if (italic.widthOfTextAtSize(test, size) > maxW && cur) { lines.push(cur); cur = w; }
+      else cur = test;
+    }
+    if (cur) lines.push(cur);
+    let yy = PAGE_H - MARGIN - 20;
+    for (const ln of lines) { p.drawText(ln, { x: MARGIN, y: yy, size, font: italic, color: MUTED }); yy -= size + 5; }
   };
   const sectionCover = (title: string, items: string[]) => {
     const p = doc.addPage([PAGE_W, PAGE_H]);
