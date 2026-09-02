@@ -46,11 +46,24 @@ export default async function LetterBoardPage({ params }: { params: Promise<{ id
     response: t.response,
     attachments: t.attachments.map((a) => ({ id: a.id, fileName: a.fileName, kind: a.kind })),
   }));
-  const statements = statementRows.map((s) => ({
-    id: s.id,
-    fileName: s.fileName,
-    label: [s.accountType === 'CREDIT_CARD' ? 'Credit card' : 'Bank', s.accountLabel, s.periodLabel].filter(Boolean).join(' · '),
-  }));
+  const MONTHS = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
+  const ymOf = (src: string) => {
+    const t = (src || '').toLowerCase();
+    const y = t.match(/(20\d{2})/);
+    const mi = MONTHS.findIndex((m) => t.includes(m));
+    return { year: y ? Number(y[1]) : 0, month: mi >= 0 ? mi + 1 : 0 };
+  };
+  const statements = statementRows.map((s) => {
+    const { year, month } = ymOf(s.periodLabel || s.fileName);
+    return {
+      id: s.id,
+      fileName: s.fileName,
+      accountType: s.accountType,
+      label: [s.accountLabel, s.periodLabel].filter(Boolean).join(' · ') || s.fileName,
+      year,
+      month,
+    };
+  });
   const totalAttachments = tasks.reduce((n, t) => n + t.attachments.length, 0);
   const dueDate = iso(letter.dueDate);
   const isFrench = letter.language && letter.language !== 'en';

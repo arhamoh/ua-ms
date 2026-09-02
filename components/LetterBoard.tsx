@@ -2,7 +2,7 @@
 
 import { useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { Plus, Trash2, ChevronLeft, ChevronRight, Pencil, CalendarClock, Paperclip, Upload, Archive, X, MessageSquare, FileBarChart } from 'lucide-react';
+import { Plus, Trash2, ChevronLeft, ChevronRight, Pencil, CalendarClock, Paperclip, Upload, Archive, X, MessageSquare, FileBarChart, Landmark, CreditCard, Check } from 'lucide-react';
 import {
   addLetterTask,
   setLetterTaskStatus,
@@ -10,7 +10,7 @@ import {
   deleteLetterTask,
   setLetterTaskResponse,
   addTaskUpload,
-  attachStatementToTask,
+  attachStatementsToTask,
   removeTaskAttachment,
   generateFinanceReport,
 } from '@/app/actions';
@@ -28,8 +28,15 @@ type Task = {
   response: string | null;
   attachments: Attachment[];
 };
-type Statement = { id: string; fileName: string; label: string };
+type Statement = { id: string; fileName: string; label: string; accountType: string; year: number; month: number };
 type Run = (fn: () => Promise<unknown>) => void;
+
+const QUARTERS = [
+  { q: 1, label: 'Q1 · Jan–Mar', from: '01', to: '03' },
+  { q: 2, label: 'Q2 · Apr–Jun', from: '04', to: '06' },
+  { q: 3, label: 'Q3 · Jul–Sep', from: '07', to: '09' },
+  { q: 4, label: 'Q4 · Oct–Dec', from: '10', to: '12' },
+];
 
 const COLUMNS = [
   { key: 'TODO', label: 'To do' },
@@ -45,25 +52,45 @@ function overdue(due: string | null, status: string) {
 }
 
 function AnswerPanel({ task, statements, run, pending }: { task: Task; statements: Statement[]; run: Run; pending: boolean }) {
+  const thisYear = new Date().getFullYear();
   const [response, setResponse] = useState(task.response ?? '');
   const [pickStatement, setPickStatement] = useState(false);
+  const [pickedStmts, setPickedStmts] = useState<Set<string>>(new Set());
   const [showReport, setShowReport] = useState(false);
-  const [rType, setRType] = useState<ReportType>('general_ledger');
-  const [rFrom, setRFrom] = useState('');
-  const [rTo, setRTo] = useState('');
+  const [rType, setRType] = useState<ReportType>('gst_collected');
+  const [rYear, setRYear] = useState(thisYear);
+  const [rQuarters, setRQuarters] = useState<Set<number>>(new Set());
   const [rTopN, setRTopN] = useState('5');
   const fileRef = useRef<HTMLInputElement>(null);
   const dirty = response.trim() !== (task.response ?? '').trim();
   const hasTopN = REPORT_TYPES.find((r) => r.value === rType)?.hasTopN;
+  const clamp = () => Math.max(1, Math.min(100, Number(rTopN) || 5));
+
+  const toggleQ = (q: number) => setRQuarters((s) => { const n = new Set(s); n.has(q) ? n.delete(q) : n.add(q); return n; });
+  const togglePicked = (id: string) => setPickedStmts((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
 
   const genReport = () => {
-    run(() => generateFinanceReport(task.id, {
-      type: rType,
-      from: rFrom || null,
-      to: rTo || null,
-      topN: hasTopN ? Math.max(1, Math.min(100, Number(rTopN) || 5)) : undefined,
-    }));
+    const qs = [...rQuarters].sort();
+    run(async () => {
+      if (qs.length === 0) {
+        await generateFinanceReport(task.id, { type: rType, from: null, to: null, topN: hasTopN ? clamp() : undefined });
+      } else {
+        for (const q of qs) {
+          const def = QUARTERS.find((x) => x.q === q)!;
+          await generateFinanceReport(task.id, { type: rType, from: `${rYear}-${def.from}`, to: `${rYear}-${def.to}`, topN: hasTopN ? clamp() : undefined });
+        }
+      }
+    });
     setShowReport(false);
+    setRQuarters(new Set());
+  };
+
+  const attachPicked = () => {
+    if (pickedStmts.size === 0) return;
+    const ids = [...pickedStmts];
+    run(() => attachStatementsToTask(task.id, ids));
+    setPickStatement(false);
+    setPickedStmts(new Set());
   };
 
   const upload = (file: File) => {
@@ -146,43 +173,73 @@ function AnswerPanel({ task, statements, run, pending }: { task: Task; statement
           </button>
         </div>
         {showReport && (
-          <div className="mt-1.5 space-y-1.5 rounded-md border border-slate-200 bg-slate-50 p-2">
+          <div className="mt-1.5 space-y-2 rounded-lg border border-slate-200 bg-white p-2.5 shadow-sm">
             <select value={rType} onChange={(e) => setRType(e.target.value as ReportType)} className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-xs focus:border-brand focus:outline-none">
               {REPORT_TYPES.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
             </select>
             <div className="flex items-center gap-1.5">
-              <label className="flex-1 text-[10px] font-medium uppercase text-slate-400">From
-                <input type="date" value={rFrom} onChange={(e) => setRFrom(e.target.value)} className="mt-0.5 w-full rounded-md border border-slate-300 px-1.5 py-1 text-xs focus:border-brand focus:outline-none" />
-              </label>
-              <label className="flex-1 text-[10px] font-medium uppercase text-slate-400">To
-                <input type="date" value={rTo} onChange={(e) => setRTo(e.target.value)} className="mt-0.5 w-full rounded-md border border-slate-300 px-1.5 py-1 text-xs focus:border-brand focus:outline-none" />
+              <label className="text-[10px] font-medium uppercase text-slate-400">Year
+                <select value={rYear} onChange={(e) => setRYear(Number(e.target.value))} className="ml-1 rounded-md border border-slate-300 px-1.5 py-1 text-xs focus:border-brand focus:outline-none">
+                  {[thisYear, thisYear - 1, thisYear - 2].map((y) => <option key={y} value={y}>{y}</option>)}
+                </select>
               </label>
               {hasTopN && (
-                <label className="w-14 text-[10px] font-medium uppercase text-slate-400">Top
-                  <input type="number" min={1} max={100} value={rTopN} onChange={(e) => setRTopN(e.target.value)} className="mt-0.5 w-full rounded-md border border-slate-300 px-1.5 py-1 text-xs focus:border-brand focus:outline-none" />
+                <label className="ml-auto text-[10px] font-medium uppercase text-slate-400">Top
+                  <input type="number" min={1} max={100} value={rTopN} onChange={(e) => setRTopN(e.target.value)} className="ml-1 w-14 rounded-md border border-slate-300 px-1.5 py-1 text-xs focus:border-brand focus:outline-none" />
                 </label>
               )}
             </div>
+            <div>
+              <div className="mb-1 text-[10px] font-medium uppercase text-slate-400">Quarters (one Excel + PDF each)</div>
+              <div className="flex flex-wrap gap-1">
+                {QUARTERS.map((q) => (
+                  <button key={q.q} onClick={() => toggleQ(q.q)} className={`rounded-md border px-2 py-1 text-[11px] font-medium transition ${rQuarters.has(q.q) ? 'border-brand bg-brand-light text-brand' : 'border-slate-300 text-slate-600 hover:bg-slate-50'}`}>
+                    {q.label.split(' · ')[0]}
+                  </button>
+                ))}
+              </div>
+            </div>
             <div className="flex items-center justify-between">
-              <span className="text-[10px] text-slate-400">Leave dates blank for all data. Adds a PDF + CSV.</span>
+              <span className="text-[10px] text-slate-400">{rQuarters.size ? `${rQuarters.size} quarter${rQuarters.size === 1 ? '' : 's'} of ${rYear}` : 'No quarter = all data'}</span>
               <button onClick={genReport} disabled={pending} className="rounded-md bg-brand px-2.5 py-1 text-[11px] font-medium text-white hover:bg-brand-dark disabled:opacity-50">
-                {pending ? 'Generating…' : 'Generate'}
+                {pending ? 'Generating…' : 'Generate & attach'}
               </button>
             </div>
           </div>
         )}
         {pickStatement && (
           statements.length > 0 ? (
-            <select
-              defaultValue=""
-              onChange={(e) => { const id = e.target.value; if (id) { run(() => attachStatementToTask(task.id, id)); setPickStatement(false); } }}
-              className="mt-1.5 w-full rounded-md border border-slate-300 px-2 py-1.5 text-xs focus:border-brand focus:outline-none"
-            >
-              <option value="" disabled>Choose an archived statement…</option>
-              {statements.map((s) => (
-                <option key={s.id} value={s.id}>{s.label || s.fileName}</option>
-              ))}
-            </select>
+            <div className="mt-1.5 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+              <div className="max-h-64 overflow-auto p-1.5">
+                {([['BANK', 'Bank accounts', Landmark], ['CREDIT_CARD', 'Credit cards', CreditCard]] as const).map(([type, label, Icon]) => {
+                  const group = statements
+                    .filter((s) => (type === 'CREDIT_CARD' ? s.accountType === 'CREDIT_CARD' : s.accountType !== 'CREDIT_CARD'))
+                    .sort((a, b) => (b.year - a.year) || (b.month - a.month) || a.label.localeCompare(b.label));
+                  if (group.length === 0) return null;
+                  return (
+                    <div key={type} className="mb-1">
+                      <div className="flex items-center gap-1.5 px-1.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400"><Icon size={11} /> {label}</div>
+                      {group.map((s) => (
+                        <label key={s.id} className="flex cursor-pointer items-center gap-2 rounded-md px-1.5 py-1 text-xs hover:bg-slate-50">
+                          <input type="checkbox" checked={pickedStmts.has(s.id)} onChange={() => togglePicked(s.id)} className="rounded border-slate-300" />
+                          <span className="min-w-0 flex-1 truncate text-slate-700">{s.label}</span>
+                          {s.year > 0 && <span className="shrink-0 text-[10px] text-slate-400">{s.year}</span>}
+                        </label>
+                      ))}
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="flex items-center justify-between gap-2 border-t border-slate-100 px-2 py-1.5">
+                <span className="text-[10px] text-slate-400">{pickedStmts.size} selected</span>
+                <div className="flex gap-1.5">
+                  <button onClick={() => { setPickStatement(false); setPickedStmts(new Set()); }} className="rounded-md border border-slate-300 px-2 py-1 text-[11px] text-slate-600 hover:bg-slate-50">Cancel</button>
+                  <button onClick={attachPicked} disabled={pending || pickedStmts.size === 0} className="inline-flex items-center gap-1 rounded-md bg-brand px-2.5 py-1 text-[11px] font-medium text-white hover:bg-brand-dark disabled:opacity-50">
+                    <Check size={11} /> Attach {pickedStmts.size || ''}
+                  </button>
+                </div>
+              </div>
+            </div>
           ) : (
             <p className="mt-1.5 rounded-md bg-slate-50 px-2 py-1.5 text-[11px] text-slate-400">
               No statements in your archive yet — upload one under Finance → Import, or use Upload above.

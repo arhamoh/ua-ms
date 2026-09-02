@@ -2555,6 +2555,23 @@ export async function attachStatementToTask(taskId: string, statementId: string)
   revalidatePath(`/letters/${task.letterId}`);
 }
 
+// Attach several archived statements to a task at once.
+export async function attachStatementsToTask(taskId: string, statementIds: string[]) {
+  await requireSuperAdmin();
+  if (!taskId) return;
+  const ids = Array.from(new Set((statementIds ?? []).filter(Boolean)));
+  if (ids.length === 0) return;
+  const [task, stmts] = await Promise.all([
+    prisma.letterTask.findUnique({ where: { id: taskId }, select: { letterId: true } }),
+    prisma.statement.findMany({ where: { id: { in: ids } }, select: { id: true, fileName: true, mimeType: true, size: true } }),
+  ]);
+  if (!task || stmts.length === 0) return;
+  await prisma.taskAttachment.createMany({
+    data: stmts.map((s) => ({ taskId, kind: 'STATEMENT', statementId: s.id, fileName: s.fileName.slice(0, 260), mimeType: s.mimeType, size: s.size })),
+  });
+  revalidatePath(`/letters/${task.letterId}`);
+}
+
 export async function removeTaskAttachment(attachmentId: string) {
   await requireSuperAdmin();
   if (!attachmentId) return;
