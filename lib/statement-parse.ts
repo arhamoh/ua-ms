@@ -171,7 +171,7 @@ export function detectMapping(header: string[]): Mapping {
 // for expenses).
 export function toLines(
   raw: { date: string; desc: string; outflow: number; inflow: number; category?: string }[],
-  rulesByKey: Map<string, { type: string; category: string; title: string | null }>,
+  rulesByKey: Map<string, { type: string; category: string; title: string | null; tax?: string | null }>,
 ): ImportLine[] {
   return raw
     .map((b): ImportLine | null => {
@@ -188,6 +188,17 @@ export function toLines(
       const category =
         rule?.category ??
         (type === 'transfer' ? 'CREDIT_CARD_PAYMENT' : type === 'income' ? 'OTHER' : interest ? 'FEES' : b.category || guessCategory(b.desc));
+      // Tax: transfers never carry tax; otherwise use the learned choice if we
+      // have one, else default (expenses GST+QST; income only when it's a client
+      // payment).
+      const learnedTax = rule?.tax;
+      const defaultTax: ImportLine['tax'] = type === 'expense' || category === 'CLIENT_PAYMENT' ? 'both' : 'none';
+      const tax: ImportLine['tax'] =
+        type === 'transfer'
+          ? 'none'
+          : learnedTax === 'none' || learnedTax === 'gst' || learnedTax === 'both'
+            ? learnedTax
+            : defaultTax;
       return {
         include: true,
         type,
@@ -196,9 +207,7 @@ export function toLines(
         amount: Math.abs(amt),
         date: b.date,
         rawDesc: b.desc,
-        // Default: expenses GST+QST paid; income only taxable when it's a client
-        // payment; transfers (e.g. credit-card payments) carry no tax.
-        tax: (type === 'expense' || category === 'CLIENT_PAYMENT' ? 'both' : 'none') as ImportLine['tax'],
+        tax,
         clientId: null,
       };
     })

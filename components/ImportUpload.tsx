@@ -10,7 +10,7 @@ import {
 import ProgressBar from './ProgressBar';
 
 type Opt = { value: string; label: string };
-type Rule = { matchKey: string; type: string; category: string; title: string | null };
+type Rule = { matchKey: string; type: string; category: string; title: string | null; tax?: string | null };
 
 export default function ImportUpload({ currencies, rules = [] }: { currencies: Opt[]; rules?: Rule[] }) {
   const router = useRouter();
@@ -22,7 +22,7 @@ export default function ImportUpload({ currencies, rules = [] }: { currencies: O
   const abortRef = useRef<AbortController | null>(null);
   const cancelledRef = useRef(false);
 
-  const rulesByKey = new Map<string, { type: string; category: string; title: string | null }>();
+  const rulesByKey = new Map<string, { type: string; category: string; title: string | null; tax?: string | null }>();
   for (const r of rules) rulesByKey.set(r.matchKey, r);
 
   const parsePdf = async (f: File, signal?: AbortSignal): Promise<{ lines: ImportLine[]; currency: string; base64: string } | null> => {

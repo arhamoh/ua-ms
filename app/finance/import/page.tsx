@@ -34,7 +34,7 @@ function periodLabel(name: string): string {
 export default async function ImportStatementPage() {
   const [currencies, rules, pendingRaw] = await Promise.all([
     getOptions('currency'),
-    prisma.txnRule.findMany({ orderBy: { hits: 'desc' }, select: { matchKey: true, type: true, category: true, title: true } }),
+    prisma.txnRule.findMany({ orderBy: { hits: 'desc' }, select: { matchKey: true, type: true, category: true, title: true, tax: true } }),
     prisma.pendingImport.findMany({
       orderBy: { createdAt: 'desc' },
       select: { id: true, fileName: true, accountType: true, accountLabel: true, currency: true, createdAt: true, lines: true },

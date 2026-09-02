@@ -2056,21 +2056,23 @@ export async function commitPendingImport(
   if (paymentData.length) await prisma.payment.createMany({ data: paymentData });
   if (transferData.length) await prisma.transfer.createMany({ data: transferData });
 
-  // Learn categorization rules (last choice wins).
-  const rules = new Map<string, { type: string; category: string; title: string | null }>();
+  // Learn categorization rules (last choice wins) — type, category, tax, and a
+  // deliberate rename — so future imports pre-fill them automatically.
+  const rules = new Map<string, { type: string; category: string; title: string | null; tax: string }>();
   for (const l of lines) {
     const key = ruleKey(l.rawDesc || l.title || '');
     if (key.length < 3) continue;
     const renamed = (l.title ?? '').trim() && (l.title ?? '').trim().toUpperCase() !== (l.rawDesc ?? '').trim().toUpperCase();
     const learnType = l.type === 'income' ? 'income' : l.type === 'transfer' ? 'transfer' : 'expense';
-    rules.set(key, { type: learnType, category: normCat(l.category), title: renamed ? l.title.trim() : null });
+    const learnTax = l.type === 'transfer' ? 'none' : l.tax === 'gst' || l.tax === 'both' ? l.tax : 'none';
+    rules.set(key, { type: learnType, category: normCat(l.category), title: renamed ? l.title.trim() : null, tax: learnTax });
   }
   for (const [matchKey, r] of rules) {
     try {
       await prisma.txnRule.upsert({
         where: { matchKey },
-        create: { matchKey, type: r.type, category: r.category, title: r.title },
-        update: { type: r.type, category: r.category, hits: { increment: 1 }, ...(r.title ? { title: r.title } : {}) },
+        create: { matchKey, type: r.type, category: r.category, title: r.title, tax: r.tax },
+        update: { type: r.type, category: r.category, tax: r.tax, hits: { increment: 1 }, ...(r.title ? { title: r.title } : {}) },
       });
     } catch {
       /* rule write must never block commit */
