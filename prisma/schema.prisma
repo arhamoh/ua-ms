@@ -493,6 +493,9 @@ model Expense {
   qst       Float?
   date      DateTime        // the date the expense applies to
   note      String?
+  // Set when this row was created by a statement import, so the import can be
+  // cleared/re-done as a unit. References Statement.id (no FK cascade).
+  statementId String?
   createdAt DateTime        @default(now())
 
   // Who fronted the money. null = paid by the company directly.
@@ -503,6 +506,7 @@ model Expense {
 
   @@index([date])
   @@index([paidById])
+  @@index([statementId])
 }
 
 // Money the company has given out (advances, loans, opening balances) that
@@ -628,6 +632,8 @@ model Payment {
 
   // Bank reconciliation: set when this payment was matched to a statement credit.
   bankMatchedAt DateTime?
+  // Set when created by a statement import (for clearing/re-doing an import).
+  statementId   String?
 
   clientId String
   client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
@@ -642,6 +648,7 @@ model Payment {
   @@index([clientId])
   @@index([projectId])
   @@index([invoiceId])
+  @@index([statementId])
 }
 
 // Income that is NOT a client payment — e.g. an unmatched bank credit, a refund,
@@ -662,9 +669,11 @@ model OtherIncome {
   date      DateTime
   note      String?
   source    String   @default("MANUAL") // MANUAL | STATEMENT
+  statementId String? // set when created by a statement import
   createdAt DateTime @default(now())
 
   @@index([date])
+  @@index([statementId])
 }
 
 // Per-quarter GST/QST remittance state: an optional manual income override plus
@@ -826,9 +835,11 @@ model Transfer {
   date      DateTime
   note      String?
   source    String   @default("STATEMENT") // STATEMENT | MANUAL | RECLASSIFIED
+  statementId String? // set when created by a statement import
   createdAt DateTime @default(now())
 
   @@index([date])
+  @@index([statementId])
 }
 
 // Learned categorization for recurring statement transactions. Keyed by a

@@ -1706,6 +1706,63 @@ export async function reclassifyCreditCardPayments(): Promise<{ ok: boolean; mes
   return { ok: true, message: `Reclassified ${exps.length} credit-card payment${exps.length === 1 ? '' : 's'} as transfers (removed from P&L and GST).` };
 }
 
+// The UTC month range a statement covers, from its period label or filename.
+function monthRangeFromStatement(periodLabel: string | null, fileName: string): { start: Date; end: Date } | null {
+  const MONTHS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+  const src = `${periodLabel ?? ''} ${fileName ?? ''}`.toLowerCase();
+  const ym = src.match(/(20\d{2})/);
+  if (!ym) return null;
+  const year = Number(ym[1]);
+  let month = MONTHS.findIndex((m) => new RegExp(`\\b${m}`).test(src));
+  if (month < 0) {
+    const m = src.replace(/20\d{2}/g, ' ').match(/\b(0?[1-9]|1[0-2])\b/);
+    if (m) month = Number(m[1]) - 1;
+  }
+  if (month < 0) return null;
+  return { start: new Date(Date.UTC(year, month, 1)), end: new Date(Date.UTC(year, month + 1, 1)) };
+}
+
+// Clear an import: delete the transactions it created and the archived file, so
+// the statement can be re-uploaded. Tagged rows are removed precisely; older
+// (untagged) imports fall back to import-marked rows within the statement's
+// month. Manual entries are never touched.
+export async function clearStatementImport(statementId: string): Promise<{ ok: boolean; message: string }> {
+  const session = await getSession();
+  if (!session?.roles?.includes('SUPER_ADMIN')) return { ok: false, message: 'Not authorized.' };
+  if (!statementId) return { ok: false, message: 'No statement given.' };
+  const stmt = await prisma.statement.findUnique({ where: { id: statementId }, select: { id: true, periodLabel: true, fileName: true } });
+  if (!stmt) return { ok: false, message: 'Statement not found.' };
+
+  // 1) Precisely tagged rows (imports made after import-tracking landed).
+  const tagged = await Promise.all([
+    prisma.expense.deleteMany({ where: { statementId } }),
+    prisma.otherIncome.deleteMany({ where: { statementId } }),
+    prisma.payment.deleteMany({ where: { statementId } }),
+    prisma.transfer.deleteMany({ where: { statementId } }),
+  ]);
+  let removed = tagged.reduce((s, r) => s + r.count, 0);
+
+  // 2) Legacy fallback: untagged import → import-marked rows in the period only.
+  if (removed === 0) {
+    const range = monthRangeFromStatement(stmt.periodLabel, stmt.fileName);
+    if (range) {
+      const { start, end } = range;
+      const legacy = await Promise.all([
+        prisma.expense.deleteMany({ where: { statementId: null, note: 'Imported from statement', date: { gte: start, lt: end } } }),
+        prisma.otherIncome.deleteMany({ where: { statementId: null, source: 'STATEMENT', date: { gte: start, lt: end } } }),
+        prisma.payment.deleteMany({ where: { statementId: null, invoiceId: null, bankMatchedAt: { not: null }, paidAt: { gte: start, lt: end } } }),
+        prisma.transfer.deleteMany({ where: { statementId: null, source: 'STATEMENT', date: { gte: start, lt: end } } }),
+      ]);
+      removed = legacy.reduce((s, r) => s + r.count, 0);
+    }
+  }
+
+  await prisma.statement.delete({ where: { id: statementId } });
+  revalidatePath('/finance');
+  revalidatePath('/statements');
+  return { ok: true, message: `Cleared ${removed} imported transaction${removed === 1 ? '' : 's'} and removed the statement — re-upload to redo it.` };
+}
+
 // Re-categorize an income entry (inline, from the income list).
 export async function updateOtherIncomeCategory(id: string, category: string) {
   if (!id) return;
@@ -1915,6 +1972,33 @@ export async function commitPendingImport(
     }
   }
 
+  // Archive the original file to Statements FIRST, so every imported row can be
+  // tagged with its statementId (lets the import be cleared / re-done later).
+  let statementId: string | null = null;
+  if (p.data) {
+    const bytes = Buffer.from(p.data as Uint8Array);
+    const stmt = await prisma.statement.create({
+      data: {
+        accountType: p.accountType,
+        accountLabel: p.accountLabel,
+        fileName: p.fileName,
+        mimeType: p.mimeType,
+        size: bytes.length,
+        data: bytes,
+        periodLabel: derivePeriodFromName(p.fileName),
+        source: 'IMPORT',
+        importedExpenses: expenseData.length,
+        importedIncome: otherIncomeData.length + paymentData.length,
+      },
+      select: { id: true },
+    });
+    statementId = stmt.id;
+    for (const d of expenseData) d.statementId = statementId;
+    for (const d of otherIncomeData) d.statementId = statementId;
+    for (const d of paymentData) d.statementId = statementId;
+    for (const d of transferData) d.statementId = statementId;
+  }
+
   if (expenseData.length) await prisma.expense.createMany({ data: expenseData });
   if (otherIncomeData.length) await prisma.otherIncome.createMany({ data: otherIncomeData });
   if (paymentData.length) await prisma.payment.createMany({ data: paymentData });
@@ -1939,25 +2023,6 @@ export async function commitPendingImport(
     } catch {
       /* rule write must never block commit */
     }
-  }
-
-  // Archive the original file to Statements.
-  if (p.data) {
-    const bytes = Buffer.from(p.data as Uint8Array);
-    await prisma.statement.create({
-      data: {
-        accountType: p.accountType,
-        accountLabel: p.accountLabel,
-        fileName: p.fileName,
-        mimeType: p.mimeType,
-        size: bytes.length,
-        data: bytes,
-        periodLabel: derivePeriodFromName(p.fileName),
-        source: 'IMPORT',
-        importedExpenses: expenseData.length,
-        importedIncome: otherIncomeData.length + paymentData.length,
-      },
-    });
   }
 
   await prisma.pendingImport.delete({ where: { id } });
