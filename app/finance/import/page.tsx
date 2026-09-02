@@ -32,9 +32,11 @@ function periodLabel(name: string): string {
 }
 
 export default async function ImportStatementPage() {
-  const [currencies, rules, pendingRaw] = await Promise.all([
+  const [currencies, rules, expenseCategories, incomeCategories, pendingRaw] = await Promise.all([
     getOptions('currency'),
     prisma.txnRule.findMany({ orderBy: { hits: 'desc' }, select: { matchKey: true, type: true, category: true, title: true, tax: true } }),
+    getOptions('expenseCategory'),
+    getOptions('incomeCategory'),
     prisma.pendingImport.findMany({
       orderBy: { createdAt: 'desc' },
       select: { id: true, fileName: true, accountType: true, accountLabel: true, currency: true, createdAt: true, lines: true },
@@ -67,7 +69,7 @@ export default async function ImportStatementPage() {
         </Link>
       </div>
 
-      <FadeIn><ImportUpload currencies={currencies} rules={rules} /></FadeIn>
+      <FadeIn><ImportUpload currencies={currencies} rules={rules} expenseCategories={expenseCategories} incomeCategories={incomeCategories} /></FadeIn>
 
       {pending.length > 0 && (
         <FadeIn delay={0.06}>

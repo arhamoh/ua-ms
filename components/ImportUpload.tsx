@@ -12,7 +12,17 @@ import ProgressBar from './ProgressBar';
 type Opt = { value: string; label: string };
 type Rule = { matchKey: string; type: string; category: string; title: string | null; tax?: string | null };
 
-export default function ImportUpload({ currencies, rules = [] }: { currencies: Opt[]; rules?: Rule[] }) {
+export default function ImportUpload({
+  currencies,
+  rules = [],
+  expenseCategories = [],
+  incomeCategories = [],
+}: {
+  currencies: Opt[];
+  rules?: Rule[];
+  expenseCategories?: Opt[];
+  incomeCategories?: Opt[];
+}) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
@@ -30,7 +40,11 @@ export default function ImportUpload({ currencies, rules = [] }: { currencies: O
     const r = await fetch('/api/parse-statement', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ pdf: dataUrl }),
+      body: JSON.stringify({
+        pdf: dataUrl,
+        rules: rules.map((rr) => ({ matchKey: rr.matchKey, type: rr.type, category: rr.category })),
+        categories: { expense: expenseCategories.map((c) => c.value), income: incomeCategories.map((c) => c.value) },
+      }),
       signal,
     });
     const res = await r.json().catch(() => null);
