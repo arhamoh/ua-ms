@@ -1,8 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { UploadCloud, FileSpreadsheet, Loader2, Landmark, CreditCard } from 'lucide-react';
+import { UploadCloud, FileSpreadsheet, Loader2, Landmark, CreditCard, X } from 'lucide-react';
 import { createPendingImport } from '@/app/actions';
 import {
   fileToBase64, parseCsv, detectHeaderIndex, detectMapping, normalizeDate, num, toLines, type ImportLine,
@@ -17,17 +17,21 @@ export default function ImportUpload({ currencies, rules = [] }: { currencies: O
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [note, setNote] = useState<string | null>(null);
   const [type, setType] = useState<'BANK' | 'CREDIT_CARD'>('BANK');
+  const abortRef = useRef<AbortController | null>(null);
+  const cancelledRef = useRef(false);
 
   const rulesByKey = new Map<string, { type: string; category: string; title: string | null }>();
   for (const r of rules) rulesByKey.set(r.matchKey, r);
 
-  const parsePdf = async (f: File): Promise<{ lines: ImportLine[]; currency: string; base64: string } | null> => {
+  const parsePdf = async (f: File, signal?: AbortSignal): Promise<{ lines: ImportLine[]; currency: string; base64: string } | null> => {
     const dataUrl = await fileToBase64(f);
     const r = await fetch('/api/parse-statement', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ pdf: dataUrl }),
+      signal,
     });
     const res = await r.json().catch(() => null);
     if (!res?.ok || !Array.isArray(res.transactions)) {
@@ -69,17 +73,31 @@ export default function ImportUpload({ currencies, rules = [] }: { currencies: O
     return { lines: toLines(raw, rulesByKey), currency: 'CAD', base64 };
   };
 
+  const stop = () => {
+    cancelledRef.current = true;
+    abortRef.current?.abort();
+    setBusy(false);
+    setProgress(null);
+    setNote('Import stopped. Nothing was committed to your finances — any files already parsed are saved as pending drafts you can delete below.');
+  };
+
   const onFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const list = Array.from(e.target.files ?? []);
     e.target.value = '';
     if (list.length === 0) return;
+    cancelledRef.current = false;
+    const controller = new AbortController();
+    abortRef.current = controller;
     setError(null);
+    setNote(null);
     setBusy(true);
     setProgress({ done: 0, total: list.length });
     try {
       for (const f of list) {
+        if (cancelledRef.current) break;
         const isPdf = f.type === 'application/pdf' || /\.pdf$/i.test(f.name);
-        const parsed = isPdf ? await parsePdf(f) : await parseCsvFile(f);
+        const parsed = isPdf ? await parsePdf(f, controller.signal) : await parseCsvFile(f);
+        if (cancelledRef.current) break;
         if (parsed) {
           await createPendingImport({
             fileName: f.name,
@@ -91,12 +109,14 @@ export default function ImportUpload({ currencies, rules = [] }: { currencies: O
             lines: parsed.lines,
           });
         }
+        if (cancelledRef.current) break;
         setProgress((p) => (p ? { ...p, done: p.done + 1 } : p));
       }
-      router.refresh();
-    } catch {
-      setError('Upload failed — try again.');
+      if (!cancelledRef.current) router.refresh();
+    } catch (err) {
+      if (!cancelledRef.current && (err as any)?.name !== 'AbortError') setError('Upload failed — try again.');
     } finally {
+      abortRef.current = null;
       setBusy(false);
       setProgress(null);
     }
@@ -111,6 +131,12 @@ export default function ImportUpload({ currencies, rules = [] }: { currencies: O
         </h2>
         <p className="mt-1 text-sm text-slate-500">Parsing the transactions and saving as pending imports you can review.</p>
         <ProgressBar label="Analyzing…" className="mx-auto mt-4 max-w-xs" />
+        <button
+          onClick={stop}
+          className="mx-auto mt-4 inline-flex items-center gap-1.5 rounded-xl border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-600 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600"
+        >
+          <X size={14} /> Stop
+        </button>
       </div>
     );
   }
@@ -146,6 +172,7 @@ export default function ImportUpload({ currencies, rules = [] }: { currencies: O
         </label>
       </div>
       {error && <p className="mt-3 text-sm text-rose-600">{error}</p>}
+      {note && <p className="mx-auto mt-3 max-w-md text-sm text-slate-500">{note}</p>}
     </div>
   );
 }
