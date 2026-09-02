@@ -6,6 +6,7 @@ import { Plus, Trash2, ChevronLeft, ChevronRight, Pencil, CalendarClock, Papercl
 import {
   addLetterTask,
   setLetterTaskStatus,
+  reorderLetterTasks,
   updateLetterTask,
   deleteLetterTask,
   setLetterTaskResponse,
@@ -402,13 +403,42 @@ export default function LetterBoard({ letterId, tasks, statements }: { letterId:
   const [newTitle, setNewTitle] = useState('');
   const [dragId, setDragId] = useState<string | null>(null);
   const [overCol, setOverCol] = useState<string | null>(null);
+  const [over, setOver] = useState<{ col: string; overId: string; after: boolean } | null>(null);
 
   const run: Run = (fn) => start(async () => { await fn(); router.refresh(); });
 
-  const move = (id: string, status: string) => {
-    const t = tasks.find((x) => x.id === id);
-    if (!t || t.status === status) return;
-    run(() => setLetterTaskStatus(id, status));
+  const clearDrag = () => { setDragId(null); setOverCol(null); setOver(null); };
+
+  const applyDrop = (targetCol: string) => {
+    const id = dragId;
+    const ov = over;
+    clearDrag();
+    if (!id) return;
+
+    // Current per-column ordered id lists (parent already sorts by order within status).
+    const cols: Record<string, string[]> = {};
+    for (const c of COLUMNS) cols[c.key] = tasks.filter((t) => t.status === c.key).map((t) => t.id);
+    // Snapshot the current global arrangement to detect a no-op drop.
+    const current = COLUMNS.flatMap((c) => cols[c.key]);
+    // Remove the dragged task from wherever it currently sits.
+    for (const k of Object.keys(cols)) cols[k] = cols[k].filter((x) => x !== id);
+    // Compute insertion index inside the target column.
+    const list = cols[targetCol];
+    let idx = list.length;
+    if (ov && ov.col === targetCol && ov.overId && ov.overId !== id) {
+      const at = list.indexOf(ov.overId);
+      if (at >= 0) idx = at + (ov.after ? 1 : 0);
+    }
+    list.splice(idx, 0, id);
+
+    // Assign a global order across TODO → DOING → DONE so the submission PDF follows.
+    const updates: { id: string; status: string; order: number }[] = [];
+    let order = 0;
+    for (const c of COLUMNS) for (const tid of cols[c.key]) updates.push({ id: tid, status: c.key, order: order++ });
+    const next = updates.map((u) => u.id);
+    if (current.length === next.length && current.every((v, i) => v === next[i])) return; // no-op
+
+    run(() => reorderLetterTasks(letterId, updates));
   };
 
   const add = () => {
@@ -423,12 +453,22 @@ export default function LetterBoard({ letterId, tasks, statements }: { letterId:
       {COLUMNS.map((col) => {
         const items = tasks.filter((t) => t.status === col.key);
         const isOver = overCol === col.key;
+        // Where the drop line should render within this column's list.
+        let lineAt: number | null = null;
+        if (dragId && over && over.col === col.key) {
+          if (over.overId === '') lineAt = items.length;
+          else {
+            const at = items.findIndex((x) => x.id === over.overId);
+            if (at >= 0) lineAt = at + (over.after ? 1 : 0);
+          }
+        }
+        const DropLine = <div className="mx-0.5 my-0.5 h-0.5 rounded-full bg-brand" />;
         return (
           <div
             key={col.key}
-            onDragOver={(e) => { if (!dragId) return; e.preventDefault(); e.dataTransfer.dropEffect = 'move'; if (overCol !== col.key) setOverCol(col.key); }}
-            onDragLeave={(e) => { if (e.currentTarget === e.target) setOverCol(null); }}
-            onDrop={(e) => { e.preventDefault(); const id = e.dataTransfer.getData('text/plain') || dragId; setOverCol(null); setDragId(null); if (id) move(id, col.key); }}
+            onDragOver={(e) => { if (!dragId) return; e.preventDefault(); e.dataTransfer.dropEffect = 'move'; if (overCol !== col.key) setOverCol(col.key); setOver((prev) => (prev && prev.col === col.key ? prev : { col: col.key, overId: '', after: true })); }}
+            onDragLeave={(e) => { if (e.currentTarget === e.target) { setOverCol(null); setOver(null); } }}
+            onDrop={(e) => { e.preventDefault(); applyDrop(col.key); }}
             className={`rounded-2xl border p-3 transition ${isOver ? 'border-brand bg-brand-light/40 ring-2 ring-brand/20' : 'border-slate-200 bg-slate-50/60'}`}
           >
             <div className="mb-2 flex items-center justify-between px-1">
@@ -436,18 +476,33 @@ export default function LetterBoard({ letterId, tasks, statements }: { letterId:
               <span className="text-xs text-slate-400">{items.length}</span>
             </div>
             <div className="space-y-2">
-              {items.map((t) => (
-                <TaskCard
-                  key={t.id}
-                  task={t}
-                  statements={statements}
-                  run={run}
-                  pending={pending}
-                  dragging={dragId === t.id}
-                  onDragStart={setDragId}
-                  onDragEnd={() => { setDragId(null); setOverCol(null); }}
-                />
+              {items.map((t, i) => (
+                <div key={t.id}>
+                  {lineAt === i && DropLine}
+                  <div
+                    onDragOver={(e) => {
+                      if (!dragId || dragId === t.id) return;
+                      e.preventDefault();
+                      e.stopPropagation();
+                      const r = e.currentTarget.getBoundingClientRect();
+                      const after = e.clientY > r.top + r.height / 2;
+                      if (overCol !== col.key) setOverCol(col.key);
+                      setOver((prev) => (prev && prev.col === col.key && prev.overId === t.id && prev.after === after ? prev : { col: col.key, overId: t.id, after }));
+                    }}
+                  >
+                    <TaskCard
+                      task={t}
+                      statements={statements}
+                      run={run}
+                      pending={pending}
+                      dragging={dragId === t.id}
+                      onDragStart={setDragId}
+                      onDragEnd={clearDrag}
+                    />
+                  </div>
+                </div>
               ))}
+              {lineAt === items.length && items.length > 0 && DropLine}
               {col.key === 'TODO' ? (
                 <div className="flex items-center gap-1.5 pt-1">
                   <input

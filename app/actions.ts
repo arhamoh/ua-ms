@@ -2479,6 +2479,27 @@ export async function deleteLetterTask(taskId: string) {
   if (t) revalidatePath(`/letters/${t.letterId}`);
 }
 
+export async function reorderLetterTasks(
+  letterId: string,
+  updates: { id: string; status: string; order: number }[],
+) {
+  await requireSuperAdmin();
+  if (!letterId || !Array.isArray(updates) || updates.length === 0) return;
+  const valid = updates.filter(
+    (u) => u && typeof u.id === 'string' && LETTER_TASK_STATUSES.includes(u.status) && Number.isFinite(u.order),
+  );
+  if (valid.length === 0) return;
+  await prisma.$transaction(
+    valid.map((u) =>
+      prisma.letterTask.update({
+        where: { id: u.id },
+        data: { status: u.status, order: Math.trunc(u.order) },
+      }),
+    ),
+  );
+  revalidatePath(`/letters/${letterId}`);
+}
+
 export async function renameLetter(id: string, title: string) {
   await requireSuperAdmin();
   const t = (title ?? '').trim();
