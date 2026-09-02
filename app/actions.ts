@@ -1996,11 +1996,9 @@ export async function deletePendingImport(id: string) {
 
 // Commit a pending import: create expenses / income / client payments from its
 // lines (per-row GST/QST), learn rules, archive the file, then delete the draft.
-export async function commitPendingImport(
-  id: string,
-): Promise<{ expenses: number; income: number; payments: number }> {
+async function commitPendingCore(id: string): Promise<{ ok: boolean; targetMonth: string }> {
   const p = await prisma.pendingImport.findUnique({ where: { id } });
-  if (!p) return { expenses: 0, income: 0, payments: 0 };
+  if (!p) return { ok: false, targetMonth: '' };
 
   const lines = ((p.lines as any as ImportLine[]) ?? []).filter((l) => l && l.include && Number(l.amount) > 0);
   const rates = await getRatesToCad();
@@ -2157,7 +2155,32 @@ export async function commitPendingImport(
   let targetMonth = '';
   let best = 0;
   for (const [k, c] of monthCounts) if (c > best) { best = c; targetMonth = k; }
-  redirect(targetMonth ? `/finance?tab=pnl&month=${targetMonth}` : '/finance?tab=pnl');
+  return { ok: true, targetMonth };
+}
+
+// Commit one pending import and jump to the month its transactions land in.
+export async function commitPendingImport(id: string): Promise<void> {
+  const r = await commitPendingCore(id);
+  redirect(r.targetMonth ? `/finance?tab=pnl&month=${r.targetMonth}` : '/finance?tab=pnl');
+}
+
+// Commit every pending import at once (uses each one's reviewed lines as-is).
+export async function commitAllPendingImports(): Promise<{ ok: boolean; message: string }> {
+  const pend = await prisma.pendingImport.findMany({ select: { id: true }, orderBy: { createdAt: 'asc' } });
+  if (pend.length === 0) return { ok: false, message: 'No pending imports to commit.' };
+  let done = 0;
+  for (const { id } of pend) {
+    try {
+      const r = await commitPendingCore(id);
+      if (r.ok) done++;
+    } catch {
+      /* skip a bad one, keep going */
+    }
+  }
+  revalidatePath('/finance');
+  revalidatePath('/finance/import');
+  revalidatePath('/statements');
+  return { ok: true, message: `Committed ${done} statement${done === 1 ? '' : 's'} — see them in Finance.` };
 }
 
 // ─── Quarterly GST/QST filing state ──────────────────────────────────────────

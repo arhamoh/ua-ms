@@ -8,6 +8,7 @@ import {
 } from '@/app/actions';
 import { STATEMENT_ACCOUNT_TYPES, STATEMENT_ACCOUNT_TYPE_LABELS } from '@/lib/enums';
 import type { ImportLine } from '@/lib/statement-parse';
+import { ruleKey } from '@/lib/txnrules';
 import ConfirmModal from './ConfirmModal';
 
 type Opt = { value: string; label: string };
@@ -52,6 +53,22 @@ export default function PendingReview({
   const setLine = (i: number, patch: Partial<ImportLine>) =>
     setLines((ls) => ls.map((l, idx) => (idx === i ? { ...l, ...patch } : l)));
 
+  // Change a field on row i and cascade it to the other transactions with the
+  // same description (learn within the import) — but only to rows that still
+  // share row i's old value, so anything you set differently is left alone.
+  const keyOf = (l: ImportLine) => ruleKey(l.rawDesc || l.title || '');
+  const cascade = <K extends keyof ImportLine>(i: number, field: K, value: ImportLine[K]) => {
+    setLines((ls) => {
+      const key = keyOf(ls[i]);
+      const oldVal = ls[i][field];
+      return ls.map((l, idx) => {
+        if (idx === i) return { ...l, [field]: value };
+        if (key.length >= 3 && keyOf(l) === key && l[field] === oldVal) return { ...l, [field]: value };
+        return l;
+      });
+    });
+  };
+
   const order = useMemo(
     () => lines.map((l, i) => ({ l, i })).sort((a, b) => (a.l.date && b.l.date ? a.l.date.localeCompare(b.l.date) : a.l.date ? -1 : b.l.date ? 1 : 0)),
     [lines],
@@ -63,13 +80,22 @@ export default function PendingReview({
   const nTrf = included.filter((l) => l.type === 'transfer').length;
   const total = included.reduce((s, l) => s + Number(l.amount), 0);
 
-  // Switching type: transfers carry no tax and no client; only income has a client.
+  // Switching type: transfers carry no tax and no client; only income has a
+  // client. Cascades to the same-description rows that still share the old type.
   const onTypeChange = (i: number, value: string) => {
     const type = value as ImportLine['type'];
-    const patch: Partial<ImportLine> = { type };
-    if (type === 'transfer') { patch.tax = 'none'; patch.clientId = null; }
-    else if (type !== 'income') patch.clientId = null;
-    setLine(i, patch);
+    setLines((ls) => {
+      const key = keyOf(ls[i]);
+      const oldType = ls[i].type;
+      return ls.map((l, idx) => {
+        const target = idx === i || (key.length >= 3 && keyOf(l) === key && l.type === oldType);
+        if (!target) return l;
+        const patch: Partial<ImportLine> = { type };
+        if (type === 'transfer') { patch.tax = 'none'; patch.clientId = null; }
+        else if (type !== 'income') patch.clientId = null;
+        return { ...l, ...patch };
+      });
+    });
   };
 
   const meta = () => ({ accountType: acctType, accountLabel: acctLabel, currency, note });
@@ -107,7 +133,7 @@ export default function PendingReview({
         const add = (p: Opt[]) => (p.some((c) => c.value === opt.value) ? p : [...p, opt]);
         if (type === 'income') setIncCats(add);
         else setExpCats(add);
-        setLine(i, { category: opt.value });
+        cascade(i, 'category', opt.value);
       }
       setCatModal(null);
       setCatName('');
@@ -131,7 +157,7 @@ export default function PendingReview({
 
   const onCatChange = (i: number, type: string, value: string) => {
     if (value === '__new__') { setCatName(''); setCatModal({ i, type }); return; }
-    setLine(i, { category: value });
+    cascade(i, 'category', value);
   };
   const onClientChange = (i: number, value: string) => {
     if (value === '__new__') { setAgency(''); setContact(''); setClientModal({ i }); return; }
@@ -229,7 +255,7 @@ export default function PendingReview({
                     {l.type === 'transfer' ? (
                       <span className="pl-2 text-slate-300" title="Transfers carry no GST/QST">—</span>
                     ) : (
-                      <select value={l.tax} onChange={(e) => setLine(i, { tax: e.target.value as ImportLine['tax'] })} className={`${mini} w-32`} title={l.type === 'income' ? 'GST/QST collected' : 'GST/QST paid'}>
+                      <select value={l.tax} onChange={(e) => cascade(i, 'tax', e.target.value as ImportLine['tax'])} className={`${mini} w-32`} title={l.type === 'income' ? 'GST/QST collected' : 'GST/QST paid'}>
                         <option value="both">GST + QST</option>
                         <option value="gst">GST only</option>
                         <option value="none">No tax</option>

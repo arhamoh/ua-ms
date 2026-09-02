@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma';
 import FadeIn from '@/components/FadeIn';
 import ImportUpload from '@/components/ImportUpload';
 import PendingImportsBoard from '@/components/PendingImportsBoard';
+import CommitAllButton from '@/components/CommitAllButton';
 
 export const dynamic = 'force-dynamic';
 
@@ -74,7 +75,10 @@ export default async function ImportStatementPage() {
       {pending.length > 0 && (
         <FadeIn delay={0.06}>
           <div className="mt-6">
-            <p className="mb-3 text-xs text-slate-400">Drag a statement between sections, or use the chip, to change its type.</p>
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <p className="text-xs text-slate-400">Drag a statement between sections, or use the chip, to change its type. Review each, or commit them all at once.</p>
+              <CommitAllButton count={pending.length} />
+            </div>
             <PendingImportsBoard pending={pending} />
           </div>
         </FadeIn>
