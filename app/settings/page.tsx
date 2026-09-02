@@ -1,6 +1,6 @@
-import { Database, FileText, Trash2, SlidersHorizontal, Plus, X, Building2, Plug, Clock, AlertTriangle } from 'lucide-react';
+import { Database, FileText, Trash2, SlidersHorizontal, Plus, Building2, Plug, Clock, AlertTriangle } from 'lucide-react';
 import { prisma } from '@/lib/prisma';
-import { seedDemoData, backfillInvoices, clearDemoData, addOption, deleteOption, saveCompanySettings } from '@/app/actions';
+import { seedDemoData, backfillInvoices, clearDemoData, addOption, saveCompanySettings } from '@/app/actions';
 import { saveMyTimezone } from './actions';
 import TimezoneSelect from '@/components/TimezoneSelect';
 import { ensureOptionsSeeded, ensureOptionDefaults, OPTION_KINDS } from '@/lib/options';
@@ -12,6 +12,7 @@ import IntegrationsPanel from '@/components/IntegrationsPanel';
 import SettingsTabs, { type SettingsTab } from '@/components/SettingsTabs';
 import MigrationButton from '@/components/MigrationButton';
 import ResetDataPanel from '@/components/ResetDataPanel';
+import OptionChip from '@/components/OptionChip';
 
 export const dynamic = 'force-dynamic';
 
@@ -183,22 +184,7 @@ export default async function SettingsPage({
                         <div className="mt-2.5 flex flex-wrap gap-1.5">
                           {items.length === 0 && <span className="text-xs text-slate-400">None yet</span>}
                           {items.map((it) => (
-                            <span
-                              key={it.id}
-                              className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 py-1 pl-2.5 pr-1 text-xs text-slate-700"
-                            >
-                              {it.label}
-                              {it.rate != null && <span className="text-slate-400">· {it.rate}%</span>}
-                              <form action={deleteOption}>
-                                <input type="hidden" name="id" value={it.id} />
-                                <button
-                                  className="grid h-4 w-4 place-items-center rounded-full text-slate-300 transition hover:bg-rose-100 hover:text-rose-600"
-                                  aria-label={`Remove ${it.label}`}
-                                >
-                                  <X size={11} />
-                                </button>
-                              </form>
-                            </span>
+                            <OptionChip key={it.id} id={it.id} label={it.label} rate={it.rate} />
                           ))}
                         </div>
 

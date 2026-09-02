@@ -1152,6 +1152,24 @@ export async function deleteOption(formData: FormData) {
   redirect('/settings');
 }
 
+// Rename an option's display label (keeps its stored value, so existing records
+// that reference this category/option stay mapped). Used by the inline editor.
+export async function updateOption(id: string, label: string) {
+  if (!id) return;
+  const l = (label ?? '').trim();
+  if (!l) return;
+  await prisma.optionItem.update({ where: { id }, data: { label: l.slice(0, 60) } });
+  revalidatePath('/settings');
+  revalidatePath('/finance');
+}
+
+// Client-friendly delete (no redirect) for the inline editor.
+export async function deleteOptionById(id: string) {
+  if (!id) return;
+  await prisma.optionItem.delete({ where: { id } });
+  revalidatePath('/settings');
+}
+
 // Live "test connection" for the Settings integrations panel. Only runs the
 // network probe for the integration the user clicked; returns ok + a message.
 export async function testIntegration(id: string): Promise<{ ok: boolean; message: string }> {
