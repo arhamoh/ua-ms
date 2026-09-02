@@ -70,7 +70,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
           include: {
             attachments: {
               orderBy: { createdAt: 'asc' },
-              include: { statement: { select: { data: true, mimeType: true, fileName: true } } },
+              include: { statement: { select: { data: true, mimeType: true, fileName: true, accountType: true, periodLabel: true } } },
             },
           },
         },
@@ -137,7 +137,17 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   if (letter.summary) { text('Summary', { size: 10, font: bold, gap: 2 }); text(letter.summary, { size: 10, color: MUTED, gap: 6 }); }
 
   // ── One block per task: French question, detail, written answer, docs list ──
-  const appendix: { label: string; fileName: string; bytes: Buffer; mime: string }[] = [];
+  type Doc = { fileName: string; bytes: Buffer; mime: string; kind: string; accountType: string; year: number; month: number };
+  const MONTHS = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
+  const ymOf = (s: string) => {
+    const t = (s || '').toLowerCase();
+    const y = t.match(/(19|20)\d{2}/);
+    const mi = MONTHS.findIndex((m) => t.includes(m));
+    return { year: y ? Number(y[0]) : 0, month: mi >= 0 ? mi + 1 : 0 };
+  };
+  const docs: Doc[] = [];
+  const seenStmt = new Set<string>();
+
   let qNum = 0;
   for (const t of letter.tasks) {
     qNum++;
@@ -155,52 +165,81 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       text('Pièces jointes / Documents:', { size: 9, font: bold, gap: 1 });
       for (const a of t.attachments) {
         const bytes = a.kind === 'STATEMENT' ? (a.statement?.data as unknown as Buffer | undefined) : (a.data as unknown as Buffer | undefined);
-        const mime = a.kind === 'STATEMENT' ? a.statement?.mimeType ?? '' : a.mimeType;
-        if (bytes && bytes.length) {
-          appendix.push({ label: `Q${qNum} · ${a.fileName}`, fileName: a.fileName, bytes, mime });
-          text(`- ${a.fileName}  (see appendix ${appendix.length})`, { size: 9.5, color: MUTED, indent: 8 });
+        text(`- ${a.fileName}${bytes && bytes.length ? '' : '  (file unavailable)'}`, { size: 9.5, color: MUTED, indent: 8 });
+        if (!bytes || !bytes.length) continue;
+        if (a.kind === 'STATEMENT') {
+          const sid = a.statementId ?? '';
+          if (sid && seenStmt.has(sid)) continue; // dedupe statements across tasks
+          if (sid) seenStmt.add(sid);
+          const { year, month } = ymOf(a.statement?.periodLabel || a.statement?.fileName || a.fileName);
+          docs.push({ fileName: a.fileName, bytes, mime: a.statement?.mimeType ?? '', kind: 'STATEMENT', accountType: a.statement?.accountType ?? 'BANK', year, month });
         } else {
-          text(`- ${a.fileName}  (file unavailable)`, { size: 9.5, color: MUTED, indent: 8 });
+          docs.push({ fileName: a.fileName, bytes, mime: a.mimeType, kind: a.kind, accountType: '', year: 0, month: 0 });
         }
       }
     }
   }
   if (qNum === 0) { rule(16); text('No tasks recorded for this document.', { size: 10, color: MUTED }); }
 
-  // ── Appendix: append each attached document's real pages / image ────────────
-  let appNo = 0;
-  for (const item of appendix) {
-    appNo++;
-    const isPdf = /pdf/i.test(item.mime) || /\.pdf$/i.test(item.fileName);
-    const isJpg = /jpe?g/i.test(item.mime) || /\.jpe?g$/i.test(item.fileName);
-    const isPng = /png/i.test(item.mime) || /\.png$/i.test(item.fileName);
-
-    // Separator page introducing the appendix item.
-    const sep = doc.addPage([PAGE_W, PAGE_H]);
-    sep.drawRectangle({ x: 0, y: PAGE_H - 6, width: PAGE_W, height: 6, color: BRAND });
-    sep.drawText(winAnsi(`Appendix ${appNo}`), { x: MARGIN, y: PAGE_H - MARGIN - 20, size: 18, font: bold, color: INK });
-    for (const [i, line] of wrap(item.label, font, 11, CONTENT_W).entries()) {
-      sep.drawText(line, { x: MARGIN, y: PAGE_H - MARGIN - 48 - i * 16, size: 11, font, color: MUTED });
+  // ── Appendix, grouped: Bank statements (by year, newest first), then Credit
+  // card statements, then ledgers & other documents. ─────────────────────────
+  const notePage = (msg: string) => {
+    const p = doc.addPage([PAGE_W, PAGE_H]);
+    p.drawText(winAnsi(msg), { x: MARGIN, y: PAGE_H - MARGIN - 20, size: 11, font: italic, color: MUTED });
+  };
+  const sectionCover = (title: string, items: string[]) => {
+    const p = doc.addPage([PAGE_W, PAGE_H]);
+    p.drawRectangle({ x: 0, y: PAGE_H - 6, width: PAGE_W, height: 6, color: BRAND });
+    p.drawText(winAnsi(title), { x: MARGIN, y: PAGE_H - MARGIN - 24, size: 20, font: bold, color: INK });
+    let yy = PAGE_H - MARGIN - 56;
+    for (const it of items) {
+      if (yy < MARGIN + 14) break;
+      p.drawText(winAnsi(`-  ${it}`), { x: MARGIN, y: yy, size: 10.5, font, color: MUTED });
+      yy -= 17;
     }
-
+  };
+  const appendDoc = async (d: Doc, noteLabel: string) => {
+    const isPdf = /pdf/i.test(d.mime) || /\.pdf$/i.test(d.fileName);
+    const isJpg = /jpe?g/i.test(d.mime) || /\.jpe?g$/i.test(d.fileName);
+    const isPng = /png/i.test(d.mime) || /\.png$/i.test(d.fileName);
     try {
       if (isPdf) {
-        const src = await PDFDocument.load(new Uint8Array(item.bytes), { ignoreEncryption: true });
-        const copied = await doc.copyPages(src, src.getPageIndices());
-        copied.forEach((p) => doc.addPage(p));
+        const src = await PDFDocument.load(new Uint8Array(d.bytes), { ignoreEncryption: true });
+        if (src.isEncrypted) { notePage(`${noteLabel}: "${d.fileName}" is an encrypted PDF and is attached as a separate file (it opens on its own).`); return; }
+        const pages = await doc.copyPages(src, src.getPageIndices());
+        pages.forEach((p) => doc.addPage(p));
       } else if (isJpg || isPng) {
-        const img = isJpg ? await doc.embedJpg(new Uint8Array(item.bytes)) : await doc.embedPng(new Uint8Array(item.bytes));
+        const img = isJpg ? await doc.embedJpg(new Uint8Array(d.bytes)) : await doc.embedPng(new Uint8Array(d.bytes));
         const scale = Math.min((PAGE_W - MARGIN) / img.width, (PAGE_H - MARGIN) / img.height, 1);
-        const w = img.width * scale;
-        const h = img.height * scale;
-        const ip = doc.addPage([PAGE_W, PAGE_H]);
-        ip.drawImage(img, { x: (PAGE_W - w) / 2, y: (PAGE_H - h) / 2, width: w, height: h });
+        const p = doc.addPage([PAGE_W, PAGE_H]);
+        p.drawImage(img, { x: (PAGE_W - img.width * scale) / 2, y: (PAGE_H - img.height * scale) / 2, width: img.width * scale, height: img.height * scale });
       } else {
-        sep.drawText(winAnsi('This file type cannot be embedded — provided separately.'), { x: MARGIN, y: PAGE_H - MARGIN - 90, size: 10, font: italic, color: MUTED });
+        notePage(`${noteLabel}: "${d.fileName}" is provided as a separate file.`);
       }
     } catch {
-      sep.drawText(winAnsi('This document could not be embedded — provided separately.'), { x: MARGIN, y: PAGE_H - MARGIN - 90, size: 10, font: italic, color: MUTED });
+      notePage(`${noteLabel}: could not embed "${d.fileName}" — provided as a separate file.`);
     }
+  };
+  const byYearDesc = (arr: Doc[]) => {
+    const years = [...new Set(arr.map((d) => d.year))].sort((a, b) => b - a);
+    return years.map((yr) => ({ year: yr, items: arr.filter((d) => d.year === yr).sort((a, b) => a.month - b.month || a.fileName.localeCompare(b.fileName)) }));
+  };
+
+  const bank = docs.filter((d) => d.kind === 'STATEMENT' && d.accountType !== 'CREDIT_CARD');
+  const cc = docs.filter((d) => d.kind === 'STATEMENT' && d.accountType === 'CREDIT_CARD');
+  const others = docs.filter((d) => d.kind !== 'STATEMENT');
+
+  for (const g of byYearDesc(bank)) {
+    sectionCover(`Bank account statements — ${g.year || 'undated'}`, g.items.map((d) => d.fileName));
+    for (const d of g.items) await appendDoc(d, `Bank statement ${g.year || ''}`.trim());
+  }
+  for (const g of byYearDesc(cc)) {
+    sectionCover(`Credit card statements — ${g.year || 'undated'}`, g.items.map((d) => d.fileName));
+    for (const d of g.items) await appendDoc(d, `Credit card statement ${g.year || ''}`.trim());
+  }
+  if (others.length) {
+    sectionCover('Ledgers & supporting documents', others.map((d) => d.fileName));
+    for (const d of others) await appendDoc(d, 'Document');
   }
 
   const pdfBytes = await doc.save();

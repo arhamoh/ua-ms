@@ -2594,10 +2594,22 @@ export async function generateFinanceReport(
   const task = await prisma.letterTask.findUnique({ where: { id: taskId }, select: { letterId: true } });
   if (!task) return;
 
-  const from = opts.from ? new Date(`${opts.from}T00:00:00Z`) : null;
-  const to = opts.to ? new Date(`${opts.to}T23:59:59Z`) : null;
+  // Accept YYYY-MM (month) or YYYY-MM-DD; the end bound is exclusive so a whole
+  // month/quarter is fully included.
+  const parseYm = (s: string | null | undefined, end: boolean): Date | null => {
+    if (!s) return null;
+    const m = s.match(/^(\d{4})-(\d{2})(?:-(\d{2}))?$/);
+    if (!m) return null;
+    const y = Number(m[1]);
+    const mo = Number(m[2]);
+    const d = m[3] ? Number(m[3]) : null;
+    if (!end) return new Date(Date.UTC(y, mo - 1, d ?? 1));
+    return d ? new Date(Date.UTC(y, mo - 1, d + 1)) : new Date(Date.UTC(y, mo, 1)); // exclusive
+  };
+  const from = parseYm(opts.from, false);
+  const toExcl = parseYm(opts.to, true);
   const bound = (field: string) =>
-    from || to ? { [field]: { ...(from ? { gte: from } : {}), ...(to ? { lte: to } : {}) } } : {};
+    from || toExcl ? { [field]: { ...(from ? { gte: from } : {}), ...(toExcl ? { lt: toExcl } : {}) } } : {};
 
   const [rates, company, expenses, payments, otherIncome] = await Promise.all([
     getRatesToCad(),
@@ -2619,13 +2631,29 @@ export async function generateFinanceReport(
   ];
 
   const report = buildReport(opts.type, entries, { topN: opts.topN });
-  const periodLabel = from || to ? `${opts.from || '…'} to ${opts.to || '…'}` : 'All imported transactions';
+
+  // A tidy label/stamp: whole-quarter ranges read as "Q1 2026".
+  let periodLabel = 'All imported transactions';
+  let stamp = 'all';
+  if (opts.from && opts.to) {
+    const [fy, fm] = opts.from.split('-').map(Number);
+    const [ty, tm] = opts.to.split('-').map(Number);
+    if (fy === ty && [1, 4, 7, 10].includes(fm) && tm === fm + 2) {
+      const q = (fm - 1) / 3 + 1;
+      periodLabel = `Q${q} ${fy}`;
+      stamp = `Q${q}-${fy}`;
+    } else {
+      periodLabel = `${opts.from} to ${opts.to}`;
+      stamp = `${opts.from}_${opts.to}`;
+    }
+  } else if (opts.from) { periodLabel = `From ${opts.from}`; stamp = opts.from; }
+  else if (opts.to) { periodLabel = `Until ${opts.to}`; stamp = opts.to; }
+
   const pdf = await renderReportPdf(report, { company, periodLabel });
   const csv = reportToCsv(report);
   const csvBuf = Buffer.from(csv, 'utf8');
   const pdfBuf = Buffer.from(pdf);
 
-  const stamp = `${opts.from || 'all'}${opts.to ? `_${opts.to}` : ''}`;
   const base = `${REPORT_LABELS[opts.type]} ${stamp}`.replace(/[^\w.\- ]+/g, '').replace(/\s+/g, ' ').trim().slice(0, 90);
 
   // Shared key + spec on the PDF/CSV pair so they can be regenerated live.

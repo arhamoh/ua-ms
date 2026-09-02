@@ -70,15 +70,28 @@ function AnswerPanel({ task, statements, run, pending }: { task: Task; statement
   const toggleQ = (q: number) => setRQuarters((s) => { const n = new Set(s); n.has(q) ? n.delete(q) : n.add(q); return n; });
   const togglePicked = (id: string) => setPickedStmts((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
 
+  // Rolling last-12-months range as YYYY-MM.
+  const last12 = () => {
+    const now = new Date();
+    const to = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const f = new Date(now.getFullYear(), now.getMonth() - 11, 1);
+    const from = `${f.getFullYear()}-${String(f.getMonth() + 1).padStart(2, '0')}`;
+    return { from, to };
+  };
+
   const genReport = () => {
     const qs = [...rQuarters].sort();
     run(async () => {
-      if (qs.length === 0) {
-        await generateFinanceReport(task.id, { type: rType, from: null, to: null, topN: hasTopN ? clamp() : undefined });
+      if (hasTopN) {
+        // Top-N reports (top purchases / sales) cover the last 12 months.
+        const { from, to } = last12();
+        await generateFinanceReport(task.id, { type: rType, from, to, topN: clamp() });
+      } else if (qs.length === 0) {
+        await generateFinanceReport(task.id, { type: rType, from: null, to: null });
       } else {
         for (const q of qs) {
           const def = QUARTERS.find((x) => x.q === q)!;
-          await generateFinanceReport(task.id, { type: rType, from: `${rYear}-${def.from}`, to: `${rYear}-${def.to}`, topN: hasTopN ? clamp() : undefined });
+          await generateFinanceReport(task.id, { type: rType, from: `${rYear}-${def.from}`, to: `${rYear}-${def.to}` });
         }
       }
     });
@@ -205,22 +218,26 @@ function AnswerPanel({ task, statements, run, pending }: { task: Task; statement
                 </label>
               )}
             </div>
-            <div>
-              <div className="mb-1 text-[10px] font-medium uppercase text-slate-400">Quarters (one Excel + PDF each)</div>
-              <div className="flex flex-wrap gap-1">
-                {QUARTERS.map((q) => (
-                  <button key={q.q} onClick={() => toggleQ(q.q)} className={`rounded-md border px-2 py-1 text-[11px] font-medium transition ${rQuarters.has(q.q) ? 'border-brand bg-brand-light text-brand' : 'border-slate-300 text-slate-600 hover:bg-slate-50'}`}>
-                    {q.label.split(' · ')[0]}
-                  </button>
-                ))}
+            {!hasTopN && (
+              <div>
+                <div className="mb-1 text-[10px] font-medium uppercase text-slate-400">Quarters (one Excel + PDF each)</div>
+                <div className="flex flex-wrap gap-1">
+                  {QUARTERS.map((q) => (
+                    <button key={q.q} onClick={() => toggleQ(q.q)} className={`rounded-md border px-2 py-1 text-[11px] font-medium transition ${rQuarters.has(q.q) ? 'border-brand bg-brand-light text-brand' : 'border-slate-300 text-slate-600 hover:bg-slate-50'}`}>
+                      {q.label.split(' · ')[0]}
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
             <div className="flex items-center justify-between gap-2">
-              <span className="text-[10px] text-slate-400">{rQuarters.size ? `${rQuarters.size} quarter${rQuarters.size === 1 ? '' : 's'} of ${rYear}` : 'No quarter = all data'}</span>
+              <span className="text-[10px] text-slate-400">{hasTopN ? `Top ${clamp()} over the last 12 months` : rQuarters.size ? `${rQuarters.size} quarter${rQuarters.size === 1 ? '' : 's'} of ${rYear}` : 'No quarter = all data'}</span>
               <div className="flex gap-1.5">
-                <button onClick={genAllQuarters} disabled={pending} title={`Generate a ledger for each quarter of ${rYear}`} className="rounded-md border border-slate-300 px-2 py-1 text-[11px] font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50">
-                  All {rYear} (Q1–Q4)
-                </button>
+                {!hasTopN && (
+                  <button onClick={genAllQuarters} disabled={pending} title={`Generate a ledger for each quarter of ${rYear}`} className="rounded-md border border-slate-300 px-2 py-1 text-[11px] font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50">
+                    All {rYear} (Q1–Q4)
+                  </button>
+                )}
                 <button onClick={genReport} disabled={pending} className="rounded-md bg-brand px-2.5 py-1 text-[11px] font-medium text-white hover:bg-brand-dark disabled:opacity-50">
                   {pending ? 'Generating…' : 'Generate & attach'}
                 </button>
