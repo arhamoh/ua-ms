@@ -42,7 +42,7 @@ const TABS = ['pnl', 'income', 'receivables', 'expenses', 'transfers', 'salaries
 export default async function FinancePage({
   searchParams,
 }: {
-  searchParams: Promise<{ tab?: string; month?: string; year?: string; from?: string; to?: string; client?: string }>;
+  searchParams: Promise<{ tab?: string; month?: string; year?: string; from?: string; to?: string; client?: string; efrom?: string; eto?: string }>;
 }) {
   const sp = await searchParams;
   const tab = (TABS as readonly string[]).includes(sp.tab ?? '') ? sp.tab! : 'pnl';
@@ -104,33 +104,56 @@ export default async function FinancePage({
 
   const cadOf = (amt: number, cur: string) => toCad(amt, cur, rates);
 
-  // ── Income tab: from-month → to-month range, optional client filter ──
-  const fromM = sp.from && /^\d{4}-\d{2}$/.test(sp.from) ? sp.from : month;
-  const toM = sp.to && /^\d{4}-\d{2}$/.test(sp.to) ? sp.to : month;
-  const [fy, fmo] = fromM.split('-').map(Number);
-  const [ty, tmo] = toM.split('-').map(Number);
-  const incStart = new Date(Date.UTC(fy, fmo - 1, 1));
-  const incEnd = new Date(Date.UTC(ty, tmo, 1)); // exclusive: first day after `to`
-  const clientFilter = sp.client && sp.client.length ? sp.client : '';
+  // ── Income & Expenses tabs: optional month range (default = ALL TIME) + search ──
   const monthName = (ym: string) => { const [yy, mm] = ym.split('-').map(Number); return new Date(Date.UTC(yy, mm - 1, 1)).toLocaleString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' }); };
-  type IncomeRow = { id: string; kind: 'payment' | 'otherIncome'; date: Date; who: string; title: string; category: string; amount: number; currency: string; amountCad: number; tax: 'none' | 'gst' | 'both' };
+  const rangeLabel = (from: string, to: string) => (!from && !to ? 'All time' : from && to ? (from === to ? monthName(from) : `${monthName(from)} → ${monthName(to)}`) : from ? `From ${monthName(from)}` : `Until ${monthName(to)}`);
+  const validYm = (s?: string) => (s && /^\d{4}-\d{2}$/.test(s) ? s : '');
+  const rangeOf = (from: string, to: string) => ({
+    start: from ? new Date(Date.UTC(Number(from.slice(0, 4)), Number(from.slice(5, 7)) - 1, 1)) : null,
+    end: to ? new Date(Date.UTC(Number(to.slice(0, 4)), Number(to.slice(5, 7)), 1)) : null, // exclusive
+  });
+  const dateWhere = (field: string, start: Date | null, end: Date | null) =>
+    start || end ? { [field]: { ...(start ? { gte: start } : {}), ...(end ? { lt: end } : {}) } } : {};
   const taxOf = (gst: number | null, qst: number | null): 'none' | 'gst' | 'both' => ((qst ?? 0) > 0 ? 'both' : (gst ?? 0) > 0 ? 'gst' : 'none');
+
+  // Income tab (default all time)
+  const iFrom = validYm(sp.from);
+  const iTo = validYm(sp.to);
+  const { start: incStart, end: incEnd } = rangeOf(iFrom, iTo);
+  const clientFilter = sp.client && sp.client.length ? sp.client : '';
+  type IncomeRow = { id: string; kind: 'payment' | 'otherIncome'; date: Date; who: string; title: string; category: string; amount: number; currency: string; amountCad: number; tax: 'none' | 'gst' | 'both' };
   let incomeRows: IncomeRow[] = [];
   let incomeTotal = 0;
   if (tab === 'income') {
     const [pays, others] = await Promise.all([
       prisma.payment.findMany({
-        where: { paidAt: { gte: incStart, lt: incEnd }, ...(clientFilter ? { clientId: clientFilter } : {}) },
+        where: { ...dateWhere('paidAt', incStart, incEnd), ...(clientFilter ? { clientId: clientFilter } : {}) },
         include: { client: { select: { name: true } } },
         orderBy: { paidAt: 'desc' },
       }),
-      clientFilter ? Promise.resolve([]) : prisma.otherIncome.findMany({ where: { date: { gte: incStart, lt: incEnd } }, orderBy: { date: 'desc' } }),
+      clientFilter ? Promise.resolve([]) : prisma.otherIncome.findMany({ where: dateWhere('date', incStart, incEnd), orderBy: { date: 'desc' } }),
     ]);
     incomeRows = [
       ...pays.map((p): IncomeRow => ({ id: p.id, kind: 'payment', date: p.paidAt, who: p.client?.name || 'Client', title: p.note || 'Client payment', category: 'CLIENT_PAYMENT', amount: p.amount, currency: p.currency, amountCad: p.amountCad ?? cadOf(p.amount, p.currency), tax: taxOf(p.gst, p.qst) })),
       ...others.map((o): IncomeRow => ({ id: o.id, kind: 'otherIncome', date: o.date, who: o.title, title: o.title, category: o.category, amount: o.amount, currency: o.currency, amountCad: o.amountCad ?? cadOf(o.amount, o.currency), tax: taxOf(o.gst, o.qst) })),
     ].sort((a, b) => b.date.getTime() - a.date.getTime());
     incomeTotal = incomeRows.reduce((s, r) => s + r.amountCad, 0);
+  }
+
+  // Expenses tab (default all time)
+  const eFrom = validYm(sp.efrom);
+  const eTo = validYm(sp.eto);
+  const { start: expStart, end: expEnd } = rangeOf(eFrom, eTo);
+  type ExpRow = { id: string; title: string; category: string; amount: number; currency: string; amountCad: number | null; gst: number | null; qst: number | null; date: Date; paidById: string | null; reimbursed: boolean; paidBy: { name: string } | null };
+  let tabExpenses: ExpRow[] = [];
+  let expTabTotal = 0;
+  let gstTab = 0;
+  let qstTab = 0;
+  if (tab === 'expenses') {
+    tabExpenses = await prisma.expense.findMany({ where: dateWhere('date', expStart, expEnd), orderBy: { date: 'desc' }, include: { paidBy: { select: { name: true } } } });
+    expTabTotal = tabExpenses.reduce((s, e) => s + (e.amountCad ?? cadOf(e.amount, e.currency)), 0);
+    gstTab = tabExpenses.reduce((s, e) => s + (e.gst ?? 0), 0);
+    qstTab = tabExpenses.reduce((s, e) => s + (e.qst ?? 0), 0);
   }
 
   // Loans ledger (all in CAD).
@@ -254,7 +277,7 @@ export default async function FinancePage({
             <h1 className="text-2xl font-bold tracking-tight">Finance</h1>
             <p className="mt-1 text-sm text-slate-500">Income, expenses, receivables &amp; tax — all in CAD.</p>
           </div>
-          {tab !== 'tax' && tab !== 'income' && (
+          {tab !== 'tax' && tab !== 'income' && tab !== 'expenses' && (
             <form className="flex items-end gap-2">
               <input type="hidden" name="tab" value={tab} />
               <label className="block">
@@ -415,8 +438,8 @@ export default async function FinancePage({
           <FadeIn>
             <form className="flex flex-wrap items-end gap-2 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
               <input type="hidden" name="tab" value="income" />
-              <label className="block"><span className="mb-1 block text-xs font-medium text-slate-500">From</span><input type="month" name="from" defaultValue={fromM} className={inputCls} /></label>
-              <label className="block"><span className="mb-1 block text-xs font-medium text-slate-500">To</span><input type="month" name="to" defaultValue={toM} className={inputCls} /></label>
+              <label className="block"><span className="mb-1 block text-xs font-medium text-slate-500">From</span><input type="month" name="from" defaultValue={iFrom} className={inputCls} /></label>
+              <label className="block"><span className="mb-1 block text-xs font-medium text-slate-500">To</span><input type="month" name="to" defaultValue={iTo} className={inputCls} /></label>
               <label className="block min-w-[180px]"><span className="mb-1 block text-xs font-medium text-slate-500">Client</span>
                 <select name="client" defaultValue={clientFilter} className={inputCls}>
                   <option value="">All clients + other income</option>
@@ -431,8 +454,8 @@ export default async function FinancePage({
           <FadeIn delay={0.05}>
             <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
               <div className="border-b border-slate-100 px-5 py-4">
-                <h2 className="text-sm font-semibold">Income — {fromM === toM ? monthName(fromM) : `${monthName(fromM)} → ${monthName(toM)}`}</h2>
-                <p className="mt-0.5 text-xs text-slate-400">Client payments and other income in the range. Search, sort by any column, filter by client, and fix the GST/QST per line.</p>
+                <h2 className="text-sm font-semibold">Income — {rangeLabel(iFrom, iTo)}</h2>
+                <p className="mt-0.5 text-xs text-slate-400">All income by default — set a month range to narrow. Search, sort by any column, filter by client, and fix the GST/QST per line. Leave dates blank for all time.</p>
               </div>
               {incomeRows.length === 0 ? (
                 <div className="px-5 py-10 text-center text-sm text-slate-400">No income in this range.</div>
@@ -535,7 +558,7 @@ export default async function FinancePage({
           <FadeIn delay={0.05}>
             <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
               <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-5 py-4">
-                <h2 className="text-sm font-semibold">Expenses — {monthLabel}</h2>
+                <h2 className="text-sm font-semibold">Expenses — {rangeLabel(eFrom, eTo)}</h2>
                 <div className="flex items-center gap-2">
                   <Link href="/finance/bill" className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50 hover:text-brand">
                     <Camera size={13} /> Scan a bill
@@ -543,14 +566,21 @@ export default async function FinancePage({
                   <Link href="/finance/import" className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50 hover:text-brand">
                     <Upload size={13} /> Import statement
                   </Link>
-                  <span className="ml-1 text-sm font-medium">{formatMoney(expenseTotal, 'CAD')}</span>
+                  <span className="ml-1 text-sm font-medium">{formatMoney(expTabTotal, 'CAD')}</span>
                 </div>
               </div>
-              {(gstPaidMonth > 0 || qstPaidMonth > 0) && (
+              <form className="flex flex-wrap items-end gap-2 border-b border-slate-100 px-5 py-3">
+                <input type="hidden" name="tab" value="expenses" />
+                <label className="block"><span className="mb-1 block text-xs font-medium text-slate-500">From</span><input type="month" name="efrom" defaultValue={eFrom} className={inputCls} /></label>
+                <label className="block"><span className="mb-1 block text-xs font-medium text-slate-500">To</span><input type="month" name="eto" defaultValue={eTo} className={inputCls} /></label>
+                <button className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium hover:bg-slate-50">Apply</button>
+                <span className="ml-auto self-center text-xs text-slate-400">All expenses by default — leave blank for all time.</span>
+              </form>
+              {(gstTab > 0 || qstTab > 0) && (
                 <div className="flex items-center gap-4 border-b border-slate-100 bg-slate-50 px-5 py-2 text-xs text-slate-500">
-                  <span className="inline-flex items-center gap-1"><ReceiptText size={13} /> Input tax credits this month:</span>
-                  <span>GST paid <span className="font-medium text-slate-700 tabular-nums">{formatMoney(gstPaidMonth, 'CAD')}</span></span>
-                  <span>QST paid <span className="font-medium text-slate-700 tabular-nums">{formatMoney(qstPaidMonth, 'CAD')}</span></span>
+                  <span className="inline-flex items-center gap-1"><ReceiptText size={13} /> Input tax credits ({rangeLabel(eFrom, eTo)}):</span>
+                  <span>GST paid <span className="font-medium text-slate-700 tabular-nums">{formatMoney(gstTab, 'CAD')}</span></span>
+                  <span>QST paid <span className="font-medium text-slate-700 tabular-nums">{formatMoney(qstTab, 'CAD')}</span></span>
                 </div>
               )}
               {owedTotal > 0.5 && (
@@ -562,16 +592,17 @@ export default async function FinancePage({
                   </span>
                 </div>
               )}
-              {expenses.length === 0 ? (
-                <div className="px-5 py-10 text-center text-sm text-slate-500">No expenses this month.</div>
+              {tabExpenses.length === 0 ? (
+                <div className="px-5 py-10 text-center text-sm text-slate-500">No expenses in this range.</div>
               ) : (
+                <TableTools searchPlaceholder="Search expenses (name, category)…">
                 <div className="overflow-x-auto">
                   <table className="w-full min-w-[680px] text-sm">
                     <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
-                      <tr><th className="px-5 py-3 font-medium">Expense</th><th className="px-5 py-3 font-medium">Category</th><th className="px-5 py-3 font-medium">Paid by</th><th className="px-5 py-3 font-medium">Date</th><th className="px-5 py-3 text-right font-medium">Amount</th><th className="px-5 py-3 text-right font-medium">Actions</th></tr>
+                      <tr><th className="px-5 py-3 font-medium">Expense</th><th className="px-5 py-3 font-medium">Category</th><th className="px-5 py-3 font-medium">Paid by</th><th className="px-5 py-3 font-medium">Date</th><th className="px-5 py-3 text-right font-medium">Amount</th><th className="px-5 py-3 text-right font-medium" data-nosort>Actions</th></tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                      {expenses.map((e) => (
+                      {tabExpenses.map((e) => (
                         <tr key={e.id} className="hover:bg-slate-50">
                           <td className="px-5 py-3 font-medium text-slate-800">{e.title}</td>
                           <td className="px-5 py-3"><Pill className={EXPENSE_CATEGORY_BADGE[e.category] ?? 'bg-slate-100 text-slate-500'}>{EXPENSE_CATEGORY_LABELS[e.category] ?? e.category}</Pill></td>
@@ -613,6 +644,7 @@ export default async function FinancePage({
                     </tbody>
                   </table>
                 </div>
+                </TableTools>
               )}
             </div>
           </FadeIn>
