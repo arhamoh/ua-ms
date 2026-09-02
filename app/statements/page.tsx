@@ -9,6 +9,7 @@ import ClearImportButton from '@/components/ClearImportButton';
 import RevertToPendingButton from '@/components/RevertToPendingButton';
 import Pill from '@/components/Pill';
 import AnimatedButton from '@/components/AnimatedButton';
+import StatementPreview from '@/components/StatementPreview';
 
 export const dynamic = 'force-dynamic';
 
@@ -185,6 +186,7 @@ export default async function StatementsPage() {
                           </td>
                           <td className="px-5 py-3">
                             <div className="flex items-center justify-end gap-1">
+                              <StatementPreview id={s.id} fileName={s.fileName} mimeType={s.mimeType} />
                               <a href={`/api/statements/${s.id}?dl=1`} title="Download" className="grid h-8 w-8 place-items-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-brand">
                                 <Download size={15} />
                               </a>
