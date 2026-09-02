@@ -10,18 +10,20 @@ type QpdfInstance = {
   FS: { writeFile: (p: string, d: Uint8Array) => void; readFile: (p: string) => Uint8Array };
 };
 
-let loader: Promise<{ create: (o: { locateFile: () => string }) => Promise<QpdfInstance>; wasmPath: string }> | null = null;
+type QpdfFactory = (o?: Record<string, unknown>) => Promise<QpdfInstance>;
+let loader: Promise<{ create: QpdfFactory }> | null = null;
 
 async function getLoader() {
   if (!loader) {
     loader = (async () => {
-      const { createRequire } = await import('module');
-      const require = createRequire(import.meta.url);
-      const mod = require('@neslinesli93/qpdf-wasm');
-      const create = (mod.default || mod) as (o: { locateFile: () => string }) => Promise<QpdfInstance>;
-      const wasmPath = require.resolve('@neslinesli93/qpdf-wasm/dist/qpdf.wasm');
-      return { create, wasmPath };
-    })();
+      // Plain dynamic import: as a serverExternalPackage this stays a real
+      // runtime import from node_modules (createRequire/import.meta.url get
+      // mangled in Next's server bundle). Emscripten locates its own qpdf.wasm
+      // next to qpdf.js via __dirname, so no locateFile/require.resolve needed.
+      const mod: any = await import('@neslinesli93/qpdf-wasm');
+      const create = (mod.default || mod) as QpdfFactory;
+      return { create };
+    })().catch((e) => { loader = null; throw e; }); // don't cache a failed load
   }
   return loader;
 }
@@ -43,16 +45,15 @@ const isPdf = (b: Uint8Array | null): b is Uint8Array =>
  * result so callers can surface *why* it failed. Never throws.
  */
 export async function decryptPdfDetailed(bytes: Uint8Array): Promise<DecryptResult> {
-  let create: (o: { locateFile: () => string }) => Promise<QpdfInstance>;
-  let wasmPath: string;
+  let create: QpdfFactory;
   try {
-    ({ create, wasmPath } = await getLoader());
+    ({ create } = await getLoader());
   } catch (e) {
     return { ok: false, reason: `load:${(e as Error)?.message?.slice(0, 80) || 'err'}` };
   }
   let inst: QpdfInstance;
   try {
-    inst = await create({ locateFile: () => wasmPath });
+    inst = await create();
   } catch (e) {
     return { ok: false, reason: `init:${(e as Error)?.message?.slice(0, 80) || 'err'}` };
   }
