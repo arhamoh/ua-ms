@@ -44,7 +44,7 @@ export default async function LetterBoardPage({ params }: { params: Promise<{ id
     status: t.status,
     dueDate: iso(t.dueDate),
     response: t.response,
-    attachments: t.attachments.map((a) => ({ id: a.id, fileName: a.fileName, kind: a.kind })),
+    attachments: t.attachments.map((a) => ({ id: a.id, fileName: a.fileName, kind: a.kind, reportKey: a.reportKey ?? null })),
   }));
   const MONTHS = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
   const ymOf = (src: string) => {

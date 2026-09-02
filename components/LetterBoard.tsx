@@ -2,7 +2,7 @@
 
 import { useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { Plus, Trash2, ChevronLeft, ChevronRight, Pencil, CalendarClock, Paperclip, Upload, Archive, X, MessageSquare, FileBarChart, Landmark, CreditCard, Check } from 'lucide-react';
+import { Plus, Trash2, ChevronLeft, ChevronRight, Pencil, CalendarClock, Paperclip, Upload, Archive, X, MessageSquare, FileBarChart, Landmark, CreditCard, Check, RefreshCw } from 'lucide-react';
 import {
   addLetterTask,
   setLetterTaskStatus,
@@ -13,10 +13,11 @@ import {
   attachStatementsToTask,
   removeTaskAttachment,
   generateFinanceReport,
+  regenerateReport,
 } from '@/app/actions';
 import { REPORT_TYPES, type ReportType } from '@/lib/finance-reports';
 
-type Attachment = { id: string; fileName: string; kind: string };
+type Attachment = { id: string; fileName: string; kind: string; reportKey: string | null };
 type Task = {
   id: string;
   title: string;
@@ -143,9 +144,14 @@ function AnswerPanel({ task, statements, run, pending }: { task: Task; statement
               <li key={a.id} className="flex items-center gap-1.5 rounded-md bg-slate-50 px-2 py-1 text-xs text-slate-600">
                 <Paperclip size={12} className="shrink-0 text-slate-400" />
                 <span className="min-w-0 flex-1 truncate">{a.fileName}</span>
-                <span className={`shrink-0 rounded px-1 text-[10px] font-medium ${a.kind === 'STATEMENT' ? 'bg-indigo-50 text-indigo-600' : 'bg-slate-200 text-slate-500'}`}>
-                  {a.kind === 'STATEMENT' ? 'Statement' : 'Upload'}
+                <span className={`shrink-0 rounded px-1 text-[10px] font-medium ${a.reportKey ? 'bg-emerald-50 text-emerald-600' : a.kind === 'STATEMENT' ? 'bg-indigo-50 text-indigo-600' : 'bg-slate-200 text-slate-500'}`}>
+                  {a.reportKey ? 'Report' : a.kind === 'STATEMENT' ? 'Statement' : 'Upload'}
                 </span>
+                {a.reportKey && /\.pdf$/i.test(a.fileName) && (
+                  <button onClick={() => run(() => regenerateReport(a.reportKey!))} disabled={pending} title="Regenerate this report with the latest data" className="grid h-5 w-5 shrink-0 place-items-center rounded text-slate-300 hover:bg-brand-light hover:text-brand disabled:opacity-50">
+                    <RefreshCw size={11} />
+                  </button>
+                )}
                 <button onClick={() => run(() => removeTaskAttachment(a.id))} title="Remove" className="grid h-5 w-5 shrink-0 place-items-center rounded text-slate-300 hover:bg-rose-50 hover:text-rose-600">
                   <X size={12} />
                 </button>

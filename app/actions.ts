@@ -39,6 +39,7 @@ import { getSession } from '@/lib/auth';
 import { driveConfigured, uploadToDrive, testDriveConnection } from '@/lib/drive';
 import { testOpenRouter } from '@/lib/integrations';
 import { encryptSecret, decryptSecret } from '@/lib/crypto';
+import { randomUUID } from 'crypto';
 import { notifyUsers, resolveMentions } from '@/lib/notify';
 
 function str(v: FormDataEntryValue | null): string | null {
@@ -2627,9 +2628,27 @@ export async function generateFinanceReport(
   const stamp = `${opts.from || 'all'}${opts.to ? `_${opts.to}` : ''}`;
   const base = `${REPORT_LABELS[opts.type]} ${stamp}`.replace(/[^\w.\- ]+/g, '').replace(/\s+/g, ' ').trim().slice(0, 90);
 
-  await prisma.taskAttachment.create({ data: { taskId, kind: 'UPLOAD', fileName: `${base}.pdf`, mimeType: 'application/pdf', size: pdfBuf.length, data: pdfBuf } });
-  await prisma.taskAttachment.create({ data: { taskId, kind: 'UPLOAD', fileName: `${base}.csv`, mimeType: 'text/csv', size: csvBuf.length, data: csvBuf } });
+  // Shared key + spec on the PDF/CSV pair so they can be regenerated live.
+  const reportKey = randomUUID();
+  const reportSpec = { type: opts.type, from: opts.from ?? null, to: opts.to ?? null, topN: opts.topN ?? null };
+  await prisma.taskAttachment.create({ data: { taskId, kind: 'UPLOAD', fileName: `${base}.pdf`, mimeType: 'application/pdf', size: pdfBuf.length, data: pdfBuf, reportKey, reportSpec } });
+  await prisma.taskAttachment.create({ data: { taskId, kind: 'UPLOAD', fileName: `${base}.csv`, mimeType: 'text/csv', size: csvBuf.length, data: csvBuf, reportKey, reportSpec } });
   revalidatePath(`/letters/${task.letterId}`);
+}
+
+// Regenerate a previously-attached finance report with the latest data: delete
+// the old PDF/CSV pair and re-run it with the same parameters.
+export async function regenerateReport(reportKey: string) {
+  await requireSuperAdmin();
+  if (!reportKey) return;
+  const atts = await prisma.taskAttachment.findMany({ where: { reportKey }, select: { taskId: true, reportSpec: true } });
+  if (atts.length === 0) return;
+  const spec = atts[0].reportSpec as { type?: ReportType; from?: string | null; to?: string | null; topN?: number | null } | null;
+  const taskId = atts[0].taskId;
+  await prisma.taskAttachment.deleteMany({ where: { reportKey } });
+  if (spec?.type) {
+    await generateFinanceReport(taskId, { type: spec.type, from: spec.from ?? null, to: spec.to ?? null, topN: spec.topN ?? undefined });
+  }
 }
 
 // ─── Loans / money to recover ────────────────────────────────────────────────

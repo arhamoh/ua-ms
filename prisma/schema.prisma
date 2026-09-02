@@ -786,6 +786,10 @@ model TaskAttachment {
   mimeType    String     @default("application/octet-stream")
   size        Int        @default(0)
   data        Bytes?     // present for UPLOAD; null when referencing a Statement
+  // For generated finance reports: the PDF+CSV pair share a reportKey, and
+  // reportSpec stores the params so the report can be regenerated with live data.
+  reportKey   String?
+  reportSpec  Json?
   createdAt   DateTime   @default(now())
 
   taskId      String
