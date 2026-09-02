@@ -42,7 +42,7 @@ const TABS = ['pnl', 'income', 'receivables', 'expenses', 'transfers', 'salaries
 export default async function FinancePage({
   searchParams,
 }: {
-  searchParams: Promise<{ tab?: string; month?: string; year?: string; from?: string; to?: string; client?: string; efrom?: string; eto?: string }>;
+  searchParams: Promise<{ tab?: string; month?: string; year?: string; from?: string; to?: string; client?: string; efrom?: string; eto?: string; etax?: string }>;
 }) {
   const sp = await searchParams;
   const tab = (TABS as readonly string[]).includes(sp.tab ?? '') ? sp.tab! : 'pnl';
@@ -143,6 +143,7 @@ export default async function FinancePage({
   // Expenses tab (default all time)
   const eFrom = validYm(sp.efrom);
   const eTo = validYm(sp.eto);
+  const eTax = ['none', 'gst', 'both'].includes(sp.etax ?? '') ? sp.etax! : '';
   const { start: expStart, end: expEnd } = rangeOf(eFrom, eTo);
   type ExpRow = { id: string; title: string; category: string; amount: number; currency: string; amountCad: number | null; gst: number | null; qst: number | null; date: Date; paidById: string | null; reimbursed: boolean; paidBy: { name: string } | null };
   let tabExpenses: ExpRow[] = [];
@@ -151,6 +152,7 @@ export default async function FinancePage({
   let qstTab = 0;
   if (tab === 'expenses') {
     tabExpenses = await prisma.expense.findMany({ where: dateWhere('date', expStart, expEnd), orderBy: { date: 'desc' }, include: { paidBy: { select: { name: true } } } });
+    if (eTax) tabExpenses = tabExpenses.filter((e) => taxOf(e.gst, e.qst) === eTax);
     expTabTotal = tabExpenses.reduce((s, e) => s + (e.amountCad ?? cadOf(e.amount, e.currency)), 0);
     gstTab = tabExpenses.reduce((s, e) => s + (e.gst ?? 0), 0);
     qstTab = tabExpenses.reduce((s, e) => s + (e.qst ?? 0), 0);
@@ -573,8 +575,16 @@ export default async function FinancePage({
                 <input type="hidden" name="tab" value="expenses" />
                 <label className="block"><span className="mb-1 block text-xs font-medium text-slate-500">From</span><input type="month" name="efrom" defaultValue={eFrom} className={inputCls} /></label>
                 <label className="block"><span className="mb-1 block text-xs font-medium text-slate-500">To</span><input type="month" name="eto" defaultValue={eTo} className={inputCls} /></label>
+                <label className="block"><span className="mb-1 block text-xs font-medium text-slate-500">Tax</span>
+                  <select name="etax" defaultValue={eTax} className={inputCls}>
+                    <option value="">All tax</option>
+                    <option value="none">No tax</option>
+                    <option value="gst">GST only</option>
+                    <option value="both">GST + QST</option>
+                  </select>
+                </label>
                 <button className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium hover:bg-slate-50">Apply</button>
-                <span className="ml-auto self-center text-xs text-slate-400">All expenses by default — leave blank for all time.</span>
+                <span className="ml-auto self-center text-xs text-slate-400">Filter to <span className="font-medium text-slate-500">No tax</span> to spot expenses missing GST/QST claims.</span>
               </form>
               {(gstTab > 0 || qstTab > 0) && (
                 <div className="flex items-center gap-4 border-b border-slate-100 bg-slate-50 px-5 py-2 text-xs text-slate-500">
