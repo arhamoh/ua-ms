@@ -6,6 +6,7 @@ import { STATEMENT_ACCOUNT_TYPES, STATEMENT_ACCOUNT_TYPE_LABELS, STATEMENT_ACCOU
 import FadeIn from '@/components/FadeIn';
 import RowActions from '@/components/RowActions';
 import ClearImportButton from '@/components/ClearImportButton';
+import RevertToPendingButton from '@/components/RevertToPendingButton';
 import Pill from '@/components/Pill';
 import AnimatedButton from '@/components/AnimatedButton';
 
@@ -187,6 +188,7 @@ export default async function StatementsPage() {
                               <a href={`/api/statements/${s.id}?dl=1`} title="Download" className="grid h-8 w-8 place-items-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-brand">
                                 <Download size={15} />
                               </a>
+                              {s.source === 'IMPORT' && <RevertToPendingButton id={s.id} label={s.periodLabel || s.accountLabel} />}
                               {s.source === 'IMPORT' && <ClearImportButton id={s.id} label={s.periodLabel || s.accountLabel} />}
                               <RowActions deleteAction={deleteStatement.bind(null, s.id)} label="statement" />
                             </div>

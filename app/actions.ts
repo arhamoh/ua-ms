@@ -1781,6 +1781,98 @@ export async function clearStatementImport(statementId: string): Promise<{ ok: b
   return { ok: true, message: `Cleared ${removed} imported transaction${removed === 1 ? '' : 's'} and removed the statement — re-upload to redo it.` };
 }
 
+// Undo a commit: rebuild the pending import from the transactions it created +
+// the archived file, then delete those transactions and the statement — so the
+// statement goes back to the review board exactly as it was.
+export async function revertStatementToPending(statementId: string): Promise<{ ok: boolean; message: string }> {
+  const session = await getSession();
+  if (!session?.roles?.includes('SUPER_ADMIN')) return { ok: false, message: 'Not authorized.' };
+  if (!statementId) return { ok: false, message: 'No statement given.' };
+  const stmt = await prisma.statement.findUnique({ where: { id: statementId } });
+  if (!stmt) return { ok: false, message: 'Statement not found.' };
+
+  // Prefer precisely-tagged rows; fall back to import-marked rows in the period.
+  let where: { expense: any; otherIncome: any; payment: any; transfer: any } = {
+    expense: { statementId }, otherIncome: { statementId }, payment: { statementId }, transfer: { statementId },
+  };
+  const tagged =
+    (await prisma.expense.count({ where: { statementId } })) +
+    (await prisma.otherIncome.count({ where: { statementId } })) +
+    (await prisma.payment.count({ where: { statementId } })) +
+    (await prisma.transfer.count({ where: { statementId } }));
+  if (tagged === 0) {
+    const range = monthRangeFromStatement(stmt.periodLabel, stmt.fileName);
+    if (!range) return { ok: false, message: 'No linked transactions found to revert.' };
+    const { start, end } = range;
+    where = {
+      expense: { statementId: null, note: 'Imported from statement', date: { gte: start, lt: end } },
+      otherIncome: { statementId: null, source: 'STATEMENT', date: { gte: start, lt: end } },
+      payment: { statementId: null, invoiceId: null, bankMatchedAt: { not: null }, paidAt: { gte: start, lt: end } },
+      transfer: { statementId: null, source: 'STATEMENT', date: { gte: start, lt: end } },
+    };
+  }
+
+  const [expenses, others, payments, transfers] = await Promise.all([
+    prisma.expense.findMany({ where: where.expense }),
+    prisma.otherIncome.findMany({ where: where.otherIncome }),
+    prisma.payment.findMany({ where: where.payment }),
+    prisma.transfer.findMany({ where: where.transfer }),
+  ]);
+  const total = expenses.length + others.length + payments.length + transfers.length;
+  if (total === 0) return { ok: false, message: 'No imported transactions found for this statement.' };
+
+  const iso = (d: Date) => new Date(d).toISOString().slice(0, 10);
+  const taxOf = (g: number | null, q: number | null): 'none' | 'gst' | 'both' => ((q ?? 0) > 0 ? 'both' : (g ?? 0) > 0 ? 'gst' : 'none');
+  const lines: ImportLine[] = [
+    ...expenses.map((e): ImportLine => ({ include: true, type: 'expense', title: e.title, category: e.category, amount: e.amount, date: iso(e.date), rawDesc: e.title, tax: taxOf(e.gst, e.qst), clientId: null, note: e.note && e.note !== 'Imported from statement' ? e.note : undefined })),
+    ...payments.map((p): ImportLine => ({ include: true, type: 'income', title: p.note && p.note !== 'From statement' ? p.note : 'Client payment', category: 'CLIENT_PAYMENT', amount: p.amount, date: iso(p.paidAt), rawDesc: p.note || 'Client payment', tax: taxOf(p.gst, p.qst), clientId: p.clientId })),
+    ...others.map((o): ImportLine => ({ include: true, type: 'income', title: o.title, category: o.category, amount: o.amount, date: iso(o.date), rawDesc: o.title, tax: taxOf(o.gst, o.qst), clientId: null })),
+    ...transfers.map((t): ImportLine => ({ include: true, type: 'transfer', title: t.title, category: t.category, amount: t.amount, date: iso(t.date), rawDesc: t.title, tax: 'none', clientId: null })),
+  ];
+  const curr = expenses[0]?.currency || payments[0]?.currency || others[0]?.currency || transfers[0]?.currency || 'CAD';
+
+  await prisma.pendingImport.create({
+    data: {
+      fileName: stmt.fileName,
+      accountType: stmt.accountType,
+      accountLabel: stmt.accountLabel,
+      currency: CURRENCIES.includes(curr) ? curr : 'CAD',
+      lines: lines as any,
+      mimeType: stmt.mimeType,
+      data: stmt.data,
+      createdById: session.id,
+    },
+  });
+
+  await Promise.all([
+    prisma.expense.deleteMany({ where: where.expense }),
+    prisma.otherIncome.deleteMany({ where: where.otherIncome }),
+    prisma.payment.deleteMany({ where: where.payment }),
+    prisma.transfer.deleteMany({ where: where.transfer }),
+  ]);
+  await prisma.statement.delete({ where: { id: statementId } });
+
+  revalidatePath('/finance');
+  revalidatePath('/statements');
+  revalidatePath('/finance/import');
+  return { ok: true, message: `Reverted ${total} transaction${total === 1 ? '' : 's'} back to a pending import.` };
+}
+
+// Revert several committed statements back to pending at once.
+export async function revertStatementsToPending(ids: string[]): Promise<{ ok: boolean; message: string }> {
+  const list = Array.from(new Set((ids ?? []).filter((x) => typeof x === 'string' && x)));
+  if (list.length === 0) return { ok: false, message: 'Nothing selected.' };
+  let done = 0;
+  let txns = 0;
+  for (const id of list) {
+    try {
+      const r = await revertStatementToPending(id);
+      if (r.ok) { done++; const m = r.message.match(/Reverted (\d+)/); if (m) txns += Number(m[1]); }
+    } catch { /* keep going */ }
+  }
+  return { ok: true, message: `Reverted ${done} statement${done === 1 ? '' : 's'} (${txns} transactions) back to pending imports.` };
+}
+
 // ─── Reset data (super-admin) ────────────────────────────────────────────────
 // Wipe selected categories of transactional data back to zero, keeping all
 // settings (company details, dropdown options, users, integrations).
