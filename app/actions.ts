@@ -1858,6 +1858,20 @@ export async function revertStatementToPending(statementId: string): Promise<{ o
   return { ok: true, message: `Reverted ${total} transaction${total === 1 ? '' : 's'} back to a pending import.` };
 }
 
+// One-click: undo the most recent import (the batch of statements committed
+// together), reverting them all back to pending imports.
+export async function undoLastImport(): Promise<{ ok: boolean; message: string }> {
+  const session = await getSession();
+  if (!session?.roles?.includes('SUPER_ADMIN')) return { ok: false, message: 'Not authorized.' };
+  const latest = await prisma.statement.findFirst({ where: { source: 'IMPORT' }, orderBy: { createdAt: 'desc' }, select: { createdAt: true } });
+  if (!latest) return { ok: false, message: 'No imported statements to undo.' };
+  // Statements committed together share (near-)identical createdAt; take the
+  // recent cluster (15 min window from the latest) as "the last import".
+  const windowStart = new Date(latest.createdAt.getTime() - 15 * 60 * 1000);
+  const batch = await prisma.statement.findMany({ where: { source: 'IMPORT', createdAt: { gte: windowStart } }, select: { id: true }, orderBy: { createdAt: 'desc' } });
+  return revertStatementsToPending(batch.map((b) => b.id));
+}
+
 // Revert several committed statements back to pending at once.
 export async function revertStatementsToPending(ids: string[]): Promise<{ ok: boolean; message: string }> {
   const list = Array.from(new Set((ids ?? []).filter((x) => typeof x === 'string' && x)));

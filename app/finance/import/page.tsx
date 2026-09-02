@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma';
 import FadeIn from '@/components/FadeIn';
 import ImportUpload from '@/components/ImportUpload';
 import PendingImportsBoard from '@/components/PendingImportsBoard';
+import UndoLastImportButton from '@/components/UndoLastImportButton';
 
 export const dynamic = 'force-dynamic';
 
@@ -64,9 +65,12 @@ export default async function ImportStatementPage() {
             Upload one or several statements — each is saved as a pending import you can review in its own tab and finish later.
           </p>
         </div>
-        <Link href="/finance/bill" className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50 hover:text-brand">
-          <Camera size={15} /> Scan a single bill instead
-        </Link>
+        <div className="flex flex-wrap items-center gap-2">
+          <UndoLastImportButton />
+          <Link href="/finance/bill" className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50 hover:text-brand">
+            <Camera size={15} /> Scan a single bill instead
+          </Link>
+        </div>
       </div>
 
       <FadeIn><ImportUpload currencies={currencies} rules={rules} expenseCategories={expenseCategories} incomeCategories={incomeCategories} /></FadeIn>
