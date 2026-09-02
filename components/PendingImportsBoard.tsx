@@ -3,8 +3,8 @@
 import { Fragment, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { FileText, Landmark, CreditCard, ChevronRight, GripVertical, Trash2, CheckCheck, Loader2 } from 'lucide-react';
-import { setPendingImportType, deletePendingImport, commitSelectedPendingImports, commitAllPendingImports } from '@/app/actions';
+import { FileText, Landmark, CreditCard, ChevronRight, GripVertical, Trash2, Eye } from 'lucide-react';
+import { setPendingImportType, deletePendingImport } from '@/app/actions';
 import PendingTypeToggle from './PendingTypeToggle';
 import ConfirmModal from './ConfirmModal';
 
@@ -17,27 +17,18 @@ const SECTIONS = [
 
 export default function PendingImportsBoard({ pending }: { pending: P[] }) {
   const router = useRouter();
-  const [committing, start] = useTransition();
+  const [, start] = useTransition();
   const [overType, setOverType] = useState<string | null>(null);
   const [dragId, setDragId] = useState<string | null>(null);
   const [confirmDel, setConfirmDel] = useState<{ id: string; label: string } | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [confirmCommit, setConfirmCommit] = useState<'selected' | 'all' | null>(null);
 
   const allSelected = pending.length > 0 && selected.size === pending.length;
   const toggle = (id: string) => setSelected((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
   const toggleAll = () => setSelected((s) => (s.size === pending.length ? new Set() : new Set(pending.map((p) => p.id))));
 
-  const doCommit = () => {
-    const mode = confirmCommit;
-    start(async () => {
-      if (mode === 'all') await commitAllPendingImports();
-      else await commitSelectedPendingImports([...selected]);
-      setSelected(new Set());
-      setConfirmCommit(null);
-      router.refresh();
-    });
-  };
+  const reviewSelected = () => router.push(`/finance/import/review?ids=${[...selected].join(',')}`);
+  const reviewAll = () => router.push('/finance/import/review');
 
   const move = (id: string, type: string) => {
     const item = pending.find((p) => p.id === id);
@@ -67,18 +58,18 @@ export default function PendingImportsBoard({ pending }: { pending: P[] }) {
         </label>
         <div className="flex items-center gap-2">
           <button
-            onClick={() => setConfirmCommit('selected')}
-            disabled={committing || selected.size === 0}
+            onClick={reviewSelected}
+            disabled={selected.size === 0}
             className="inline-flex items-center gap-1.5 rounded-xl bg-brand px-3 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-brand-dark disabled:opacity-40"
           >
-            {committing ? <Loader2 size={15} className="animate-spin" /> : <CheckCheck size={15} />} Commit selected ({selected.size})
+            <Eye size={15} /> Review selected ({selected.size})
           </button>
           <button
-            onClick={() => setConfirmCommit('all')}
-            disabled={committing || pending.length === 0}
+            onClick={reviewAll}
+            disabled={pending.length === 0}
             className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-40"
           >
-            Commit all ({pending.length})
+            Review all ({pending.length})
           </button>
         </div>
       </div>
@@ -168,15 +159,6 @@ export default function PendingImportsBoard({ pending }: { pending: P[] }) {
         danger
         onConfirm={confirmDelete}
         onCancel={() => setConfirmDel(null)}
-      />
-      <ConfirmModal
-        open={!!confirmCommit}
-        title={confirmCommit === 'all' ? `Commit all ${pending.length} pending import${pending.length === 1 ? '' : 's'}?` : `Commit ${selected.size} selected import${selected.size === 1 ? '' : 's'}?`}
-        message="Each statement's reviewed lines will be imported into Finance and archived to Statements. You can still edit or clear them afterwards."
-        confirmLabel="Commit"
-        pending={committing}
-        onConfirm={doCommit}
-        onCancel={() => setConfirmCommit(null)}
       />
     </div>
   );

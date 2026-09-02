@@ -78,7 +78,7 @@ export default async function ImportStatementPage() {
       {pending.length > 0 && (
         <FadeIn delay={0.06}>
           <div className="mt-6">
-            <p className="mb-3 text-xs text-slate-400">Select statements to bulk-commit, or open one to review. Drag between sections, or use the chip, to change type.</p>
+            <p className="mb-3 text-xs text-slate-400">Select statements and Review them together in one preview before importing, or open one on its own. Drag between sections, or use the chip, to change type.</p>
             <PendingImportsBoard pending={pending} />
           </div>
         </FadeIn>
