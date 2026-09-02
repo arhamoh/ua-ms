@@ -1833,6 +1833,47 @@ export async function resetData(scopes: string[]): Promise<{ ok: boolean; messag
   return { ok: true, message: `Erased — ${parts.join(', ')}.` };
 }
 
+// ─── Fix the GST/QST on a single transaction (recomputes from the amount) ─────
+
+const TAX_MODES = ['none', 'gst', 'both'];
+async function taxPortion(baseCad: number, tax: string): Promise<{ gst: number; qst: number }> {
+  if (tax === 'none' || !(baseCad > 0)) return { gst: 0, qst: 0 };
+  const company = await getCompany();
+  const t = backOutTax(baseCad, { gst: true, qst: tax === 'both', company });
+  return { gst: t.gst, qst: tax === 'both' ? t.qst : 0 };
+}
+
+export async function setExpenseTax(id: string, tax: string) {
+  if (!id || !TAX_MODES.includes(tax)) return;
+  const e = await prisma.expense.findUnique({ where: { id }, select: { amount: true, currency: true, amountCad: true } });
+  if (!e) return;
+  const base = e.currency === 'CAD' ? e.amount : e.amountCad ?? e.amount;
+  const { gst, qst } = await taxPortion(base, tax);
+  await prisma.expense.update({ where: { id }, data: { gst, qst } });
+  revalidatePath('/finance');
+}
+
+export async function setPaymentTax(id: string, tax: string) {
+  if (!id || !TAX_MODES.includes(tax)) return;
+  const p = await prisma.payment.findUnique({ where: { id }, select: { amount: true, currency: true, amountCad: true, clientId: true } });
+  if (!p) return;
+  const base = p.currency === 'CAD' ? p.amount : p.amountCad ?? p.amount;
+  const { gst, qst } = await taxPortion(base, tax);
+  await prisma.payment.update({ where: { id }, data: { gst, qst } });
+  revalidatePath('/finance');
+  revalidatePath(`/clients/${p.clientId}`);
+}
+
+export async function setOtherIncomeTax(id: string, tax: string) {
+  if (!id || !TAX_MODES.includes(tax)) return;
+  const o = await prisma.otherIncome.findUnique({ where: { id }, select: { amount: true, currency: true, amountCad: true } });
+  if (!o) return;
+  const base = o.currency === 'CAD' ? o.amount : o.amountCad ?? o.amount;
+  const { gst, qst } = await taxPortion(base, tax);
+  await prisma.otherIncome.update({ where: { id }, data: { gst, qst } });
+  revalidatePath('/finance');
+}
+
 // Re-categorize an income entry (inline, from the income list).
 export async function updateOtherIncomeCategory(id: string, category: string) {
   if (!id) return;

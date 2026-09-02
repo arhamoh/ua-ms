@@ -28,6 +28,7 @@ import Pill from '@/components/Pill';
 import AnimatedButton from '@/components/AnimatedButton';
 import ReclassifyCCButton from '@/components/ReclassifyCCButton';
 import TableTools from '@/components/TableTools';
+import TaxEditor from '@/components/TaxEditor';
 
 export const dynamic = 'force-dynamic';
 
@@ -36,12 +37,12 @@ const inputCls =
 
 const pad = (n: number) => String(n).padStart(2, '0');
 
-const TABS = ['pnl', 'receivables', 'expenses', 'transfers', 'salaries', 'loans', 'tax'] as const;
+const TABS = ['pnl', 'income', 'receivables', 'expenses', 'transfers', 'salaries', 'loans', 'tax'] as const;
 
 export default async function FinancePage({
   searchParams,
 }: {
-  searchParams: Promise<{ tab?: string; month?: string; year?: string }>;
+  searchParams: Promise<{ tab?: string; month?: string; year?: string; from?: string; to?: string; client?: string }>;
 }) {
   const sp = await searchParams;
   const tab = (TABS as readonly string[]).includes(sp.tab ?? '') ? sp.tab! : 'pnl';
@@ -102,6 +103,35 @@ export default async function FinancePage({
   ]);
 
   const cadOf = (amt: number, cur: string) => toCad(amt, cur, rates);
+
+  // ── Income tab: from-month → to-month range, optional client filter ──
+  const fromM = sp.from && /^\d{4}-\d{2}$/.test(sp.from) ? sp.from : month;
+  const toM = sp.to && /^\d{4}-\d{2}$/.test(sp.to) ? sp.to : month;
+  const [fy, fmo] = fromM.split('-').map(Number);
+  const [ty, tmo] = toM.split('-').map(Number);
+  const incStart = new Date(Date.UTC(fy, fmo - 1, 1));
+  const incEnd = new Date(Date.UTC(ty, tmo, 1)); // exclusive: first day after `to`
+  const clientFilter = sp.client && sp.client.length ? sp.client : '';
+  const monthName = (ym: string) => { const [yy, mm] = ym.split('-').map(Number); return new Date(Date.UTC(yy, mm - 1, 1)).toLocaleString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' }); };
+  type IncomeRow = { id: string; kind: 'payment' | 'otherIncome'; date: Date; who: string; title: string; category: string; amount: number; currency: string; amountCad: number; tax: 'none' | 'gst' | 'both' };
+  const taxOf = (gst: number | null, qst: number | null): 'none' | 'gst' | 'both' => ((qst ?? 0) > 0 ? 'both' : (gst ?? 0) > 0 ? 'gst' : 'none');
+  let incomeRows: IncomeRow[] = [];
+  let incomeTotal = 0;
+  if (tab === 'income') {
+    const [pays, others] = await Promise.all([
+      prisma.payment.findMany({
+        where: { paidAt: { gte: incStart, lt: incEnd }, ...(clientFilter ? { clientId: clientFilter } : {}) },
+        include: { client: { select: { name: true } } },
+        orderBy: { paidAt: 'desc' },
+      }),
+      clientFilter ? Promise.resolve([]) : prisma.otherIncome.findMany({ where: { date: { gte: incStart, lt: incEnd } }, orderBy: { date: 'desc' } }),
+    ]);
+    incomeRows = [
+      ...pays.map((p): IncomeRow => ({ id: p.id, kind: 'payment', date: p.paidAt, who: p.client?.name || 'Client', title: p.note || 'Client payment', category: 'CLIENT_PAYMENT', amount: p.amount, currency: p.currency, amountCad: p.amountCad ?? cadOf(p.amount, p.currency), tax: taxOf(p.gst, p.qst) })),
+      ...others.map((o): IncomeRow => ({ id: o.id, kind: 'otherIncome', date: o.date, who: o.title, title: o.title, category: o.category, amount: o.amount, currency: o.currency, amountCad: o.amountCad ?? cadOf(o.amount, o.currency), tax: taxOf(o.gst, o.qst) })),
+    ].sort((a, b) => b.date.getTime() - a.date.getTime());
+    incomeTotal = incomeRows.reduce((s, r) => s + r.amountCad, 0);
+  }
 
   // Loans ledger (all in CAD).
   const loanGiven = loans.reduce((s, l) => s + (l.amountCad ?? cadOf(l.amount, l.currency)), 0);
@@ -213,7 +243,7 @@ export default async function FinancePage({
     }`;
   const tabHref = (t: string) => (t === 'tax' ? `/finance?tab=tax&year=${taxYear}` : `/finance?tab=${t}&month=${month}`);
   const tabLabel: Record<string, string> = {
-    pnl: 'P&L', receivables: 'Receivables', expenses: 'Expenses', transfers: 'Transfers', salaries: 'Salaries', loans: 'Loans', tax: 'GST/QST',
+    pnl: 'P&L', income: 'Income', receivables: 'Receivables', expenses: 'Expenses', transfers: 'Transfers', salaries: 'Salaries', loans: 'Loans', tax: 'GST/QST',
   };
 
   return (
@@ -224,7 +254,7 @@ export default async function FinancePage({
             <h1 className="text-2xl font-bold tracking-tight">Finance</h1>
             <p className="mt-1 text-sm text-slate-500">Income, expenses, receivables &amp; tax — all in CAD.</p>
           </div>
-          {tab !== 'tax' && (
+          {tab !== 'tax' && tab !== 'income' && (
             <form className="flex items-end gap-2">
               <input type="hidden" name="tab" value={tab} />
               <label className="block">
@@ -380,6 +410,67 @@ export default async function FinancePage({
         </div>
       )}
 
+      {tab === 'income' && (
+        <div className="space-y-4">
+          <FadeIn>
+            <form className="flex flex-wrap items-end gap-2 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <input type="hidden" name="tab" value="income" />
+              <label className="block"><span className="mb-1 block text-xs font-medium text-slate-500">From</span><input type="month" name="from" defaultValue={fromM} className={inputCls} /></label>
+              <label className="block"><span className="mb-1 block text-xs font-medium text-slate-500">To</span><input type="month" name="to" defaultValue={toM} className={inputCls} /></label>
+              <label className="block min-w-[180px]"><span className="mb-1 block text-xs font-medium text-slate-500">Client</span>
+                <select name="client" defaultValue={clientFilter} className={inputCls}>
+                  <option value="">All clients + other income</option>
+                  {clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              </label>
+              <button className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium hover:bg-slate-50">Apply</button>
+              <span className="ml-auto text-sm text-slate-500">Total <span className="font-semibold tabular-nums text-emerald-700">{formatMoney(incomeTotal, 'CAD')}</span></span>
+            </form>
+          </FadeIn>
+
+          <FadeIn delay={0.05}>
+            <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+              <div className="border-b border-slate-100 px-5 py-4">
+                <h2 className="text-sm font-semibold">Income — {fromM === toM ? monthName(fromM) : `${monthName(fromM)} → ${monthName(toM)}`}</h2>
+                <p className="mt-0.5 text-xs text-slate-400">Client payments and other income in the range. Search, sort by any column, filter by client, and fix the GST/QST per line.</p>
+              </div>
+              {incomeRows.length === 0 ? (
+                <div className="px-5 py-10 text-center text-sm text-slate-400">No income in this range.</div>
+              ) : (
+                <TableTools searchPlaceholder="Search income (client, title, category)…">
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-[820px] text-sm">
+                      <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+                        <tr>
+                          <th className="px-5 py-3 font-medium">Date</th>
+                          <th className="px-5 py-3 font-medium">Client / source</th>
+                          <th className="px-5 py-3 font-medium">Title</th>
+                          <th className="px-5 py-3 font-medium">Category</th>
+                          <th className="px-5 py-3 font-medium" data-nosort>Tax</th>
+                          <th className="px-5 py-3 text-right font-medium">Amount</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {incomeRows.map((r) => (
+                          <tr key={`${r.kind}-${r.id}`} className="hover:bg-slate-50">
+                            <td className="px-5 py-3 tabular-nums text-slate-500">{r.date.toISOString().slice(0, 10)}</td>
+                            <td className="px-5 py-3 text-slate-700">{r.who}{r.kind === 'otherIncome' && <span className="ml-2 rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-500">other income</span>}</td>
+                            <td className="px-5 py-3 text-slate-600">{r.title}</td>
+                            <td className="px-5 py-3"><span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${INCOME_CATEGORY_BADGE[r.category] ?? 'bg-slate-100 text-slate-500'}`}>{incLabel(r.category)}</span></td>
+                            <td className="px-5 py-3"><TaxEditor id={r.id} kind={r.kind} tax={r.tax} /></td>
+                            <td className="px-5 py-3 text-right tabular-nums text-emerald-700">{formatMoney(r.amount, r.currency)}{r.currency !== 'CAD' && <div className="text-[11px] text-slate-400">{formatMoney(r.amountCad, 'CAD')} CAD</div>}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </TableTools>
+              )}
+            </div>
+          </FadeIn>
+        </div>
+      )}
+
       {tab === 'receivables' && (
         <div className="space-y-6">
           <section className="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -508,9 +599,9 @@ export default async function FinancePage({
                           <td className="px-5 py-3 tabular-nums text-slate-500">{e.date.toISOString().slice(0, 10)}</td>
                           <td className="px-5 py-3 text-right tabular-nums">
                             <div className="font-medium">{formatMoney(e.amount, e.currency)}</div>
-                            {(e.gst ?? 0) + (e.qst ?? 0) > 0 && (
-                              <div className="text-[11px] text-slate-400">incl. GST/QST {formatMoney((e.gst ?? 0) + (e.qst ?? 0), e.currency)}</div>
-                            )}
+                            <div className="mt-1 flex justify-end">
+                              <TaxEditor id={e.id} kind="expense" tax={(e.qst ?? 0) > 0 ? 'both' : (e.gst ?? 0) > 0 ? 'gst' : 'none'} />
+                            </div>
                             {e.currency !== 'CAD' && (() => {
                               const cadAmt = e.amountCad ?? cadOf(e.amount, e.currency);
                               return <div className="text-xs text-slate-400">{formatMoney(cadAmt, 'CAD')} CAD <span className="text-slate-300">({fxRateNote(e.amount, cadAmt, e.currency)})</span></div>;
