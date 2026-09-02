@@ -1763,6 +1763,58 @@ export async function clearStatementImport(statementId: string): Promise<{ ok: b
   return { ok: true, message: `Cleared ${removed} imported transaction${removed === 1 ? '' : 's'} and removed the statement — re-upload to redo it.` };
 }
 
+// ─── Reset data (super-admin) ────────────────────────────────────────────────
+// Wipe selected categories of transactional data back to zero, keeping all
+// settings (company details, dropdown options, users, integrations).
+
+export async function resetData(scopes: string[]): Promise<{ ok: boolean; message: string }> {
+  const RESET_SCOPES = ['finance', 'invoices', 'statements', 'filings', 'loans', 'commissions', 'salaryPayments', 'time', 'leads', 'projects', 'clients'];
+  const session = await getSession();
+  if (!session?.roles?.includes('SUPER_ADMIN')) return { ok: false, message: 'Not authorized — super admins only.' };
+  const set = new Set((scopes ?? []).filter((s) => RESET_SCOPES.includes(s)));
+  if (set.size === 0) return { ok: false, message: 'Nothing selected.' };
+
+  const parts: string[] = [];
+  const run = async (cond: boolean, label: string, ops: (() => Promise<{ count: number }>)[]) => {
+    if (!cond) return;
+    let c = 0;
+    for (const op of ops) { const r = await op(); c += r?.count ?? 0; }
+    parts.push(`${label} ${c}`);
+  };
+
+  await run(set.has('finance'), 'income/expenses', [
+    () => prisma.payment.deleteMany({}),
+    () => prisma.otherIncome.deleteMany({}),
+    () => prisma.expense.deleteMany({}),
+    () => prisma.transfer.deleteMany({}),
+  ]);
+  await run(set.has('invoices'), 'invoices', [() => prisma.invoice.deleteMany({})]);
+  await run(set.has('statements'), 'statements/import-memory', [
+    () => prisma.statement.deleteMany({}),
+    () => prisma.pendingImport.deleteMany({}),
+    () => prisma.txnRule.deleteMany({}),
+  ]);
+  await run(set.has('filings'), 'GST/QST filings', [() => prisma.quarterlyFiling.deleteMany({})]);
+  await run(set.has('loans'), 'loans', [() => prisma.loan.deleteMany({})]);
+  await run(set.has('commissions'), 'commission payouts', [() => prisma.commissionPayout.deleteMany({})]);
+  await run(set.has('salaryPayments'), 'salary payments', [() => prisma.salaryPayment.deleteMany({})]);
+  await run(set.has('time'), 'time entries', [
+    () => prisma.timeEntry.deleteMany({}),
+    () => prisma.taskActivity.deleteMany({}),
+  ]);
+  await run(set.has('leads'), 'leads', [
+    () => prisma.leadActivity.deleteMany({}),
+    () => prisma.sequenceEnrollment.deleteMany({}),
+    () => prisma.lead.deleteMany({}),
+    () => prisma.leadCompany.deleteMany({}),
+  ]);
+  await run(set.has('projects'), 'projects', [() => prisma.project.deleteMany({})]);
+  await run(set.has('clients'), 'clients', [() => prisma.client.deleteMany({})]);
+
+  for (const p of ['/finance', '/invoices', '/statements', '/clients', '/projects', '/leads', '/time', '/commissions', '/']) revalidatePath(p);
+  return { ok: true, message: `Erased — ${parts.join(', ')}.` };
+}
+
 // Re-categorize an income entry (inline, from the income list).
 export async function updateOtherIncomeCategory(id: string, category: string) {
   if (!id) return;

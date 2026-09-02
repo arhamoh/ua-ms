@@ -1,4 +1,4 @@
-import { Database, FileText, Trash2, SlidersHorizontal, Plus, X, Building2, Plug, Clock } from 'lucide-react';
+import { Database, FileText, Trash2, SlidersHorizontal, Plus, X, Building2, Plug, Clock, AlertTriangle } from 'lucide-react';
 import { prisma } from '@/lib/prisma';
 import { seedDemoData, backfillInvoices, clearDemoData, addOption, deleteOption, saveCompanySettings } from '@/app/actions';
 import { saveMyTimezone } from './actions';
@@ -11,6 +11,7 @@ import FadeIn from '@/components/FadeIn';
 import IntegrationsPanel from '@/components/IntegrationsPanel';
 import SettingsTabs, { type SettingsTab } from '@/components/SettingsTabs';
 import MigrationButton from '@/components/MigrationButton';
+import ResetDataPanel from '@/components/ResetDataPanel';
 
 export const dynamic = 'force-dynamic';
 
@@ -87,6 +88,13 @@ export default async function SettingsPage({
         </div>
       </div>
     ),
+  };
+
+  const resetTab: SettingsTab = {
+    id: 'reset',
+    label: 'Reset data',
+    icon: <AlertTriangle size={15} />,
+    content: <ResetDataPanel />,
   };
 
   return (
@@ -260,7 +268,7 @@ export default async function SettingsPage({
               </div>
             ),
           },
-          ...(isSuperAdmin ? [databaseTab] : []),
+          ...(isSuperAdmin ? [databaseTab, resetTab] : []),
         ]}
       />
     </div>
