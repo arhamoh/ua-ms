@@ -25,13 +25,18 @@ function buildSystem(ex: { yes: string[]; no: string[] }): string {
 
 Score by how much the tweet reveals a PAIN we can solve — frustration, stress, a bottleneck, something broken or costing them money/time. The best leads sound like a person venting or stuck, e.g.: "our checkout keeps failing and we're losing sales", "my website looks terrible and I'm embarrassed", "spent all weekend fighting Shopify", "our agency ghosted us mid-project", "site is so slow customers bounce", "drowning in leads I can't follow up on", "can't get our SEO to move no matter what". Explicit "looking for a web designer" asks are also strong.
 
-Scoring guide:
-- 80-100: clear pain/frustration/bottleneck we could fix, OR an explicit request to hire.
-- 50-79: a problem is implied but mild or vague.
-- 20-49: on-topic but neutral (tips, showing off, general chatter, someone offering these services).
-- 0-19: unrelated, spam, news, other agencies/freelancers advertising, job seekers.
+A tweet must be a REAL PERSON describing THEIR OWN problem or asking to hire. Score 0-19 (junk, not a lead) for:
+- AI-prompt / template spam: text like "Act as a...", "You are a...", numbered listicles ("7. The Mobile Optimizer"), or copy-paste threads teaching prompts/tips.
+- Anyone giving advice, teaching, selling, or promoting their own service/tool (they're not a customer).
+- Bot/engagement spam, giveaways, crypto, "as seen in", threads, news, job seekers, recruiters, other agencies/freelancers advertising.
 
-Reward emotional/struggle language; do NOT reward tweets that merely mention the topic without a problem. Give a terse (<=12 word) reason naming the pain.`;
+Scoring guide:
+- 80-100: a real person voicing a clear pain/frustration/bottleneck we could fix, OR explicitly asking to hire someone.
+- 50-79: a real person with an implied but mild/vague problem.
+- 20-49: on-topic but neutral (general chatter, showing off) from a real person.
+- 0-19: everything in the junk list above.
+
+Reward genuine emotional/struggle language from someone who HAS the problem; never reward advice, prompts, listicles, or self-promotion. Give a terse (<=12 word) reason naming the pain (or why it's junk).`;
 
   if (ex.yes.length || ex.no.length) {
     s += `\n\nThe user has reviewed past tweets. Match their taste:`;

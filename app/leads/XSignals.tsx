@@ -180,10 +180,20 @@ export default function XSignals({ tweetLeads, tweetKeywords, twitterReady, last
       (t.authorName ?? '').toLowerCase().includes(q),
     );
     const eng = (t: TweetLead) => t.likeCount + t.replyCount;
-    const ms = (s: string) => new Date(s).getTime();
-    if (filter === 'new' || filter === 'saved') list.sort((a, b) => ms(b.createdAt) - ms(a.createdAt));
+    const time = (t: TweetLead) => new Date(t.postedAt ?? t.createdAt).getTime();
+    if (filter === 'new' || filter === 'saved') list.sort((a, b) => time(b) - time(a)); // newest tweet first
     else if (filter === 'top') list.sort((a, b) => eng(b) - eng(a) || (b.aiScore ?? 0) - (a.aiScore ?? 0));
     // 'all' keeps the server order (AI score desc)
+
+    // Collapse near-duplicate posts (bots copy-paste the same text) — keep the
+    // first, which is the best by the active sort.
+    const seen = new Set<string>();
+    list = list.filter((t) => {
+      const key = t.text.toLowerCase().replace(/https?:\/\/\S+/g, '').replace(/[^a-z0-9]+/g, ' ').trim().slice(0, 90);
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
     return list;
   }, [tweetLeads, filter, qFilter, search]);
 
