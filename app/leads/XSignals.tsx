@@ -2,7 +2,8 @@
 
 import { useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { RefreshCw, Sparkles, ThumbsUp, ThumbsDown, ExternalLink, Reply, Mail, Check, X as XIcon, Plus, Heart, MessageCircle, PenLine, Copy, Loader2 } from 'lucide-react';
+import Link from 'next/link';
+import { RefreshCw, Sparkles, ThumbsUp, ThumbsDown, ExternalLink, Reply, Mail, Check, X as XIcon, Plus, Heart, MessageCircle, PenLine, Copy, Loader2, ArrowLeft, Settings2, List } from 'lucide-react';
 import {
   pollTweetsNow,
   rescoreTweets,
@@ -61,6 +62,8 @@ export default function XSignals({ tweetLeads, tweetKeywords, twitterReady }: Pr
   const [msg, setMsg] = useState('');
   const [filter, setFilter] = useState<Filter>('top');
   const [kw, setKw] = useState('');
+  const [tab, setTab] = useState<'signals' | 'settings'>('signals');
+  const activeKw = tweetKeywords.filter((k) => k.active).length;
 
   const run = (fn: () => Promise<unknown>, note?: string) =>
     start(async () => {
@@ -81,80 +84,136 @@ export default function XSignals({ tweetLeads, tweetKeywords, twitterReady }: Pr
   }, [tweetLeads, filter]);
 
   return (
-    <section className="rounded-xl border border-slate-200 bg-white">
-      {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 p-4">
-        <div>
-          <h2 className="flex items-center gap-2 text-sm font-semibold text-slate-700">
-            <XLogo /> X signals
-            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-500">{tweetLeads.length}</span>
-          </h2>
-          <p className="mt-0.5 text-xs text-slate-400">Tweets showing buying intent, learned from your Relevant / Not calls.</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <button onClick={() => run(rescoreTweets)} disabled={pending} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50">
-            <Sparkles size={15} /> Re-score
-          </button>
-          <button onClick={() => run(pollTweetsNow)} disabled={pending} className="inline-flex items-center gap-1.5 rounded-lg bg-brand px-3 py-2 text-sm font-medium text-white shadow-sm hover:bg-brand-dark disabled:opacity-50">
-            <RefreshCw size={15} className={pending ? 'animate-spin' : ''} /> Poll now
-          </button>
+    <div className="space-y-6">
+      {/* Page header + tabs */}
+      <div>
+        <Link href="/leads" className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700">
+          <ArrowLeft size={14} /> Leads
+        </Link>
+        <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h1 className="flex items-center gap-2 text-2xl font-semibold text-slate-900"><XLogo /> X — inbound signals</h1>
+            <p className="text-sm text-slate-500">Tweets showing buying intent, learned from your Relevant / Not calls.</p>
+          </div>
+          <div className="flex gap-1 rounded-lg border border-slate-200 bg-white p-1">
+            <TabBtn active={tab === 'signals'} onClick={() => setTab('signals')} icon={<List size={14} />}>Signals</TabBtn>
+            <TabBtn active={tab === 'settings'} onClick={() => setTab('settings')} icon={<Settings2 size={14} />}>Settings</TabBtn>
+          </div>
         </div>
       </div>
 
-      {/* Keyword manager */}
-      <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 bg-slate-50/50 p-4">
-        <span className="text-xs font-medium text-slate-500">Watching:</span>
-        {tweetKeywords.length === 0 && <span className="text-xs text-slate-400">no keywords yet — add one →</span>}
-        {tweetKeywords.map((k) => (
-          <span key={k.id} className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs ${k.active ? 'border-brand/30 bg-brand-light/40 text-brand-dark' : 'border-slate-200 bg-white text-slate-400'}`}>
-            <button onClick={() => run(() => toggleTweetKeyword(k.id, !k.active))} title={k.active ? 'Pause' : 'Resume'} className="max-w-[220px] truncate hover:underline">
-              {k.query}
-            </button>
-            <button onClick={() => run(() => removeTweetKeyword(k.id))} title="Remove" className="text-slate-400 hover:text-rose-600"><XIcon size={12} /></button>
-          </span>
-        ))}
-        <span className="inline-flex items-center gap-1">
-          <input
-            value={kw}
-            onChange={(e) => setKw(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter' && kw.trim()) { run(() => addTweetKeyword(kw.trim())); setKw(''); } }}
-            placeholder='"need a web designer"'
-            className="w-52 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs focus:border-brand focus:outline-none"
-          />
-          <button onClick={() => { if (kw.trim()) { run(() => addTweetKeyword(kw.trim())); setKw(''); } }} disabled={pending || !kw.trim()} className="grid h-7 w-7 place-items-center rounded-lg bg-brand text-white hover:bg-brand-dark disabled:opacity-50"><Plus size={14} /></button>
-        </span>
-      </div>
+      {tab === 'signals' && (
+        <section className="rounded-xl border border-slate-200 bg-white">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 p-4">
+            <div className="flex flex-wrap items-center gap-2">
+              {FILTERS.map((f) => (
+                <button key={f} onClick={() => setFilter(f)} className={`rounded-full px-3 py-1 text-xs font-medium capitalize transition ${filter === f ? 'bg-brand text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
+                  {f}
+                </button>
+              ))}
+              {msg && <span className="ml-1 text-xs text-slate-500">{msg}</span>}
+            </div>
+            <div className="flex items-center gap-2">
+              <button onClick={() => run(rescoreTweets)} disabled={pending} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50">
+                <Sparkles size={15} /> Re-score
+              </button>
+              <button onClick={() => run(pollTweetsNow)} disabled={pending} className="inline-flex items-center gap-1.5 rounded-lg bg-brand px-3 py-2 text-sm font-medium text-white shadow-sm hover:bg-brand-dark disabled:opacity-50">
+                <RefreshCw size={15} className={pending ? 'animate-spin' : ''} /> Poll now
+              </button>
+            </div>
+          </div>
 
-      {/* Filters + status */}
-      <div className="flex flex-wrap items-center gap-2 p-4 pb-0">
-        {FILTERS.map((f) => (
-          <button key={f} onClick={() => setFilter(f)} className={`rounded-full px-3 py-1 text-xs font-medium capitalize transition ${filter === f ? 'bg-brand text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
-            {f}
-          </button>
-        ))}
-        {msg && <span className="ml-1 text-xs text-slate-500">{msg}</span>}
-      </div>
+          <div className="p-4">
+            {!twitterReady && (
+              <p className="mb-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                TWITTERAPI_IO_KEY isn’t set — add your twitterapi.io key in Settings → Integrations, then “Poll now”.
+              </p>
+            )}
+            {activeKw === 0 && twitterReady && (
+              <p className="mb-3 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-500">
+                No keywords yet — add some in the <button onClick={() => setTab('settings')} className="font-medium text-brand hover:underline">Settings</button> tab, then poll.
+              </p>
+            )}
+            {visible.length === 0 ? (
+              <div className="py-10 text-center text-sm text-slate-400">No tweets yet — add keywords in Settings and hit “Poll now”.</div>
+            ) : (
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+                {visible.map((t) => (
+                  <TweetCard key={t.id} t={t} disabled={pending} run={run} />
+                ))}
+              </div>
+            )}
+          </div>
+        </section>
+      )}
 
-      {/* Tiles */}
-      <div className="p-4">
-        {!twitterReady && (
-          <p className="mb-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">
-            TWITTERAPI_IO_KEY isn’t set — add your twitterapi.io key in Railway, then “Poll now”.
+      {tab === 'settings' && (
+        <section className="rounded-xl border border-slate-200 bg-white p-5">
+          <h2 className="mb-1 flex items-center gap-2 text-sm font-semibold text-slate-700"><Settings2 size={16} className="text-brand" /> Keywords</h2>
+          <p className="mb-4 text-xs text-slate-500">
+            Phrases the listener searches on X — you write these yourself, describing what a prospect would tweet. They accept X advanced-search operators
+            (quotes for exact phrases, <span className="font-mono">OR</span>, <span className="font-mono">-word</span> to exclude, <span className="font-mono">lang:en</span>, <span className="font-mono">near:Montreal</span>).
+            The twitterapi.io key lives in Settings → Integrations.
           </p>
-        )}
-        {visible.length === 0 ? (
-          <div className="py-10 text-center text-sm text-slate-400">
-            {twitterReady ? 'No tweets yet — add keywords above and hit “Poll now”.' : 'Nothing to show yet.'}
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
-            {visible.map((t) => (
-              <TweetCard key={t.id} t={t} disabled={pending} run={run} />
+
+          <div className="flex flex-wrap items-center gap-2">
+            {tweetKeywords.length === 0 && <span className="text-xs text-slate-400">No keywords yet — add one →</span>}
+            {tweetKeywords.map((k) => (
+              <span key={k.id} className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs ${k.active ? 'border-brand/30 bg-brand-light/40 text-brand-dark' : 'border-slate-200 bg-white text-slate-400'}`}>
+                <button onClick={() => run(() => toggleTweetKeyword(k.id, !k.active))} title={k.active ? 'Pause' : 'Resume'} className="max-w-[240px] truncate hover:underline">
+                  {k.query}
+                </button>
+                <button onClick={() => run(() => removeTweetKeyword(k.id))} title="Remove" className="text-slate-400 hover:text-rose-600"><XIcon size={12} /></button>
+              </span>
             ))}
+            <span className="inline-flex items-center gap-1">
+              <input
+                value={kw}
+                onChange={(e) => setKw(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter' && kw.trim()) { run(() => addTweetKeyword(kw.trim())); setKw(''); } }}
+                placeholder='"need a web designer"'
+                className="w-56 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs focus:border-brand focus:outline-none"
+              />
+              <button onClick={() => { if (kw.trim()) { run(() => addTweetKeyword(kw.trim())); setKw(''); } }} disabled={pending || !kw.trim()} className="grid h-7 w-7 place-items-center rounded-lg bg-brand text-white hover:bg-brand-dark disabled:opacity-50"><Plus size={14} /></button>
+            </span>
           </div>
-        )}
-      </div>
-    </section>
+
+          <div className="mt-4 rounded-lg bg-slate-50 p-3">
+            <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-400">Examples to start from</p>
+            <div className="flex flex-wrap gap-1.5">
+              {EXAMPLE_QUERIES.map((q) => (
+                <button key={q} onClick={() => run(() => addTweetKeyword(q))} disabled={pending} className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs text-slate-600 hover:border-brand/40 hover:text-brand disabled:opacity-50">
+                  + {q}
+                </button>
+              ))}
+            </div>
+          </div>
+          {msg && <p className="mt-3 text-xs text-slate-500">{msg}</p>}
+        </section>
+      )}
+    </div>
+  );
+}
+
+const EXAMPLE_QUERIES = [
+  '"need a web designer"',
+  '"looking for a web developer"',
+  '"recommend a web design agency"',
+  '"need a shopify developer"',
+  '"redesign my website"',
+  '"looking for a marketing agency"',
+  '"need help with SEO"',
+  '"hire a webflow developer"',
+];
+
+function TabBtn({ active, onClick, icon, children }: { active: boolean; onClick: () => void; icon: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition ${active ? 'bg-brand text-white shadow-sm' : 'text-slate-600 hover:bg-slate-50'}`}
+    >
+      {icon} {children}
+    </button>
   );
 }
 

@@ -14,7 +14,7 @@ const STATUS: Record<IntegrationStatus['status'], { dot: string; label: string; 
 
 export default function IntegrationsPanel({ integrations }: { integrations: IntegrationStatus[] }) {
   return (
-    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+    <div className="space-y-3">
       {integrations.map((it) => (
         <Card key={it.id} it={it} />
       ))}

@@ -3,9 +3,8 @@
 import { useMemo, useRef, useState, useTransition, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Search, ChevronDown, Send, PlayCircle, ExternalLink, CheckCircle2 } from 'lucide-react';
+import { Search, ChevronDown, Send, PlayCircle, ExternalLink, CheckCircle2, ArrowLeft, Settings2, List } from 'lucide-react';
 import { searchLeads, setLeadStatus, convertLead, setupAndEnroll, runOutreachNow } from './actions';
-import XSignals, { type TweetLead, type TweetKeyword } from './XSignals';
 
 type SegmentDef = {
   key: string;
@@ -33,9 +32,6 @@ type Props = {
   leads: Lead[];
   segmentDefs: SegmentDef[];
   apolloReady: boolean;
-  tweetLeads: TweetLead[];
-  tweetKeywords: TweetKeyword[];
-  twitterReady: boolean;
 };
 
 const TITLE_OPTS = ['Founder', 'Co-Founder', 'CEO', 'CTO', 'COO', 'Owner', 'President', 'Managing Director', 'Head of Marketing', 'Marketing Director', 'CMO', 'Head of Product', 'Ecommerce Manager', 'Head of Ecommerce', 'Creative Director', 'General Manager'];
@@ -103,9 +99,10 @@ function MultiSelect({ options, selected, onChange, placeholder = 'Any' }: { opt
   );
 }
 
-export default function LeadsDashboard({ stats, leads, segmentDefs, apolloReady, tweetLeads, tweetKeywords, twitterReady }: Props) {
+export default function LeadsDashboard({ stats, leads, segmentDefs, apolloReady }: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
+  const [tab, setTab] = useState<'leads' | 'settings'>('leads');
   const first = segmentDefs[0];
 
   const [segKey, setSegKey] = useState(first?.key ?? '');
@@ -165,29 +162,24 @@ export default function LeadsDashboard({ stats, leads, segmentDefs, apolloReady,
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold text-slate-900">Leads</h1>
-          <p className="text-sm text-slate-500">Source, score, and reach out to new prospects.</p>
-        </div>
-        <div className="flex gap-2">
-          <button
-            onClick={() => act(setupAndEnroll, 'Sequences set up and leads enrolled.')}
-            disabled={pending}
-            className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50"
-          >
-            <PlayCircle size={16} /> Set up sequences
-          </button>
-          <button
-            onClick={() => act(runOutreachNow, 'Processed due outreach touches.')}
-            disabled={pending}
-            className="inline-flex items-center gap-2 rounded-lg bg-brand px-3 py-2 text-sm font-medium text-white shadow-sm hover:bg-brand-dark disabled:opacity-50"
-          >
-            <Send size={16} /> Run outreach
-          </button>
+      <div>
+        <Link href="/leads" className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700">
+          <ArrowLeft size={14} /> Leads
+        </Link>
+        <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h1 className="text-2xl font-semibold text-slate-900">Apollo — outbound leads</h1>
+            <p className="text-sm text-slate-500">Source, score, and reach out to new prospects.</p>
+          </div>
+          <div className="flex gap-1 rounded-lg border border-slate-200 bg-white p-1">
+            <TabBtn active={tab === 'leads'} onClick={() => setTab('leads')} icon={<List size={14} />}>Leads</TabBtn>
+            <TabBtn active={tab === 'settings'} onClick={() => setTab('settings')} icon={<Settings2 size={14} />}>Settings</TabBtn>
+          </div>
         </div>
       </div>
 
+      {tab === 'leads' && (
+        <>
       {/* Stats */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         {cards.map(([label, n]) => (
@@ -257,9 +249,6 @@ export default function LeadsDashboard({ stats, leads, segmentDefs, apolloReady,
           {msg && <span className="text-sm text-slate-500">{msg}</span>}
         </div>
       </section>
-
-      {/* X (Twitter) listener */}
-      <XSignals tweetLeads={tweetLeads} tweetKeywords={tweetKeywords} twitterReady={twitterReady} />
 
       {/* Leads table */}
       <section className="rounded-xl border border-slate-200 bg-white">
@@ -332,7 +321,36 @@ export default function LeadsDashboard({ stats, leads, segmentDefs, apolloReady,
           </table>
         </div>
       </section>
+        </>
+      )}
+
+      {tab === 'settings' && (
+        <section className="rounded-xl border border-slate-200 bg-white p-5">
+          <h2 className="mb-1 flex items-center gap-2 text-sm font-semibold text-slate-700"><Settings2 size={16} className="text-brand" /> Apollo settings</h2>
+          <p className="mb-4 text-xs text-slate-500">Outreach sequences and configuration for sourced leads. The Apollo API key lives in Settings → Integrations.</p>
+          <div className="flex flex-wrap gap-2">
+            <button onClick={() => act(setupAndEnroll, 'Sequences set up and leads enrolled.')} disabled={pending} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50">
+              <PlayCircle size={16} /> Set up sequences
+            </button>
+            <button onClick={() => act(runOutreachNow, 'Processed due outreach touches.')} disabled={pending} className="inline-flex items-center gap-2 rounded-lg bg-brand px-3 py-2 text-sm font-medium text-white shadow-sm hover:bg-brand-dark disabled:opacity-50">
+              <Send size={16} /> Run outreach
+            </button>
+          </div>
+          {msg && <p className="mt-3 text-sm text-slate-500">{msg}</p>}
+        </section>
+      )}
     </div>
+  );
+}
+
+function TabBtn({ active, onClick, icon, children }: { active: boolean; onClick: () => void; icon: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition ${active ? 'bg-brand text-white shadow-sm' : 'text-slate-600 hover:bg-slate-50'}`}
+    >
+      {icon} {children}
+    </button>
   );
 }
 

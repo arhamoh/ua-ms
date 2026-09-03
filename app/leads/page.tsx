@@ -1,92 +1,103 @@
+import Link from 'next/link';
 import { getSession } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
-import { segments } from '@/lib/leadgen/icp';
 import { hasApolloKey } from '@/lib/leadgen/pipeline';
 import { twitterApiConfigured } from '@/lib/leadgen/xpipeline';
-import LeadsDashboard from './LeadsDashboard';
+import { Search, ArrowRight } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
 
-export default async function LeadsPage() {
+function XLogo({ className = '' }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" className={className} aria-hidden>
+      <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+    </svg>
+  );
+}
+
+export default async function LeadsHubPage() {
   const user = await getSession();
   if (!user) redirect('/login');
   if (!user.roles.includes('SUPER_ADMIN')) redirect('/');
 
-  const [total, withEmail, byStatusRaw, bySegmentRaw, leadsRaw, tweetRaw, keywordRaw] = await Promise.all([
+  const [leadTotal, leadContacted, leadWon, tweetTotal, tweetNew] = await Promise.all([
     prisma.lead.count(),
-    prisma.lead.count({ where: { NOT: { email: null } } }),
-    prisma.lead.groupBy({ by: ['status'], _count: { _all: true } }),
-    prisma.lead.groupBy({ by: ['segment'], _count: { _all: true } }),
-    prisma.lead.findMany({
-      include: { company: true },
-      orderBy: [{ score: 'desc' }, { createdAt: 'desc' }],
-      take: 200,
-    }),
-    prisma.tweetLead.findMany({
-      where: { status: { not: 'ignored' } },
-      orderBy: [{ aiScore: { sort: 'desc', nulls: 'last' } }, { postedAt: 'desc' }, { createdAt: 'desc' }],
-      take: 120,
-    }),
-    prisma.tweetKeyword.findMany({ orderBy: { createdAt: 'asc' } }),
+    prisma.lead.count({ where: { status: 'contacted' } }),
+    prisma.lead.count({ where: { status: 'won' } }),
+    prisma.tweetLead.count({ where: { status: { not: 'ignored' } } }),
+    prisma.tweetLead.count({ where: { status: 'new' } }),
   ]);
 
-  const byStatus = Object.fromEntries(byStatusRaw.map((s) => [s.status, s._count._all]));
-  const bySegment = Object.fromEntries(bySegmentRaw.map((s) => [s.segment ?? 'none', s._count._all]));
+  const apolloReady = hasApolloKey();
+  const xReady = twitterApiConfigured();
 
-  const leads = leadsRaw.map((l) => ({
-    id: l.id,
-    name: `${l.firstName ?? ''} ${l.lastName ?? ''}`.trim() || '—',
-    title: l.title,
-    company: l.company?.name ?? '—',
-    email: l.email,
-    emailStatus: l.emailStatus,
-    linkedinUrl: l.linkedinUrl,
-    segment: l.segment,
-    score: l.score,
-    status: l.status,
-    convertedClientId: l.convertedClientId,
-  }));
-
-  const tweetLeads = tweetRaw.map((t) => ({
-    id: t.id,
-    tweetId: t.tweetId,
-    url: t.url,
-    text: t.text,
-    authorHandle: t.authorHandle,
-    authorName: t.authorName,
-    authorAvatar: t.authorAvatar,
-    authorId: t.authorId,
-    likeCount: t.likeCount,
-    replyCount: t.replyCount,
-    postedAt: t.postedAt ? t.postedAt.toISOString() : null,
-    matchedQuery: t.matchedQuery,
-    relevance: t.relevance,
-    aiScore: t.aiScore,
-    aiReason: t.aiReason,
-    draft: t.draft,
-    status: t.status,
-  }));
-  const tweetKeywords = keywordRaw.map((k) => ({ id: k.id, query: k.query, active: k.active }));
-
-  const segmentDefs = segments.map((s) => ({
-    key: s.key,
-    label: s.label,
-    targetTitles: s.targetTitles,
-    industries: s.industries,
-    employeeRange: s.employeeRange,
-    locations: s.locations,
-  }));
+  const cards = [
+    {
+      href: '/leads/apollo',
+      icon: <Search size={20} />,
+      name: 'Apollo — outbound leads',
+      description: 'Source decision-makers by title, industry, size & location, then score and run outreach sequences.',
+      stats: [
+        { label: 'Leads', value: leadTotal },
+        { label: 'Contacted', value: leadContacted },
+        { label: 'Won', value: leadWon },
+      ],
+      ready: apolloReady,
+      readyHint: 'Add APOLLO_API_KEY in Settings → Integrations.',
+      accent: 'text-brand',
+    },
+    {
+      href: '/leads/x',
+      icon: <XLogo />,
+      name: 'X — inbound signals',
+      description: 'Listen for buying-intent tweets, learn which are worth it, and reply fast with an AI-drafted message.',
+      stats: [
+        { label: 'Signals', value: tweetTotal },
+        { label: 'New', value: tweetNew },
+      ],
+      ready: xReady,
+      readyHint: 'Add TWITTERAPI_IO_KEY in Settings → Integrations.',
+      accent: 'text-ink',
+    },
+  ];
 
   return (
-    <LeadsDashboard
-      stats={{ total, withEmail, byStatus, bySegment }}
-      leads={leads}
-      segmentDefs={segmentDefs}
-      apolloReady={hasApolloKey()}
-      tweetLeads={tweetLeads}
-      tweetKeywords={tweetKeywords}
-      twitterReady={twitterApiConfigured()}
-    />
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-semibold text-slate-900">Leads</h1>
+        <p className="text-sm text-slate-500">Two ways to fill the pipeline — reach out, or listen in.</p>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        {cards.map((c) => (
+          <Link
+            key={c.href}
+            href={c.href}
+            className="group flex flex-col rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-brand/40 hover:shadow-md"
+          >
+            <div className="flex items-center justify-between">
+              <span className={`inline-grid h-10 w-10 place-items-center rounded-xl bg-slate-100 ${c.accent}`}>{c.icon}</span>
+              <ArrowRight size={18} className="text-slate-300 transition group-hover:translate-x-0.5 group-hover:text-brand" />
+            </div>
+            <h2 className="mt-3 text-base font-semibold text-slate-900">{c.name}</h2>
+            <p className="mt-1 text-sm leading-relaxed text-slate-500">{c.description}</p>
+
+            <div className="mt-4 flex flex-wrap gap-2">
+              {c.stats.map((s) => (
+                <span key={s.label} className="inline-flex items-baseline gap-1 rounded-lg bg-slate-50 px-2.5 py-1">
+                  <span className="text-sm font-semibold text-slate-800">{s.value}</span>
+                  <span className="text-[11px] uppercase tracking-wide text-slate-400">{s.label}</span>
+                </span>
+              ))}
+            </div>
+
+            {!c.ready && (
+              <p className="mt-3 rounded-lg bg-amber-50 px-3 py-1.5 text-[11px] text-amber-700">Not configured — {c.readyHint}</p>
+            )}
+          </Link>
+        ))}
+      </div>
+    </div>
   );
 }
