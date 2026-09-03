@@ -61,9 +61,17 @@ export default function XSignals({ tweetLeads, tweetKeywords, twitterReady }: Pr
   const [pending, start] = useTransition();
   const [msg, setMsg] = useState('');
   const [filter, setFilter] = useState<Filter>('top');
+  const [qFilter, setQFilter] = useState('');
   const [kw, setKw] = useState('');
   const [tab, setTab] = useState<'signals' | 'keywords'>('signals');
   const activeKw = tweetKeywords.filter((k) => k.active).length;
+
+  // Keywords that actually surfaced tweets, with counts — for the filter dropdown.
+  const queryOptions = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const t of tweetLeads) if (t.matchedQuery) counts.set(t.matchedQuery, (counts.get(t.matchedQuery) ?? 0) + 1);
+    return [...counts.entries()].sort((a, b) => b[1] - a[1]);
+  }, [tweetLeads]);
 
   const run = (fn: () => Promise<unknown>, note?: string) =>
     start(async () => {
@@ -80,8 +88,9 @@ export default function XSignals({ tweetLeads, tweetKeywords, twitterReady }: Pr
     if (filter === 'new') list = list.filter((t) => t.status === 'new' && t.relevance !== 'no');
     else if (filter === 'relevant') list = list.filter((t) => t.relevance === 'yes');
     else if (filter === 'top') list = list.filter((t) => t.relevance !== 'no');
+    if (qFilter) list = list.filter((t) => t.matchedQuery === qFilter);
     return list;
-  }, [tweetLeads, filter]);
+  }, [tweetLeads, filter, qFilter]);
 
   return (
     <div className="space-y-6">
@@ -111,6 +120,18 @@ export default function XSignals({ tweetLeads, tweetKeywords, twitterReady }: Pr
                   {f}
                 </button>
               ))}
+              {queryOptions.length > 0 && (
+                <select
+                  value={qFilter}
+                  onChange={(e) => setQFilter(e.target.value)}
+                  className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs text-slate-600 focus:border-brand focus:outline-none"
+                >
+                  <option value="">All keywords ({tweetLeads.length})</option>
+                  {queryOptions.map(([q, n]) => (
+                    <option key={q} value={q}>{q} ({n})</option>
+                  ))}
+                </select>
+              )}
               {msg && <span className="ml-1 text-xs text-slate-500">{msg}</span>}
             </div>
             <div className="flex items-center gap-2">
@@ -195,15 +216,21 @@ export default function XSignals({ tweetLeads, tweetKeywords, twitterReady }: Pr
   );
 }
 
+// Pain-oriented seeds: people venting a problem convert far better than neutral
+// topic mentions. Mix of frustration signals + a few explicit hire intents.
 const EXAMPLE_QUERIES = [
+  '"my website is so slow"',
+  '"website looks outdated"',
+  '"embarrassed by my website"',
+  '"our checkout keeps failing"',
+  '"losing sales" website',
+  '"agency ghosted"',
+  '"hate my website"',
+  '"struggling with shopify"',
+  '"can\'t get any traffic"',
   '"need a web designer"',
   '"looking for a web developer"',
-  '"recommend a web design agency"',
-  '"need a shopify developer"',
   '"redesign my website"',
-  '"looking for a marketing agency"',
-  '"need help with SEO"',
-  '"hire a webflow developer"',
 ];
 
 function TabBtn({ active, onClick, icon, children }: { active: boolean; onClick: () => void; icon: React.ReactNode; children: React.ReactNode }) {

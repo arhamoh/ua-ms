@@ -11,7 +11,7 @@ export type TweetVerdict = { score: number; reason: string };
 const clampScore = (v: unknown) => Math.max(0, Math.min(100, Math.round(Number(v) || 0)));
 
 /** Pull the user's most recent labelled tweets to teach the model their taste. */
-async function fewShotExamples(perLabel = 12): Promise<{ yes: string[]; no: string[] }> {
+async function fewShotExamples(perLabel = 8): Promise<{ yes: string[]; no: string[] }> {
   const [yes, no] = await Promise.all([
     prisma.tweetLead.findMany({ where: { relevance: 'yes' }, orderBy: { updatedAt: 'desc' }, take: perLabel, select: { text: true } }),
     prisma.tweetLead.findMany({ where: { relevance: 'no' }, orderBy: { updatedAt: 'desc' }, take: perLabel, select: { text: true } }),
@@ -23,9 +23,15 @@ async function fewShotExamples(perLabel = 12): Promise<{ yes: string[]; no: stri
 function buildSystem(ex: { yes: string[]; no: string[] }): string {
   let s = `You qualify tweets as sales leads for "UA Digital", a Montreal-based digital agency offering web design & development (websites, redesigns, Shopify/Webflow), branding, SEO, and paid ads (English and French).
 
-A GOOD lead is someone expressing genuine intent/need we could win: asking for a web designer/developer/agency, wanting a new or rebuilt website/store, needing branding/SEO/ads help, or hiring for that. A BAD lead is: other agencies/freelancers advertising their own services, job seekers, recruiters, crypto/spam, news, or unrelated chatter.
+Score by how much the tweet reveals a PAIN we can solve — frustration, stress, a bottleneck, something broken or costing them money/time. The best leads sound like a person venting or stuck, e.g.: "our checkout keeps failing and we're losing sales", "my website looks terrible and I'm embarrassed", "spent all weekend fighting Shopify", "our agency ghosted us mid-project", "site is so slow customers bounce", "drowning in leads I can't follow up on", "can't get our SEO to move no matter what". Explicit "looking for a web designer" asks are also strong.
 
-Score each tweet 0-100 for how strong a lead it is (100 = obvious ready-to-buy prospect). Give a terse (<=12 word) reason.`;
+Scoring guide:
+- 80-100: clear pain/frustration/bottleneck we could fix, OR an explicit request to hire.
+- 50-79: a problem is implied but mild or vague.
+- 20-49: on-topic but neutral (tips, showing off, general chatter, someone offering these services).
+- 0-19: unrelated, spam, news, other agencies/freelancers advertising, job seekers.
+
+Reward emotional/struggle language; do NOT reward tweets that merely mention the topic without a problem. Give a terse (<=12 word) reason naming the pain.`;
 
   if (ex.yes.length || ex.no.length) {
     s += `\n\nThe user has reviewed past tweets. Match their taste:`;
@@ -58,9 +64,10 @@ export async function classifyTweets(items: { id: string; text: string }[]): Pro
           { role: 'system', content: system },
           { role: 'user', content: `Candidates:\n${list}` },
         ],
-        max_tokens: 1200,
+        // Sized for a small batch (~15 items). We extract JSON from the text
+        // ourselves, so we don't rely on response_format (not all models honor it).
+        max_tokens: 1500,
         temperature: 0.1,
-        response_format: { type: 'json_object' },
       }),
     });
     if (!res.ok) return out;

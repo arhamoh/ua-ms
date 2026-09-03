@@ -61,8 +61,23 @@ export async function pollTweetLeads(perQuery = 20): Promise<{ created: number; 
   return { created, skipped, queries: queries.length };
 }
 
+// The model returns unreliable JSON when asked to score too many tweets at once
+// (it truncates), so classify in small batches and persist each batch.
+async function scoreInChunks(rows: { id: string; text: string }[], chunkSize = 15): Promise<number> {
+  let scored = 0;
+  for (let i = 0; i < rows.length; i += chunkSize) {
+    const chunk = rows.slice(i, i + chunkSize);
+    const verdicts = await classifyTweets(chunk);
+    for (const [id, v] of verdicts) {
+      await prisma.tweetLead.update({ where: { id }, data: { aiScore: v.score, aiReason: v.reason } });
+      scored++;
+    }
+  }
+  return scored;
+}
+
 /** Score any tweets that don't yet have an AI score, learning from the user's labels. */
-export async function classifyPendingTweets(limit = 40): Promise<{ scored: number }> {
+export async function classifyPendingTweets(limit = 90): Promise<{ scored: number }> {
   const pending = await prisma.tweetLead.findMany({
     where: { aiScore: null },
     orderBy: { createdAt: 'desc' },
@@ -70,14 +85,7 @@ export async function classifyPendingTweets(limit = 40): Promise<{ scored: numbe
     select: { id: true, text: true },
   });
   if (pending.length === 0) return { scored: 0 };
-
-  const verdicts = await classifyTweets(pending);
-  let scored = 0;
-  for (const [id, v] of verdicts) {
-    await prisma.tweetLead.update({ where: { id }, data: { aiScore: v.score, aiReason: v.reason } });
-    scored++;
-  }
-  return { scored };
+  return { scored: await scoreInChunks(pending) };
 }
 
 /** Re-score every tweet against the current labels (used after the user teaches it more). */
@@ -87,11 +95,5 @@ export async function reclassifyAllTweets(limit = 200): Promise<{ scored: number
     take: limit,
     select: { id: true, text: true },
   });
-  const verdicts = await classifyTweets(rows);
-  let scored = 0;
-  for (const [id, v] of verdicts) {
-    await prisma.tweetLead.update({ where: { id }, data: { aiScore: v.score, aiReason: v.reason } });
-    scored++;
-  }
-  return { scored };
+  return { scored: await scoreInChunks(rows) };
 }
