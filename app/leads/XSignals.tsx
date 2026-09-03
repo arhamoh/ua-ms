@@ -101,7 +101,7 @@ export default function XSignals({ tweetLeads, tweetKeywords, twitterReady }: Pr
         </Link>
         <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h1 className="flex items-center gap-2 text-2xl font-semibold text-slate-900"><XLogo /> X — inbound signals</h1>
+            <h1 className="flex items-center gap-2 text-2xl font-semibold text-slate-900"><XLogo size={22} /> Inbound signals</h1>
             <p className="text-sm text-slate-500">Tweets showing buying intent, learned from your Relevant / Not calls.</p>
           </div>
           <div className="flex gap-1 rounded-lg border border-slate-200 bg-white p-1">
@@ -340,9 +340,9 @@ function TweetCard({ t, disabled, run }: { t: TweetLead; disabled: boolean; run:
   );
 }
 
-function XLogo() {
+function XLogo({ size = 15 }: { size?: number }) {
   return (
-    <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor" className="text-slate-800" aria-hidden>
+    <svg viewBox="0 0 24 24" width={size} height={size} fill="currentColor" className="text-slate-800" aria-hidden>
       <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
     </svg>
   );
