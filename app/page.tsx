@@ -10,6 +10,7 @@ import DashboardGreeting from '@/components/DashboardGreeting';
 import InlineSearch from '@/components/InlineSearch';
 import IncomeExpenseChart from '@/components/charts/IncomeExpenseChart';
 import DonutChart from '@/components/charts/DonutChart';
+import DashboardSignals from '@/components/DashboardSignals';
 
 export const dynamic = 'force-dynamic';
 
@@ -110,6 +111,26 @@ export default async function DashboardPage() {
 
   const recentProjects = projects.slice(0, 6);
 
+  // Top X signals (super admins only — the Leads/X area is admin-gated).
+  const isSuper = !!session?.roles?.includes('SUPER_ADMIN');
+  const signalRows = isSuper
+    ? await prisma.tweetLead.findMany({
+        where: { status: { not: 'ignored' }, relevance: { not: 'no' } },
+        orderBy: [{ aiScore: { sort: 'desc', nulls: 'last' } }, { createdAt: 'desc' }],
+        take: 5,
+      })
+    : [];
+  const signalTweets = signalRows.map((t) => ({
+    id: t.id,
+    url: t.url,
+    text: t.text,
+    authorHandle: t.authorHandle,
+    authorName: t.authorName,
+    authorAvatar: t.authorAvatar,
+    postedAt: t.postedAt ? t.postedAt.toISOString() : null,
+    aiScore: t.aiScore,
+  }));
+
   const stats = [
     { label: 'Clients', value: String(clientCount), icon: Briefcase, tint: 'bg-rose-50 text-rose-600', href: '/clients' },
     { label: 'Active projects', value: String(activeCount), icon: Activity, tint: 'bg-emerald-50 text-emerald-600', href: '/projects' },
@@ -184,6 +205,13 @@ export default async function DashboardPage() {
           </div>
         </FadeIn>
       </section>
+
+      {/* X inbound signals */}
+      {isSuper && (
+        <FadeIn delay={0.1} className="mt-6 block">
+          <DashboardSignals tweets={signalTweets} />
+        </FadeIn>
+      )}
 
       {/* Upcoming deadlines + tasks */}
       <section className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
