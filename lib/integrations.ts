@@ -132,6 +132,17 @@ export async function getIntegrations(): Promise<IntegrationStatus[]> {
       vars: [{ name: 'TWITTERAPI_IO_KEY', set: xSet, required: true }],
       testable: xSet,
     },
+    {
+      id: 'automation',
+      name: 'Automation (scheduled polling)',
+      description: 'Lets a scheduler run lead polling + outreach on a timer. Point Railway Cron (or cron-job.org) at /api/leads/cron?task=all with header "Authorization: Bearer <CRON_SECRET>".',
+      status: isSet(e.CRON_SECRET) ? 'connected' : 'off',
+      summary: isSet(e.CRON_SECRET)
+        ? 'Secret set — add a cron schedule in Railway hitting /api/leads/cron.'
+        : 'Set a CRON_SECRET, then schedule /api/leads/cron in Railway to poll automatically.',
+      vars: [{ name: 'CRON_SECRET', set: isSet(e.CRON_SECRET) }],
+      testable: false,
+    },
   ];
 
   // Tag each var: `editable` = settable from this dashboard; `saved` = a value is
