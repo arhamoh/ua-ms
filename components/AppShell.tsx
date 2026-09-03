@@ -129,7 +129,9 @@ function NavContent({
   return (
     <>
       <div className={`flex h-16 items-center justify-center border-b border-slate-100 ${collapsed ? 'px-2' : 'px-4'}`}>
-        {collapsed ? <Logo variant="mark" className="h-8 w-8" /> : <Logo className="text-3xl" />}
+        <Link href="/" aria-label="Dashboard" className="transition hover:opacity-80">
+          {collapsed ? <Logo variant="mark" className="h-8 w-8" /> : <Logo className="text-3xl" />}
+        </Link>
       </div>
 
       <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto px-3 py-4">

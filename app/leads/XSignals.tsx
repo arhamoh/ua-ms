@@ -3,7 +3,7 @@
 import { useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { RefreshCw, Sparkles, ThumbsUp, ThumbsDown, ExternalLink, Reply, Mail, Check, X as XIcon, Plus, Heart, MessageCircle, PenLine, Copy, Loader2, ArrowLeft, Hash, List } from 'lucide-react';
+import { RefreshCw, Sparkles, ThumbsUp, ThumbsDown, ExternalLink, Reply, Mail, Check, X as XIcon, Plus, Heart, MessageCircle, PenLine, Copy, Loader2, ArrowLeft, Hash, List, Search } from 'lucide-react';
 import {
   pollTweetsNow,
   rescoreTweets,
@@ -14,7 +14,6 @@ import {
   toggleTweetKeyword,
   removeTweetKeyword,
 } from './actions';
-import EnablePushButton from '@/components/EnablePushButton';
 
 export type TweetLead = {
   id: string;
@@ -54,7 +53,7 @@ function scoreClass(n: number | null) {
   return 'bg-slate-100 text-slate-500';
 }
 
-const FILTERS = ['top', 'new', 'relevant', 'all'] as const;
+const FILTERS = ['top', 'new', 'saved', 'all'] as const;
 type Filter = (typeof FILTERS)[number];
 
 export default function XSignals({ tweetLeads, tweetKeywords, twitterReady }: Props) {
@@ -63,6 +62,7 @@ export default function XSignals({ tweetLeads, tweetKeywords, twitterReady }: Pr
   const [msg, setMsg] = useState('');
   const [filter, setFilter] = useState<Filter>('top');
   const [qFilter, setQFilter] = useState('');
+  const [search, setSearch] = useState('');
   const [kw, setKw] = useState('');
   const [tab, setTab] = useState<'signals' | 'keywords'>('signals');
   const activeKw = tweetKeywords.filter((k) => k.active).length;
@@ -87,11 +87,17 @@ export default function XSignals({ tweetLeads, tweetKeywords, twitterReady }: Pr
   const visible = useMemo(() => {
     let list = tweetLeads;
     if (filter === 'new') list = list.filter((t) => t.status === 'new' && t.relevance !== 'no');
-    else if (filter === 'relevant') list = list.filter((t) => t.relevance === 'yes');
+    else if (filter === 'saved') list = list.filter((t) => t.relevance === 'yes');
     else if (filter === 'top') list = list.filter((t) => t.relevance !== 'no');
     if (qFilter) list = list.filter((t) => t.matchedQuery === qFilter);
+    const q = search.trim().toLowerCase();
+    if (q) list = list.filter((t) =>
+      t.text.toLowerCase().includes(q) ||
+      (t.authorHandle ?? '').toLowerCase().includes(q) ||
+      (t.authorName ?? '').toLowerCase().includes(q),
+    );
     return list;
-  }, [tweetLeads, filter, qFilter]);
+  }, [tweetLeads, filter, qFilter, search]);
 
   return (
     <div className="space-y-6">
@@ -136,7 +142,15 @@ export default function XSignals({ tweetLeads, tweetKeywords, twitterReady }: Pr
               {msg && <span className="ml-1 text-xs text-slate-500">{msg}</span>}
             </div>
             <div className="flex items-center gap-2">
-              <EnablePushButton />
+              <div className="relative">
+                <Search size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search tweets…"
+                  className="w-44 rounded-lg border border-slate-200 bg-white py-2 pl-8 pr-2.5 text-sm focus:border-brand focus:outline-none sm:w-56"
+                />
+              </div>
               <button onClick={() => run(rescoreTweets)} disabled={pending} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50">
                 <Sparkles size={15} /> Re-score
               </button>
