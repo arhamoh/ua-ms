@@ -84,6 +84,19 @@ export default function XSignals({ tweetLeads, tweetKeywords, twitterReady }: Pr
       router.refresh();
     });
 
+  // Poll now: starts a background job and returns immediately. A global watcher
+  // shows a toast when it finishes, so you can navigate away meanwhile.
+  const doPoll = () =>
+    start(async () => {
+      const r: any = await pollTweetsNow();
+      if (r?.ok) {
+        window.dispatchEvent(new CustomEvent('keel:poll-started'));
+        setMsg(r.alreadyRunning ? 'Already polling in the background…' : 'Polling in the background — you can leave this page; you’ll get a toast when it’s done.');
+      } else if (r?.ok === false) {
+        setMsg(`⚠️ ${r.error}`);
+      }
+    });
+
   const visible = useMemo(() => {
     let list = tweetLeads;
     if (filter === 'new') list = list.filter((t) => t.status === 'new' && t.relevance !== 'no');
@@ -154,8 +167,8 @@ export default function XSignals({ tweetLeads, tweetKeywords, twitterReady }: Pr
               <button onClick={() => run(rescoreTweets)} disabled={pending} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50">
                 <Sparkles size={15} /> Re-score
               </button>
-              <button onClick={() => run(pollTweetsNow)} disabled={pending} className="inline-flex items-center gap-1.5 rounded-lg bg-brand px-3 py-2 text-sm font-medium text-white shadow-sm hover:bg-brand-dark disabled:opacity-50">
-                <RefreshCw size={15} className={pending ? 'animate-spin' : ''} /> Poll now
+              <button onClick={doPoll} disabled={pending} className="inline-flex items-center gap-1.5 rounded-lg bg-brand px-3 py-2 text-sm font-medium text-white shadow-sm hover:bg-brand-dark disabled:opacity-50">
+                <RefreshCw size={15} className={pending ? 'animate-spin' : ''} /> Fetch tweets
               </button>
             </div>
           </div>
@@ -163,7 +176,7 @@ export default function XSignals({ tweetLeads, tweetKeywords, twitterReady }: Pr
           <div className="p-4">
             {!twitterReady && (
               <p className="mb-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">
-                TWITTERAPI_IO_KEY isn’t set — add your twitterapi.io key in Settings → Integrations, then “Poll now”.
+                TWITTERAPI_IO_KEY isn’t set — add your twitterapi.io key in Settings → Integrations, then “Fetch tweets”.
               </p>
             )}
             {activeKw === 0 && twitterReady && (
@@ -172,7 +185,7 @@ export default function XSignals({ tweetLeads, tweetKeywords, twitterReady }: Pr
               </p>
             )}
             {visible.length === 0 ? (
-              <div className="py-10 text-center text-sm text-slate-400">No tweets yet — add keywords in the Keywords tab and hit “Poll now”.</div>
+              <div className="py-10 text-center text-sm text-slate-400">No tweets yet — add keywords in the Keywords tab and hit “Fetch tweets”.</div>
             ) : (
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
                 {visible.map((t) => (

@@ -1,5 +1,6 @@
 'use server';
 
+import bcrypt from 'bcryptjs';
 import { prisma } from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
@@ -1203,6 +1204,37 @@ export async function saveNotifyPrefs(prefs: Record<string, boolean>) {
   for (const c of NOTIFY_CATEGORIES) clean[c.id] = prefs?.[c.id] !== false; // default on
   await prisma.user.update({ where: { id: user.id }, data: { notifyPrefs: clean } });
   revalidatePath('/settings');
+}
+
+/** Change the signed-in user's login email (their username), confirmed by password. */
+export async function changeEmail(newEmail: string, currentPassword: string): Promise<{ ok: boolean; message: string }> {
+  const user = await getSession();
+  if (!user) return { ok: false, message: 'Not signed in.' };
+  const email = (newEmail ?? '').trim().toLowerCase();
+  if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return { ok: false, message: 'Enter a valid email.' };
+  const dbUser = await prisma.user.findUnique({ where: { id: user.id } });
+  if (!dbUser?.passwordHash || !(await bcrypt.compare(currentPassword, dbUser.passwordHash))) {
+    return { ok: false, message: 'Current password is incorrect.' };
+  }
+  const existing = await prisma.user.findUnique({ where: { email } });
+  if (existing && existing.id !== user.id) return { ok: false, message: 'That email is already in use.' };
+  await prisma.user.update({ where: { id: user.id }, data: { email } });
+  revalidatePath('/settings');
+  return { ok: true, message: 'Email updated — use it next time you sign in.' };
+}
+
+/** Change the signed-in user's password, confirmed by their current one. */
+export async function changePassword(currentPassword: string, newPassword: string): Promise<{ ok: boolean; message: string }> {
+  const user = await getSession();
+  if (!user) return { ok: false, message: 'Not signed in.' };
+  if ((newPassword ?? '').length < 8) return { ok: false, message: 'New password must be at least 8 characters.' };
+  const dbUser = await prisma.user.findUnique({ where: { id: user.id } });
+  if (!dbUser?.passwordHash || !(await bcrypt.compare(currentPassword, dbUser.passwordHash))) {
+    return { ok: false, message: 'Current password is incorrect.' };
+  }
+  const hash = await bcrypt.hash(newPassword, 10);
+  await prisma.user.update({ where: { id: user.id }, data: { passwordHash: hash } });
+  return { ok: true, message: 'Password updated.' };
 }
 
 /** Save an integration credential from the dashboard (encrypted at rest). */

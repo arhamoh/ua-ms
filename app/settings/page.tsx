@@ -11,6 +11,7 @@ import FadeIn from '@/components/FadeIn';
 import IntegrationsPanel from '@/components/IntegrationsPanel';
 import EnablePushButton from '@/components/EnablePushButton';
 import NotificationPrefs from '@/components/NotificationPrefs';
+import AccountSettings from '@/components/AccountSettings';
 import { normalizePrefs } from '@/lib/notify-categories';
 import SettingsTabs, { type SettingsTab } from '@/components/SettingsTabs';
 import MigrationButton from '@/components/MigrationButton';
@@ -47,31 +48,6 @@ export default async function SettingsPage({
   const isSuperAdmin = !!session?.roles?.includes('SUPER_ADMIN');
   const me = session ? await prisma.user.findUnique({ where: { id: session.id }, select: { timezone: true, notifyPrefs: true } }) : null;
   const notifyPrefs = normalizePrefs(me?.notifyPrefs);
-
-  const preferencesTab: SettingsTab = {
-    id: 'preferences',
-    label: 'Your timezone',
-    icon: <Clock size={15} />,
-    content: (
-      <form action={saveMyTimezone} className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <div className="flex items-center gap-2">
-          <Clock size={18} className="text-brand" />
-          <h2 className="text-sm font-semibold">Your timezone</h2>
-        </div>
-        <p className="mt-1 max-w-xl text-sm text-slate-500">
-          Set where you work. Teammates in other timezones will see your local time as a live clock in
-          their header — and you&apos;ll see theirs.
-        </p>
-        <div className="mt-4 block max-w-sm">
-          <span className="mb-1 block text-xs font-medium text-slate-600">Timezone</span>
-          <TimezoneSelect name="timezone" defaultValue={me?.timezone ?? ''} />
-        </div>
-        <button className="mt-4 rounded-xl bg-brand px-4 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-brand-dark">
-          Save timezone
-        </button>
-      </form>
-    ),
-  };
 
   const databaseTab: SettingsTab = {
     id: 'database',
@@ -150,6 +126,7 @@ export default async function SettingsPage({
             label: 'Company',
             icon: <Building2 size={15} />,
             content: (
+              <div className="space-y-4">
               <form action={saveCompanySettings} className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
                 <div className="flex items-center gap-2">
                   <Building2 size={18} className="text-brand" />
@@ -174,9 +151,29 @@ export default async function SettingsPage({
                 </div>
                 <button className="mt-4 rounded-xl bg-brand px-4 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-brand-dark">Save company details</button>
               </form>
+
+              <AccountSettings currentEmail={session?.email ?? ''} />
+
+              <form action={saveMyTimezone} className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                <div className="flex items-center gap-2">
+                  <Clock size={18} className="text-brand" />
+                  <h2 className="text-sm font-semibold">Your timezone</h2>
+                </div>
+                <p className="mt-1 max-w-xl text-sm text-slate-500">
+                  Set where you work. Teammates in other timezones will see your local time as a live clock in
+                  their header — and you&apos;ll see theirs.
+                </p>
+                <div className="mt-4 block max-w-sm">
+                  <span className="mb-1 block text-xs font-medium text-slate-600">Timezone</span>
+                  <TimezoneSelect name="timezone" defaultValue={me?.timezone ?? ''} />
+                </div>
+                <button className="mt-4 rounded-xl bg-brand px-4 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-brand-dark">
+                  Save timezone
+                </button>
+              </form>
+              </div>
             ),
           },
-          preferencesTab,
           {
             id: 'notifications',
             label: 'Notifications',

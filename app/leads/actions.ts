@@ -7,7 +7,8 @@ import { segments, getSegment } from '@/lib/leadgen/icp';
 import { sourceUsing, scoreAll, hasApolloKey } from '@/lib/leadgen/pipeline';
 import { seedSequences, enrollSegment, runDue } from '@/lib/leadgen/outreach/engine';
 import { convertLeadToClient } from '@/lib/leadgen/convert';
-import { pollTweetLeads, classifyPendingTweets, reclassifyAllTweets, notifyNewQualifiedLeads, twitterApiConfigured } from '@/lib/leadgen/xpipeline';
+import { reclassifyAllTweets, twitterApiConfigured } from '@/lib/leadgen/xpipeline';
+import { startPollJob, getPollStatus } from '@/lib/leadgen/pollJob';
 import { draftReply } from '@/lib/leadgen/tweetClassify';
 
 async function requireUser() {
@@ -100,17 +101,20 @@ export async function runOutreachNow() {
 
 // ── X (Twitter) listener ─────────────────────────────────────────────────────
 
-/** Poll all active keywords for new tweets, then score the new ones. */
+/** Start a background poll and return immediately — it keeps running while you navigate. */
 export async function pollTweetsNow() {
   await requireUser();
   if (!twitterApiConfigured()) {
     return { ok: false as const, error: 'TWITTERAPI_IO_KEY is not configured on the server.' };
   }
-  const poll = await pollTweetLeads(Number(process.env.X_POLL_PER_QUERY ?? 20));
-  const cls = await classifyPendingTweets();
-  const alert = await notifyNewQualifiedLeads();
-  revalidatePath('/leads');
-  return { ok: true as const, ...poll, scored: cls.scored, notified: alert.notified };
+  const r = startPollJob(Number(process.env.X_POLL_PER_QUERY ?? 20));
+  return { ok: true as const, started: r.started, alreadyRunning: r.alreadyRunning };
+}
+
+/** Current background-poll status (running / last result), for the UI to poll. */
+export async function pollStatus() {
+  await requireUser();
+  return getPollStatus();
 }
 
 /** Re-score every tweet using everything it has learned from your labels. */

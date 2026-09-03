@@ -32,6 +32,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import Logo from '@/components/Logo';
+import PollWatcher from '@/components/PollWatcher';
 import CommandPalette from '@/components/CommandPalette';
 import NotificationBell from '@/components/NotificationBell';
 import MessagesBadge from '@/components/MessagesBadge';
@@ -366,6 +367,7 @@ export default function AppShell({
 
       <CommandPalette />
       <AssistantWidget />
+      <PollWatcher />
     </>
   );
 }
