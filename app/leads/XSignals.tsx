@@ -35,6 +35,7 @@ export type TweetLead = {
   replyCount: number;
   postedAt: string | null;
   matchedQuery: string | null;
+  createdAt: string;
   relevance: string;
   aiScore: number | null;
   aiReason: string | null;
@@ -60,14 +61,14 @@ function scoreClass(n: number | null) {
   return 'bg-slate-100 text-slate-500';
 }
 
-const FILTERS = ['top', 'new', 'saved', 'all'] as const;
+const FILTERS = ['new', 'top', 'all', 'saved'] as const;
 type Filter = (typeof FILTERS)[number];
 
 export default function XSignals({ tweetLeads, tweetKeywords, twitterReady, lastUpdated }: Props) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [msg, setMsg] = useState('');
-  const [filter, setFilter] = useState<Filter>('top');
+  const [filter, setFilter] = useState<Filter>('new');
   const [qFilter, setQFilter] = useState('');
   const [search, setSearch] = useState('');
   const [kw, setKw] = useState('');
@@ -103,7 +104,7 @@ export default function XSignals({ tweetLeads, tweetKeywords, twitterReady, last
       setFetching(false);
       const s = (e as CustomEvent).detail;
       if (s?.error) setMsg(`⚠️ ${s.error}`);
-      else if (s?.result) setMsg(`Fetched ${s.result.created} new tweet(s), scored ${s.result.scored}, ${s.result.notified} alert(s).`);
+      else if (s?.result) { setMsg(`Fetched ${s.result.created} new tweet(s), scored ${s.result.scored}, ${s.result.notified} alert(s).`); if (s.result.created > 0) setFilter('new'); }
     };
     window.addEventListener('keel:poll-finished', onFinished);
     return () => window.removeEventListener('keel:poll-finished', onFinished);
@@ -164,10 +165,13 @@ export default function XSignals({ tweetLeads, tweetKeywords, twitterReady, last
     });
 
   const visible = useMemo(() => {
-    let list = tweetLeads;
-    if (filter === 'new') list = list.filter((t) => t.status === 'new' && t.relevance !== 'no');
-    else if (filter === 'saved') list = list.filter((t) => t.relevance === 'yes');
-    else if (filter === 'top') list = list.filter((t) => t.relevance !== 'no');
+    let list = tweetLeads.slice();
+    // "All" shows everything; the others drop rejects and AI-judged junk (low score).
+    if (filter === 'saved') {
+      list = list.filter((t) => t.relevance === 'yes');
+    } else if (filter !== 'all') {
+      list = list.filter((t) => t.relevance !== 'no' && (t.aiScore == null || t.aiScore >= 40));
+    }
     if (qFilter) list = list.filter((t) => t.matchedQuery === qFilter);
     const q = search.trim().toLowerCase();
     if (q) list = list.filter((t) =>
@@ -175,6 +179,11 @@ export default function XSignals({ tweetLeads, tweetKeywords, twitterReady, last
       (t.authorHandle ?? '').toLowerCase().includes(q) ||
       (t.authorName ?? '').toLowerCase().includes(q),
     );
+    const eng = (t: TweetLead) => t.likeCount + t.replyCount;
+    const ms = (s: string) => new Date(s).getTime();
+    if (filter === 'new' || filter === 'saved') list.sort((a, b) => ms(b.createdAt) - ms(a.createdAt));
+    else if (filter === 'top') list.sort((a, b) => eng(b) - eng(a) || (b.aiScore ?? 0) - (a.aiScore ?? 0));
+    // 'all' keeps the server order (AI score desc)
     return list;
   }, [tweetLeads, filter, qFilter, search]);
 

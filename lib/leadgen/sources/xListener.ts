@@ -90,6 +90,10 @@ export async function searchTweets(query: string, limit = 20, maxPages = 3, sinc
     const since = new Date(Date.now() - sinceDays * 86400000).toISOString().slice(0, 10);
     q = `${q} since:${since}`;
   }
+  // Cut the biggest noise sources: replies (people @-ing each other in threads)
+  // and retweets — we want original posts voicing a need.
+  if (!/filter:replies/i.test(q)) q = `${q} -filter:replies`;
+  if (!/filter:retweets/i.test(q)) q = `${q} -filter:retweets`;
 
   const hits: TweetHit[] = [];
   let cursor = '';

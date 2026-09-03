@@ -33,6 +33,7 @@ export default async function XLeadsPage() {
     likeCount: t.likeCount,
     replyCount: t.replyCount,
     postedAt: t.postedAt ? t.postedAt.toISOString() : null,
+    createdAt: t.createdAt.toISOString(),
     matchedQuery: t.matchedQuery,
     relevance: t.relevance,
     aiScore: t.aiScore,
