@@ -31,6 +31,7 @@ import {
   PanelLeftOpen,
   type LucideIcon,
 } from 'lucide-react';
+import Logo from '@/components/Logo';
 import CommandPalette from '@/components/CommandPalette';
 import NotificationBell from '@/components/NotificationBell';
 import MessagesBadge from '@/components/MessagesBadge';
@@ -128,8 +129,7 @@ function NavContent({
   return (
     <>
       <div className={`flex h-16 items-center justify-center border-b border-slate-100 ${collapsed ? 'px-2' : 'px-4'}`}>
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/logo.png" alt="UA Digital" className={collapsed ? 'h-8 w-auto' : 'h-14 w-auto'} />
+        {collapsed ? <Logo variant="mark" className="h-8 w-8" /> : <Logo className="text-3xl" />}
       </div>
 
       <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto px-3 py-4">
@@ -335,8 +335,7 @@ export default function AppShell({
 
           {/* Logo on mobile — tap to go back to the dashboard (sidebar is a drawer) */}
           <Link href="/" aria-label="Dashboard" className="lg:hidden">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/logo.png" alt="UA Digital" className="h-9 w-auto" />
+            <Logo className="text-2xl" />
           </Link>
 
           {/* Live clocks — Montreal/Karachi (minus where you are) + agency zones for admins */}

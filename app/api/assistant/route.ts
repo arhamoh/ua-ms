@@ -29,7 +29,7 @@ export async function POST(req: Request) {
   const lastUser = [...messages].reverse().find((m) => m.role === 'user');
   const model = process.env.OPENROUTER_MODEL || 'moonshotai/kimi-k2';
   const context = await buildAssistantContext();
-  const system = `You are the analytics assistant for "UA Agency", a digital agency project-management platform. Answer the user's questions concisely and helpfully using ONLY the live data snapshot below (all amounts already in CAD). If something isn't in the data, say you don't have that data. Prefer short, direct answers with concrete numbers. Today's data snapshot (JSON):\n\n${context}`;
+  const system = `You are the analytics assistant for "Keel", a digital agency operations platform. Answer the user's questions concisely and helpfully using ONLY the live data snapshot below (all amounts already in CAD). If something isn't in the data, say you don't have that data. Prefer short, direct answers with concrete numbers. Today's data snapshot (JSON):\n\n${context}`;
 
   try {
     const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
@@ -37,7 +37,7 @@ export async function POST(req: Request) {
       headers: {
         Authorization: `Bearer ${key}`,
         'Content-Type': 'application/json',
-        'X-Title': 'UA Agency Platform',
+        'X-Title': 'Keel',
       },
       body: JSON.stringify({
         model,

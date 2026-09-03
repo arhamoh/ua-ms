@@ -48,7 +48,7 @@ Reply with ONLY a JSON object: {"vendor":"","amount":0,"currency":"","date":"","
       headers: {
         Authorization: `Bearer ${key}`,
         'Content-Type': 'application/json',
-        'X-Title': 'UA Agency Platform',
+        'X-Title': 'Keel',
       },
       body: JSON.stringify({
         model: process.env.OPENROUTER_VISION_MODEL || 'google/gemini-2.0-flash-001',

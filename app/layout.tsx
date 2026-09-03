@@ -9,18 +9,24 @@ import { canManageAgencyHours } from '@/lib/enums';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'UA Digital',
-  description: 'Project management platform for the agency',
-  icons: { icon: '/logo.png', apple: '/logo.png' },
+  title: 'Keel',
+  description: 'The operating system your agency runs on.',
+  icons: {
+    icon: [
+      { url: '/icon.svg', type: 'image/svg+xml' },
+      { url: '/favicon-32.png', sizes: '32x32', type: 'image/png' },
+    ],
+    apple: '/apple-touch-icon.png',
+  },
   appleWebApp: {
     capable: true,
-    title: 'UA Digital',
+    title: 'Keel',
     statusBarStyle: 'default',
   },
 };
 
 export const viewport: Viewport = {
-  themeColor: '#E11D48',
+  themeColor: '#0F5B57',
   width: 'device-width',
   initialScale: 1,
 };
@@ -57,6 +63,13 @@ export default async function RootLayout({
 
   return (
     <html lang="en" className={`${GeistSans.variable} ${GeistMono.variable}`}>
+      <head>
+        {/* Space Grotesk powers the Keel wordmark. Loaded at runtime (not via
+            next/font) so the production build never depends on a font fetch. */}
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet" />
+      </head>
       <body className="min-h-screen bg-slate-50 font-sans text-slate-900 antialiased">
         <AppShell user={user} attendance={attendance} agencyZones={agencyZones}>{children}</AppShell>
         <PWARegister />

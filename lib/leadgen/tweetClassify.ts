@@ -51,7 +51,7 @@ export async function classifyTweets(items: { id: string; text: string }[]): Pro
   try {
     const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
-      headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', 'X-Title': 'UA Agency Platform' },
+      headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', 'X-Title': 'Keel' },
       body: JSON.stringify({
         model,
         messages: [
