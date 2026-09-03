@@ -11,13 +11,14 @@ export default async function XLeadsPage() {
   if (!user) redirect('/login');
   if (!user.roles.includes('SUPER_ADMIN')) redirect('/');
 
-  const [tweetRaw, keywordRaw] = await Promise.all([
+  const [tweetRaw, keywordRaw, lastTweet] = await Promise.all([
     prisma.tweetLead.findMany({
       where: { status: { not: 'ignored' }, postedAt: { gte: new Date(Date.now() - 7 * 86400000) } },
       orderBy: [{ aiScore: { sort: 'desc', nulls: 'last' } }, { postedAt: 'desc' }, { createdAt: 'desc' }],
       take: 120,
     }),
     prisma.tweetKeyword.findMany({ orderBy: { createdAt: 'asc' } }),
+    prisma.tweetLead.findFirst({ orderBy: { createdAt: 'desc' }, select: { createdAt: true } }),
   ]);
 
   const tweetLeads = tweetRaw.map((t) => ({
@@ -41,5 +42,5 @@ export default async function XLeadsPage() {
   }));
   const tweetKeywords = keywordRaw.map((k) => ({ id: k.id, query: k.query, active: k.active }));
 
-  return <XSignals tweetLeads={tweetLeads} tweetKeywords={tweetKeywords} twitterReady={twitterApiConfigured()} />;
+  return <XSignals tweetLeads={tweetLeads} tweetKeywords={tweetKeywords} twitterReady={twitterApiConfigured()} lastUpdated={lastTweet?.createdAt.toISOString() ?? null} />;
 }

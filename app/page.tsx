@@ -120,6 +120,7 @@ export default async function DashboardPage() {
         take: 5,
       })
     : [];
+  const lastSignal = isSuper ? await prisma.tweetLead.findFirst({ orderBy: { createdAt: 'desc' }, select: { createdAt: true } }) : null;
   const signalTweets = signalRows.map((t) => ({
     id: t.id,
     url: t.url,
@@ -209,7 +210,7 @@ export default async function DashboardPage() {
       {/* X inbound signals */}
       {isSuper && (
         <FadeIn delay={0.1} className="mt-6 block">
-          <DashboardSignals tweets={signalTweets} />
+          <DashboardSignals tweets={signalTweets} lastUpdated={lastSignal?.createdAt.toISOString() ?? null} />
         </FadeIn>
       )}
 

@@ -41,7 +41,7 @@ export type TweetLead = {
 };
 export type TweetKeyword = { id: string; query: string; active: boolean };
 
-type Props = { tweetLeads: TweetLead[]; tweetKeywords: TweetKeyword[]; twitterReady: boolean };
+type Props = { tweetLeads: TweetLead[]; tweetKeywords: TweetKeyword[]; twitterReady: boolean; lastUpdated: string | null };
 
 function ago(iso: string | null): string {
   if (!iso) return '';
@@ -61,7 +61,7 @@ function scoreClass(n: number | null) {
 const FILTERS = ['top', 'new', 'saved', 'all'] as const;
 type Filter = (typeof FILTERS)[number];
 
-export default function XSignals({ tweetLeads, tweetKeywords, twitterReady }: Props) {
+export default function XSignals({ tweetLeads, tweetKeywords, twitterReady, lastUpdated }: Props) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [msg, setMsg] = useState('');
@@ -228,7 +228,11 @@ export default function XSignals({ tweetLeads, tweetKeywords, twitterReady }: Pr
                 </button>
               </div>
             </div>
-            {(msg || fetching) && <p className="text-xs text-slate-500">{fetching ? 'Fetching tweets — this can take up to a minute; the list updates when it’s done.' : msg}</p>}
+            <p className="text-xs text-slate-500">
+              {fetching
+                ? 'Fetching tweets — this can take up to a minute; the list updates when it’s done.'
+                : msg || (lastUpdated ? `Last updated ${ago(lastUpdated)} ago` : '')}
+            </p>
           </div>
 
           <div className="p-4">

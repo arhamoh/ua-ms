@@ -1,10 +1,10 @@
 'use client';
 
 import Link from 'next/link';
-import { useTransition } from 'react';
+import { useEffect, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowRight, ExternalLink, ThumbsUp, X as XIcon, RefreshCw } from 'lucide-react';
-import { setTweetRelevance, setTweetStatus, pollTweetsNow } from '@/app/leads/actions';
+import { setTweetRelevance, setTweetStatus, pollTweetsNow, pollStatus } from '@/app/leads/actions';
 
 export type SignalTweet = {
   id: string;
@@ -38,11 +38,20 @@ function XLogo() {
   );
 }
 
-export default function DashboardSignals({ tweets }: { tweets: SignalTweet[] }) {
+export default function DashboardSignals({ tweets, lastUpdated }: { tweets: SignalTweet[]; lastUpdated: string | null }) {
   const router = useRouter();
   const [pending, start] = useTransition();
+  const [fetching, setFetching] = useState(false);
   const run = (fn: () => Promise<unknown>) => start(async () => { await fn(); router.refresh(); });
-  const fetchTweets = () => start(async () => { const r: any = await pollTweetsNow(); if (r?.ok) window.dispatchEvent(new CustomEvent('keel:poll-started')); });
+  const fetchTweets = () => start(async () => { const r: any = await pollTweetsNow(); if (r?.ok) { setFetching(true); window.dispatchEvent(new CustomEvent('keel:poll-started')); } });
+
+  // Keep the button spinning until the background fetch actually finishes.
+  useEffect(() => {
+    (async () => { try { const s = await pollStatus(); if (s.running) setFetching(true); } catch { /* ignore */ } })();
+    const onFinished = () => setFetching(false);
+    window.addEventListener('keel:poll-finished', onFinished);
+    return () => window.removeEventListener('keel:poll-finished', onFinished);
+  }, []);
 
   return (
     <div className="flex h-full flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
@@ -50,10 +59,12 @@ export default function DashboardSignals({ tweets }: { tweets: SignalTweet[] }) 
         <div className="flex items-center gap-2">
           <XLogo />
           <h2 className="text-sm font-semibold">Inbound signals</h2>
+          {lastUpdated && !fetching && <span className="text-xs text-slate-400">· updated {ago(lastUpdated)} ago</span>}
+          {fetching && <span className="text-xs text-slate-400">· fetching…</span>}
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={fetchTweets} disabled={pending} title="Fetch tweets" className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50">
-            <RefreshCw size={13} className={pending ? 'animate-spin' : ''} /> Fetch
+          <button onClick={fetchTweets} disabled={pending || fetching} title="Fetch tweets" className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50">
+            <RefreshCw size={13} className={fetching || pending ? 'animate-spin' : ''} /> {fetching ? 'Fetching…' : 'Fetch'}
           </button>
           <Link href="/leads/x" className="inline-flex items-center gap-1 text-xs font-medium text-brand hover:underline">
             See all <ArrowRight size={13} />
