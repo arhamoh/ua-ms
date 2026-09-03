@@ -71,6 +71,7 @@ model User {
   id           String   @id @default(cuid())
   name         String
   email        String   @unique
+  username     String?  @unique // optional login handle; sign in with this or email
   passwordHash String?
   roles        Role[]   @default([])
   timezone     String?  // IANA tz of where this person works, e.g. "Asia/Karachi"

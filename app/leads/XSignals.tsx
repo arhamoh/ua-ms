@@ -14,6 +14,7 @@ import {
   toggleTweetKeyword,
   removeTweetKeyword,
 } from './actions';
+import { suggestQueries } from '@/app/actions';
 
 export type TweetLead = {
   id: string;
@@ -66,6 +67,26 @@ export default function XSignals({ tweetLeads, tweetKeywords, twitterReady }: Pr
   const [kw, setKw] = useState('');
   const [tab, setTab] = useState<'signals' | 'keywords'>('signals');
   const activeKw = tweetKeywords.filter((k) => k.active).length;
+
+  // AI query suggestions from a rough topic.
+  const [topic, setTopic] = useState('');
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [suggesting, setSuggesting] = useState(false);
+  const getSuggestions = async () => {
+    const t = topic.trim();
+    if (!t) return;
+    setSuggesting(true);
+    setSuggestions([]);
+    try {
+      const r = await suggestQueries(t);
+      setSuggestions(r.queries ?? []);
+      if (!r.ok && r.message) setMsg(r.message);
+    } catch {
+      setMsg('Could not get suggestions.');
+    } finally {
+      setSuggesting(false);
+    }
+  };
 
   // Keywords that actually surfaced tweets, with counts — for the filter dropdown.
   const queryOptions = useMemo(() => {
@@ -226,6 +247,34 @@ export default function XSignals({ tweetLeads, tweetKeywords, twitterReady }: Pr
               />
               <button onClick={() => { if (kw.trim()) { run(() => addTweetKeyword(kw.trim())); setKw(''); } }} disabled={pending || !kw.trim()} className="grid h-7 w-7 place-items-center rounded-lg bg-brand text-white hover:bg-brand-dark disabled:opacity-50"><Plus size={14} /></button>
             </span>
+          </div>
+
+          <div className="mt-4 rounded-lg border border-brand/20 bg-brand-light/30 p-3">
+            <p className="mb-1.5 flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wide text-brand-dark">
+              <Sparkles size={12} /> Suggest pain-point queries
+            </p>
+            <p className="mb-2 text-xs text-slate-500">Type who/what you&apos;re after (e.g. “shopify store owners”, “restaurant websites”) and the AI turns it into frustration-phrased searches you can add.</p>
+            <div className="flex items-center gap-1.5">
+              <input
+                value={topic}
+                onChange={(e) => setTopic(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') getSuggestions(); }}
+                placeholder="e.g. shopify store owners losing sales"
+                className="min-w-0 flex-1 rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs focus:border-brand focus:outline-none"
+              />
+              <button onClick={getSuggestions} disabled={suggesting || !topic.trim()} className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-brand px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-dark disabled:opacity-50">
+                {suggesting ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />} Suggest
+              </button>
+            </div>
+            {suggestions.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {suggestions.map((q) => (
+                  <button key={q} onClick={() => run(() => addTweetKeyword(q))} disabled={pending} className="rounded-full border border-brand/30 bg-white px-2.5 py-1 text-xs text-brand-dark hover:bg-brand-light disabled:opacity-50">
+                    + {q}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="mt-4 rounded-lg bg-slate-50 p-3">

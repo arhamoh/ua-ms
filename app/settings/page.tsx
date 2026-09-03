@@ -46,7 +46,7 @@ export default async function SettingsPage({
   const integrations = await getIntegrations();
   const session = await getSession();
   const isSuperAdmin = !!session?.roles?.includes('SUPER_ADMIN');
-  const me = session ? await prisma.user.findUnique({ where: { id: session.id }, select: { timezone: true, notifyPrefs: true } }) : null;
+  const me = session ? await prisma.user.findUnique({ where: { id: session.id }, select: { timezone: true, notifyPrefs: true, username: true } }) : null;
   const notifyPrefs = normalizePrefs(me?.notifyPrefs);
 
   const databaseTab: SettingsTab = {
@@ -152,7 +152,7 @@ export default async function SettingsPage({
                 <button className="mt-4 rounded-xl bg-brand px-4 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-brand-dark">Save company details</button>
               </form>
 
-              <AccountSettings currentEmail={session?.email ?? ''} />
+              <AccountSettings currentUsername={me?.username ?? null} currentEmail={session?.email ?? ''} />
 
               <form action={saveMyTimezone} className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
                 <div className="flex items-center gap-2">

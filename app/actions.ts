@@ -1206,35 +1206,66 @@ export async function saveNotifyPrefs(prefs: Record<string, boolean>) {
   revalidatePath('/settings');
 }
 
-/** Change the signed-in user's login email (their username), confirmed by password. */
-export async function changeEmail(newEmail: string, currentPassword: string): Promise<{ ok: boolean; message: string }> {
+/** Change the signed-in user's login handle. Accepts a username or an email;
+ *  it must be unique across everyone's usernames and emails. */
+export async function changeUsername(newValue: string): Promise<{ ok: boolean; message: string }> {
   const user = await getSession();
   if (!user) return { ok: false, message: 'Not signed in.' };
-  const email = (newEmail ?? '').trim().toLowerCase();
-  if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return { ok: false, message: 'Enter a valid email.' };
-  const dbUser = await prisma.user.findUnique({ where: { id: user.id } });
-  if (!dbUser?.passwordHash || !(await bcrypt.compare(currentPassword, dbUser.passwordHash))) {
-    return { ok: false, message: 'Current password is incorrect.' };
-  }
-  const existing = await prisma.user.findUnique({ where: { email } });
-  if (existing && existing.id !== user.id) return { ok: false, message: 'That email is already in use.' };
-  await prisma.user.update({ where: { id: user.id }, data: { email } });
+  const value = (newValue ?? '').trim().toLowerCase();
+  if (value.length < 3) return { ok: false, message: 'Use at least 3 characters.' };
+  if (/\s/.test(value)) return { ok: false, message: 'No spaces allowed.' };
+  const clash = await prisma.user.findFirst({
+    where: { id: { not: user.id }, OR: [{ username: value }, { email: value }] },
+    select: { id: true },
+  });
+  if (clash) return { ok: false, message: 'That username is already taken.' };
+  await prisma.user.update({ where: { id: user.id }, data: { username: value } });
   revalidatePath('/settings');
-  return { ok: true, message: 'Email updated — use it next time you sign in.' };
+  return { ok: true, message: 'Username updated — sign in with it or your email.' };
 }
 
-/** Change the signed-in user's password, confirmed by their current one. */
-export async function changePassword(currentPassword: string, newPassword: string): Promise<{ ok: boolean; message: string }> {
+/** Set a new password for the signed-in user (no current password required). */
+export async function changePassword(newPassword: string): Promise<{ ok: boolean; message: string }> {
   const user = await getSession();
   if (!user) return { ok: false, message: 'Not signed in.' };
   if ((newPassword ?? '').length < 8) return { ok: false, message: 'New password must be at least 8 characters.' };
-  const dbUser = await prisma.user.findUnique({ where: { id: user.id } });
-  if (!dbUser?.passwordHash || !(await bcrypt.compare(currentPassword, dbUser.passwordHash))) {
-    return { ok: false, message: 'Current password is incorrect.' };
-  }
   const hash = await bcrypt.hash(newPassword, 10);
   await prisma.user.update({ where: { id: user.id }, data: { passwordHash: hash } });
   return { ok: true, message: 'Password updated.' };
+}
+
+/** AI-suggest pain-phrased X search queries from a rough topic the user types. */
+export async function suggestQueries(topic: string): Promise<{ ok: boolean; queries: string[]; message?: string }> {
+  await requireSuperAdmin();
+  const t = (topic ?? '').trim();
+  if (!t) return { ok: false, queries: [], message: 'Type something first.' };
+  const key = process.env.OPENROUTER_API_KEY?.trim();
+  if (!key) return { ok: false, queries: [], message: 'AI is not configured (OpenRouter).' };
+  const model = process.env.OPENROUTER_MODEL || 'moonshotai/kimi-k2';
+  const system = `You turn a rough topic into X (Twitter) search queries that surface people voicing a PAIN a digital agency (web design/dev, Shopify/Webflow, branding, SEO, ads) could fix.
+Write 6 short search queries a frustrated prospect might literally tweet — venting, stuck, something broken/slow/costing them money — not neutral topic mentions.
+Use quotes for exact phrases; you may add - to exclude noise. No hashtags. Keep each under 60 chars.
+Return ONLY a JSON object: {"queries":["...","..."]}.`;
+  try {
+    const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', 'X-Title': 'Keel' },
+      body: JSON.stringify({
+        model,
+        messages: [{ role: 'system', content: system }, { role: 'user', content: `Topic: ${t.slice(0, 200)}` }],
+        max_tokens: 400,
+        temperature: 0.6,
+      }),
+    });
+    if (!res.ok) return { ok: false, queries: [], message: `AI error ${res.status}.` };
+    const data = await res.json();
+    const content: string = data?.choices?.[0]?.message?.content ?? '';
+    const json = JSON.parse(content.slice(content.indexOf('{'), content.lastIndexOf('}') + 1));
+    const queries: string[] = Array.isArray(json?.queries) ? json.queries.map((q: unknown) => String(q).trim()).filter(Boolean).slice(0, 8) : [];
+    return { ok: true, queries };
+  } catch {
+    return { ok: false, queries: [], message: 'Could not get suggestions.' };
+  }
 }
 
 /** Save an integration credential from the dashboard (encrypted at rest). */

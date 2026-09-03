@@ -8,16 +8,17 @@ import { createSession, destroySession } from '@/lib/auth';
 export type LoginState = { error?: string };
 
 export async function login(_prev: LoginState, formData: FormData): Promise<LoginState> {
-  const email = (formData.get('email') ?? '').toString().trim().toLowerCase();
+  const identifier = (formData.get('email') ?? '').toString().trim().toLowerCase();
   const password = (formData.get('password') ?? '').toString();
 
-  if (!email || !password) {
-    return { error: 'Enter your email and password.' };
+  if (!identifier || !password) {
+    return { error: 'Enter your username or email and password.' };
   }
 
-  const user = await prisma.user.findUnique({ where: { email } });
+  // Match on email OR username (username stored lowercase).
+  const user = await prisma.user.findFirst({ where: { OR: [{ email: identifier }, { username: identifier }] } });
   if (!user || !user.passwordHash || !(await bcrypt.compare(password, user.passwordHash))) {
-    return { error: 'Invalid email or password.' };
+    return { error: 'Invalid login or password.' };
   }
 
   await createSession({ id: user.id, name: user.name, email: user.email, roles: user.roles });
