@@ -14,6 +14,7 @@ import {
   toggleTweetKeyword,
   removeTweetKeyword,
   loadRecommendedKeywords,
+  broadenKeywords,
   clearAllTweets,
   pollStatus,
 } from './actions';
@@ -382,7 +383,15 @@ export default function XSignals({ tweetLeads, tweetKeywords, twitterReady, last
             >
               <Plus size={15} /> Add recommended
             </button>
-            <span className="text-xs text-slate-400">Adds 10 pain-phrased queries at a time (skips ones you have).</span>
+            <button
+              onClick={() => run(broadenKeywords)}
+              disabled={pending}
+              title="Add copies of your keywords without the -job/-hiring exclusions to catch more posts"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+            >
+              <Plus size={15} /> Broaden keywords
+            </button>
+            <span className="text-xs text-slate-400">Add recommended tops up 10 at a time; Broaden catches more by dropping exclusions.</span>
           </div>
 
           <div className="mt-4 rounded-lg bg-slate-50 p-3">

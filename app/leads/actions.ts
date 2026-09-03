@@ -208,6 +208,26 @@ export async function loadRecommendedKeywords() {
   return { ok: true as const, added: toAdd.length, remaining };
 }
 
+/** Add broader copies of your keywords with the -exclusions dropped, to catch
+ *  more hire-intent posts (the scorer still filters the extra noise). */
+export async function broadenKeywords() {
+  await requireUser();
+  const all = await prisma.tweetKeyword.findMany({ select: { query: true } });
+  const have = new Set(all.map((k) => k.query));
+  let added = 0;
+  for (const { query } of all) {
+    // Strip `-word` / `-"phrase"` exclusion tokens; collapse extra spaces.
+    const broad = query.replace(/(^|\s)-(?:"[^"]*"|\S+)/g, ' ').replace(/\s{2,}/g, ' ').trim();
+    if (broad && broad !== query && !have.has(broad)) {
+      await prisma.tweetKeyword.create({ data: { query: broad } });
+      have.add(broad);
+      added++;
+    }
+  }
+  revalidatePath('/leads');
+  return { ok: true as const, added };
+}
+
 /** Add a keyword/query the listener watches. */
 export async function addTweetKeyword(query: string) {
   await requireUser();
