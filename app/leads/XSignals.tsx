@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { RefreshCw, Sparkles, ThumbsUp, ThumbsDown, ExternalLink, Reply, Mail, Check, X as XIcon, Plus, Heart, MessageCircle, PenLine, Copy, Loader2, ArrowLeft, Hash, List, Search } from 'lucide-react';
+import { RefreshCw, Sparkles, ThumbsUp, ThumbsDown, ExternalLink, Reply, Mail, Check, X as XIcon, Plus, Heart, MessageCircle, PenLine, Copy, Loader2, ArrowLeft, Hash, List, Search, Trash2 } from 'lucide-react';
 import {
   pollTweetsNow,
   rescoreTweets,
@@ -14,6 +14,7 @@ import {
   toggleTweetKeyword,
   removeTweetKeyword,
   loadRecommendedKeywords,
+  clearAllTweets,
   pollStatus,
 } from './actions';
 import { suggestQueries } from '@/app/actions';
@@ -122,6 +123,7 @@ export default function XSignals({ tweetLeads, tweetKeywords, twitterReady }: Pr
       else if (r && typeof r.created === 'number') setMsg(`Found ${r.created} new tweet(s) across ${r.queries} keyword(s); scored ${r.scored ?? 0}.`);
       else if (r && typeof r.scored === 'number') setMsg(`Re-scored ${r.scored} tweet(s) from what it learned.`);
       else if (r && typeof r.added === 'number') setMsg(`Added ${r.added} keyword(s).`);
+      else if (r && typeof r.cleared === 'number') setMsg(`Cleared ${r.cleared} tweet(s).`);
       router.refresh();
     });
 
@@ -208,6 +210,14 @@ export default function XSignals({ tweetLeads, tweetKeywords, twitterReady }: Pr
                 />
               </div>
               <div className="flex items-center gap-2">
+                <button
+                  onClick={() => { if (window.confirm('Delete all fetched tweets? You can re-fetch afterwards. This does not touch your keywords.')) run(clearAllTweets); }}
+                  disabled={pending || fetching}
+                  title="Clear all fetched tweets"
+                  className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-500 hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600 disabled:opacity-50"
+                >
+                  <Trash2 size={15} /> <span className="hidden sm:inline">Clear</span>
+                </button>
                 <button onClick={() => run(rescoreTweets)} disabled={pending || fetching} className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50 sm:flex-none">
                   <Sparkles size={15} /> Re-score
                 </button>

@@ -133,6 +133,14 @@ export async function setTweetRelevance(id: string, relevance: 'yes' | 'no' | 'u
   revalidatePath('/leads');
 }
 
+/** Delete every fetched tweet lead, so you can re-fetch from a clean slate. */
+export async function clearAllTweets() {
+  await requireUser();
+  const { count } = await prisma.tweetLead.deleteMany({});
+  revalidatePath('/leads');
+  return { ok: true as const, cleared: count };
+}
+
 /** Draft (or re-draft) a reply to this tweet with the AI, storing it on the lead. */
 export async function draftTweetReply(id: string) {
   await requireUser();
