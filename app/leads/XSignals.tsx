@@ -124,7 +124,7 @@ export default function XSignals({ tweetLeads, tweetKeywords, twitterReady }: Pr
       else if (r && r.ok === false) setMsg(`⚠️ ${r.error}`);
       else if (r && typeof r.created === 'number') setMsg(`Found ${r.created} new tweet(s) across ${r.queries} keyword(s); scored ${r.scored ?? 0}.`);
       else if (r && typeof r.scored === 'number') setMsg(`Re-scored ${r.scored} tweet(s) from what it learned.`);
-      else if (r && typeof r.added === 'number') setMsg(`Added ${r.added} keyword(s).`);
+      else if (r && typeof r.added === 'number') setMsg(`Added ${r.added} keyword(s).${r.remaining ? ` ${r.remaining} more recommended available.` : ''}`);
       else if (r && typeof r.cleared === 'number') setMsg(`Cleared ${r.cleared} tweet(s).`);
       router.refresh();
     });
@@ -325,15 +325,15 @@ export default function XSignals({ tweetLeads, tweetKeywords, twitterReady }: Pr
             )}
           </div>
 
-          <div className="mt-4 flex items-center gap-2">
+          <div className="mt-4 flex flex-wrap items-center gap-2">
             <button
               onClick={() => run(loadRecommendedKeywords)}
               disabled={pending}
               className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
             >
-              <Plus size={15} /> Load recommended set
+              <Plus size={15} /> Add recommended
             </button>
-            <span className="text-xs text-slate-400">14 pain-phrased queries with noise filters — skips any you already have.</span>
+            <span className="text-xs text-slate-400">Adds 10 pain-phrased queries at a time (skips ones you have).</span>
           </div>
 
           <div className="mt-4 rounded-lg bg-slate-50 p-3">

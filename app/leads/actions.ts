@@ -161,7 +161,8 @@ export async function setTweetStatus(id: string, status: 'new' | 'contacted' | '
   revalidatePath('/leads');
 }
 
-// A curated pain-phrased starter set for a web/dev/branding/SEO/ads agency.
+// A curated pool of pain-phrased queries for a web/dev/branding/SEO/ads agency.
+// "Add recommended" tops up 10 new ones at a time from this list.
 const RECOMMENDED_QUERIES = [
   '"my website is so slow"',
   '"website looks outdated" -job',
@@ -177,20 +178,34 @@ const RECOMMENDED_QUERIES = [
   '"no traffic to my website" -course',
   '"need a web designer" -job -hiring -intern',
   '"looking for a shopify developer" -job',
+  '"need a new website" -job -hiring',
+  '"my site keeps crashing"',
+  '"website not mobile friendly"',
+  '"my shopify is a mess"',
+  '"redesign my website" -course',
+  '"can\'t rank on google" -course',
+  '"my website looks cheap"',
+  '"need help with my website" -job',
+  '"developer disappeared" website',
+  '"website is broken" -job',
+  '"need a landing page" -job -template',
+  '"our website is embarrassing"',
+  '"my seo isn\'t working" -course',
+  '"need a brand refresh"',
+  '"cart abandonment" (help OR fix)',
+  '"webflow" ("so confusing" OR "giving up")',
 ];
 
-/** Load the recommended pain-phrased query set (skips ones you already have). */
+/** Add the next batch of recommended queries you don't already have (10 at a time). */
 export async function loadRecommendedKeywords() {
   await requireUser();
-  let added = 0;
-  for (const q of RECOMMENDED_QUERIES) {
-    const existing = await prisma.tweetKeyword.findUnique({ where: { query: q }, select: { id: true } });
-    if (existing) continue;
-    await prisma.tweetKeyword.create({ data: { query: q } });
-    added++;
-  }
+  const existing = await prisma.tweetKeyword.findMany({ select: { query: true } });
+  const have = new Set(existing.map((k) => k.query));
+  const toAdd = RECOMMENDED_QUERIES.filter((q) => !have.has(q)).slice(0, 10);
+  for (const q of toAdd) await prisma.tweetKeyword.create({ data: { query: q } });
+  const remaining = RECOMMENDED_QUERIES.filter((q) => !have.has(q)).length - toAdd.length;
   revalidatePath('/leads');
-  return { ok: true as const, added };
+  return { ok: true as const, added: toAdd.length, remaining };
 }
 
 /** Add a keyword/query the listener watches. */
