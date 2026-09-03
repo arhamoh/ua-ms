@@ -78,18 +78,48 @@ export default async function SettingsPage({
     label: 'Database',
     icon: <Database size={15} />,
     content: (
-      <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <div className="flex items-center gap-2">
-          <Database size={18} className="text-brand" />
-          <h2 className="text-sm font-semibold">Database migrations</h2>
+      <div className="space-y-4">
+        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="flex items-center gap-2">
+            <Database size={18} className="text-brand" />
+            <h2 className="text-sm font-semibold">Database migrations</h2>
+          </div>
+          <p className="mt-1 max-w-xl text-sm text-slate-500">
+            Applies any pending schema migrations to the live database (`prisma migrate deploy`).
+            Deploys run this automatically — use this if a new feature&apos;s table isn&apos;t there yet,
+            without waiting for a redeploy. It only applies committed migrations; it never resets data.
+          </p>
+          <div className="mt-4">
+            <MigrationButton variant="full" />
+          </div>
         </div>
-        <p className="mt-1 max-w-xl text-sm text-slate-500">
-          Applies any pending schema migrations to the live database (`prisma migrate deploy`).
-          Deploys run this automatically — use this if a new feature&apos;s table isn&apos;t there yet,
-          without waiting for a redeploy. It only applies committed migrations; it never resets data.
-        </p>
-        <div className="mt-4">
-          <MigrationButton variant="full" />
+
+        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="flex items-center gap-2">
+            <FileText size={18} className="text-brand" />
+            <h2 className="text-sm font-semibold">Demo data</h2>
+          </div>
+          <p className="mt-1 text-sm text-slate-500">
+            Populate the platform with a full set of sample clients, projects, team members, tasks,
+            payments, invoices, expenses, salaries, and commissions. Demo records are prefixed “Demo —”.
+          </p>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <form action={seedDemoData}>
+              <button className="inline-flex items-center gap-1.5 rounded-xl bg-brand px-4 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-brand-dark">
+                <Database size={15} /> Add demo data
+              </button>
+            </form>
+            <form action={backfillInvoices}>
+              <button className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50">
+                <FileText size={15} /> Generate missing invoices
+              </button>
+            </form>
+            <form action={clearDemoData}>
+              <button className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-medium text-rose-600 hover:bg-rose-50">
+                <Trash2 size={15} /> Clear demo data
+              </button>
+            </form>
+          </div>
         </div>
       </div>
     ),
@@ -115,47 +145,6 @@ export default async function SettingsPage({
 
       <SettingsTabs
         tabs={[
-          preferencesTab,
-          {
-            id: 'notifications',
-            label: 'Notifications',
-            icon: <Bell size={15} />,
-            content: (
-              <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-                <div className="flex items-center gap-2">
-                  <Bell size={18} className="text-brand" />
-                  <h2 className="text-sm font-semibold">Phone &amp; push notifications</h2>
-                </div>
-                <p className="mb-4 mt-1 text-sm text-slate-500">
-                  Get a push notification on this device when a new qualified lead comes in. Enable it on each device you want alerts on — including your phone.
-                </p>
-                <EnablePushButton />
-                <p className="mt-4 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-500">
-                  On iPhone/iPad, first add Keel to your Home Screen (Share → Add to Home Screen), then open it from there and tap Enable — iOS only allows web push from an installed app.
-                </p>
-                <NotificationPrefs initial={notifyPrefs} />
-              </div>
-            ),
-          },
-          {
-            id: 'integrations',
-            label: 'Integrations',
-            icon: <Plug size={15} />,
-            content: (
-              <div>
-                <div className="mb-3 flex items-center gap-2">
-                  <Plug size={18} className="text-brand" />
-                  <h2 className="text-sm font-semibold">Integrations &amp; connections</h2>
-                  <span className="text-xs text-slate-400">What’s connected, and whether the keys work</span>
-                </div>
-                <IntegrationsPanel integrations={integrations} />
-                <p className="mt-2 text-xs text-slate-400">
-                  Keys are set in Railway → <span className="font-medium text-slate-500">ua-ms</span> service → Variables.
-                  Secret values are never shown here — only whether each one is set.
-                </p>
-              </div>
-            ),
-          },
           {
             id: 'company',
             label: 'Company',
@@ -185,6 +174,28 @@ export default async function SettingsPage({
                 </div>
                 <button className="mt-4 rounded-xl bg-brand px-4 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-brand-dark">Save company details</button>
               </form>
+            ),
+          },
+          preferencesTab,
+          {
+            id: 'notifications',
+            label: 'Notifications',
+            icon: <Bell size={15} />,
+            content: (
+              <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                <div className="flex items-center gap-2">
+                  <Bell size={18} className="text-brand" />
+                  <h2 className="text-sm font-semibold">Phone &amp; push notifications</h2>
+                </div>
+                <p className="mb-4 mt-1 text-sm text-slate-500">
+                  Get a push notification on this device when a new qualified lead comes in. Enable it on each device you want alerts on — including your phone.
+                </p>
+                <EnablePushButton />
+                <p className="mt-4 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-500">
+                  On iPhone/iPad, first add Keel to your Home Screen (Share → Add to Home Screen), then open it from there and tap Enable — iOS only allows web push from an installed app.
+                </p>
+                <NotificationPrefs initial={notifyPrefs} />
+              </div>
             ),
           },
           {
@@ -246,36 +257,20 @@ export default async function SettingsPage({
             ),
           },
           {
-            id: 'demo',
-            label: 'Demo data',
-            icon: <Database size={15} />,
+            id: 'integrations',
+            label: 'Integrations',
+            icon: <Plug size={15} />,
             content: (
-              <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-                <div className="flex items-center gap-2">
-                  <Database size={18} className="text-brand" />
-                  <h2 className="text-sm font-semibold">Demo data</h2>
+              <div>
+                <div className="mb-3 flex items-center gap-2">
+                  <Plug size={18} className="text-brand" />
+                  <h2 className="text-sm font-semibold">Integrations &amp; connections</h2>
+                  <span className="text-xs text-slate-400">What’s connected, and whether the keys work</span>
                 </div>
-                <p className="mt-1 text-sm text-slate-500">
-                  Populate the platform with a full set of sample clients, projects, team members, tasks,
-                  payments, invoices, expenses, salaries, and commissions. Demo records are prefixed “Demo —”.
+                <IntegrationsPanel integrations={integrations} />
+                <p className="mt-2 text-xs text-slate-400">
+                  Set keys right here, or in Railway → Variables. Secret values are never shown — only whether each one is set.
                 </p>
-                <div className="mt-4 flex flex-wrap gap-2">
-                  <form action={seedDemoData}>
-                    <button className="inline-flex items-center gap-1.5 rounded-xl bg-brand px-4 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-brand-dark">
-                      <Database size={15} /> Add demo data
-                    </button>
-                  </form>
-                  <form action={backfillInvoices}>
-                    <button className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50">
-                      <FileText size={15} /> Generate missing invoices
-                    </button>
-                  </form>
-                  <form action={clearDemoData}>
-                    <button className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-medium text-rose-600 hover:bg-rose-50">
-                      <Trash2 size={15} /> Clear demo data
-                    </button>
-                  </form>
-                </div>
               </div>
             ),
           },
