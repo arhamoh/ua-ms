@@ -13,7 +13,7 @@ export default async function XLeadsPage() {
 
   const [tweetRaw, keywordRaw] = await Promise.all([
     prisma.tweetLead.findMany({
-      where: { status: { not: 'ignored' } },
+      where: { status: { not: 'ignored' }, postedAt: { gte: new Date(Date.now() - 7 * 86400000) } },
       orderBy: [{ aiScore: { sort: 'desc', nulls: 'last' } }, { postedAt: 'desc' }, { createdAt: 'desc' }],
       take: 120,
     }),

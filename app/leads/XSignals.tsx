@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState, useTransition } from 'react';
+import { useEffect, useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { RefreshCw, Sparkles, ThumbsUp, ThumbsDown, ExternalLink, Reply, Mail, Check, X as XIcon, Plus, Heart, MessageCircle, PenLine, Copy, Loader2, ArrowLeft, Hash, List, Search } from 'lucide-react';
@@ -14,6 +14,7 @@ import {
   toggleTweetKeyword,
   removeTweetKeyword,
   loadRecommendedKeywords,
+  pollStatus,
 } from './actions';
 import { suggestQueries } from '@/app/actions';
 
@@ -67,7 +68,24 @@ export default function XSignals({ tweetLeads, tweetKeywords, twitterReady }: Pr
   const [search, setSearch] = useState('');
   const [kw, setKw] = useState('');
   const [tab, setTab] = useState<'signals' | 'keywords'>('signals');
+  const [fetching, setFetching] = useState(false);
   const activeKw = tweetKeywords.filter((k) => k.active).length;
+
+  // Reflect the background fetch live while on this page: spinner + auto-update.
+  useEffect(() => {
+    (async () => {
+      try { const s = await pollStatus(); if (s.running) setFetching(true); } catch { /* ignore */ }
+    })();
+    const onFinished = (e: Event) => {
+      setFetching(false);
+      const s = (e as CustomEvent).detail;
+      if (s?.error) setMsg(`⚠️ ${s.error}`);
+      else if (s?.result) setMsg(`Fetched ${s.result.created} new tweet(s), scored ${s.result.scored}, ${s.result.notified} alert(s).`);
+    };
+    window.addEventListener('keel:poll-finished', onFinished);
+    return () => window.removeEventListener('keel:poll-finished', onFinished);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // AI query suggestions from a rough topic.
   const [topic, setTopic] = useState('');
@@ -113,8 +131,9 @@ export default function XSignals({ tweetLeads, tweetKeywords, twitterReady }: Pr
     start(async () => {
       const r: any = await pollTweetsNow();
       if (r?.ok) {
+        setFetching(true);
         window.dispatchEvent(new CustomEvent('keel:poll-started'));
-        setMsg(r.alreadyRunning ? 'Already polling in the background…' : 'Polling in the background — you can leave this page; you’ll get a toast when it’s done.');
+        setMsg('');
       } else if (r?.ok === false) {
         setMsg(`⚠️ ${r.error}`);
       }
@@ -156,7 +175,8 @@ export default function XSignals({ tweetLeads, tweetKeywords, twitterReady }: Pr
 
       {tab === 'signals' && (
         <section className="rounded-xl border border-slate-200 bg-white">
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 p-4">
+          <div className="space-y-3 border-b border-slate-100 p-4">
+            {/* Filters + keyword dropdown */}
             <div className="flex flex-wrap items-center gap-2">
               {FILTERS.map((f) => (
                 <button key={f} onClick={() => setFilter(f)} className={`rounded-full px-3 py-1 text-xs font-medium capitalize transition ${filter === f ? 'bg-brand text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
@@ -167,7 +187,7 @@ export default function XSignals({ tweetLeads, tweetKeywords, twitterReady }: Pr
                 <select
                   value={qFilter}
                   onChange={(e) => setQFilter(e.target.value)}
-                  className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs text-slate-600 focus:border-brand focus:outline-none"
+                  className="max-w-[60vw] rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs text-slate-600 focus:border-brand focus:outline-none sm:max-w-xs"
                 >
                   <option value="">All keywords ({tweetLeads.length})</option>
                   {queryOptions.map(([q, n]) => (
@@ -175,25 +195,28 @@ export default function XSignals({ tweetLeads, tweetKeywords, twitterReady }: Pr
                   ))}
                 </select>
               )}
-              {msg && <span className="ml-1 text-xs text-slate-500">{msg}</span>}
             </div>
-            <div className="flex items-center gap-2">
-              <div className="relative">
+            {/* Search + actions: stack on mobile, spread on wider screens */}
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div className="relative w-full sm:max-w-xs">
                 <Search size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder="Search tweets…"
-                  className="w-44 rounded-lg border border-slate-200 bg-white py-2 pl-8 pr-2.5 text-sm focus:border-brand focus:outline-none sm:w-56"
+                  className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-8 pr-2.5 text-sm focus:border-brand focus:outline-none"
                 />
               </div>
-              <button onClick={() => run(rescoreTweets)} disabled={pending} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50">
-                <Sparkles size={15} /> Re-score
-              </button>
-              <button onClick={doPoll} disabled={pending} className="inline-flex items-center gap-1.5 rounded-lg bg-brand px-3 py-2 text-sm font-medium text-white shadow-sm hover:bg-brand-dark disabled:opacity-50">
-                <RefreshCw size={15} className={pending ? 'animate-spin' : ''} /> Fetch tweets
-              </button>
+              <div className="flex items-center gap-2">
+                <button onClick={() => run(rescoreTweets)} disabled={pending || fetching} className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50 sm:flex-none">
+                  <Sparkles size={15} /> Re-score
+                </button>
+                <button onClick={doPoll} disabled={pending || fetching} className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-brand px-3 py-2 text-sm font-medium text-white shadow-sm hover:bg-brand-dark disabled:opacity-50 sm:flex-none">
+                  <RefreshCw size={15} className={fetching || pending ? 'animate-spin' : ''} /> {fetching ? 'Fetching…' : 'Fetch tweets'}
+                </button>
+              </div>
             </div>
+            {(msg || fetching) && <p className="text-xs text-slate-500">{fetching ? 'Fetching tweets — this can take up to a minute; the list updates when it’s done.' : msg}</p>}
           </div>
 
           <div className="p-4">

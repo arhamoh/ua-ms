@@ -79,19 +79,36 @@ function normalize(raw: any): TweetHit | null {
  * Search recent tweets matching an X advanced-search query. Pages until we have
  * `limit` hits or run out (capped to keep cost/latency bounded).
  */
-export async function searchTweets(query: string, limit = 20, maxPages = 3): Promise<TweetHit[]> {
+export async function searchTweets(query: string, limit = 20, maxPages = 3, sinceDays = 7): Promise<TweetHit[]> {
   const key = process.env.TWITTERAPI_IO_KEY?.trim();
   if (!key) throw new Error('TWITTERAPI_IO_KEY is not configured.');
+
+  // Constrain to the last N days unless the query already sets its own window,
+  // so we only surface fresh, actionable tweets (X `since:` operator).
+  let q = query;
+  if (!/\bsince:/i.test(q)) {
+    const since = new Date(Date.now() - sinceDays * 86400000).toISOString().slice(0, 10);
+    q = `${q} since:${since}`;
+  }
 
   const hits: TweetHit[] = [];
   let cursor = '';
   for (let page = 0; page < maxPages && hits.length < limit; page++) {
-    const params = new URLSearchParams({ query, queryType: 'Latest' });
+    const params = new URLSearchParams({ query: q, queryType: 'Latest' });
     if (cursor) params.set('cursor', cursor);
-    const res = await fetch(`${BASE}/twitter/tweet/advanced_search?${params.toString()}`, {
-      headers: { 'X-API-Key': key, Accept: 'application/json' },
-      cache: 'no-store',
-    });
+    // Per-request timeout so one slow query can't stall the whole fetch.
+    const ctrl = new AbortController();
+    const to = setTimeout(() => ctrl.abort(), 20000);
+    let res: Response;
+    try {
+      res = await fetch(`${BASE}/twitter/tweet/advanced_search?${params.toString()}`, {
+        headers: { 'X-API-Key': key, Accept: 'application/json' },
+        cache: 'no-store',
+        signal: ctrl.signal,
+      });
+    } finally {
+      clearTimeout(to);
+    }
     if (!res.ok) throw new Error(`twitterapi.io ${res.status}: ${(await res.text()).slice(0, 200)}`);
     const data: any = await res.json();
     const rows: any[] = data?.tweets ?? data?.data ?? data?.results ?? [];

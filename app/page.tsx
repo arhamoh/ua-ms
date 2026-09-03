@@ -115,7 +115,7 @@ export default async function DashboardPage() {
   const isSuper = !!session?.roles?.includes('SUPER_ADMIN');
   const signalRows = isSuper
     ? await prisma.tweetLead.findMany({
-        where: { status: { not: 'ignored' }, relevance: { not: 'no' } },
+        where: { status: { not: 'ignored' }, relevance: { not: 'no' }, postedAt: { gte: new Date(Date.now() - 7 * 86400000) } },
         orderBy: [{ aiScore: { sort: 'desc', nulls: 'last' } }, { createdAt: 'desc' }],
         take: 5,
       })

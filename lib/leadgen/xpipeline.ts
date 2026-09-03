@@ -61,7 +61,13 @@ export async function pollTweetLeads(perQuery = 20): Promise<{ created: number; 
       console.warn(`X listener: query "${q}" failed:`, (e as Error).message);
       continue;
     }
+    const cutoff = Date.now() - 7 * 86400000;
     for (const h of hits) {
+      // Only keep the last 7 days — no stale leads.
+      if (h.postedAt && h.postedAt.getTime() < cutoff) {
+        skipped++;
+        continue;
+      }
       const exists = await prisma.tweetLead.findUnique({ where: { tweetId: h.tweetId }, select: { id: true } });
       if (exists) {
         skipped++;

@@ -32,6 +32,8 @@ export default function PollWatcher() {
       if (s.error) setToast({ kind: 'err', text: `Poll failed: ${s.error}` });
       else if (s.result) setToast({ kind: 'done', text: `Fetch complete — ${s.result.created} new tweet(s), ${s.result.scored} scored, ${s.result.notified} alert(s).` });
       else setToast({ kind: 'done', text: 'Fetch complete.' });
+      // Let any open page (e.g. the X page) react live.
+      window.dispatchEvent(new CustomEvent('keel:poll-finished', { detail: s }));
       router.refresh();
     }
     stop();

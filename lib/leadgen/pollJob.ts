@@ -28,7 +28,9 @@ export function getPollStatus(): PollStatus {
 
 /** Start a background poll. Returns immediately; no-op if one is already running. */
 export function startPollJob(perQuery = 20): { started: boolean; alreadyRunning: boolean } {
-  if (status.running) return { started: false, alreadyRunning: true };
+  // A job that's been "running" for over 5 min is stale (crash/hang) — let a new one start.
+  const stale = status.running && status.startedAt != null && Date.now() - status.startedAt > 5 * 60 * 1000;
+  if (status.running && !stale) return { started: false, alreadyRunning: true };
   status.running = true;
   status.startedAt = Date.now();
   status.finishedAt = null;
