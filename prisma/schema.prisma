@@ -984,3 +984,43 @@ model LeadActivity {
 
   @@index([leadId, createdAt])
 }
+
+// A keyword/query the X (Twitter) listener watches for buying-intent tweets.
+model TweetKeyword {
+  id        String   @id @default(cuid())
+  query     String   @unique // an X advanced-search query, e.g. "need a web designer"
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+}
+
+// A tweet surfaced by the X listener as a potential lead/buying signal.
+// Fetched via a third-party X data API (twitterapi.io) — no X login required.
+model TweetLead {
+  id           String   @id @default(cuid())
+  tweetId      String   @unique // X status id (provider dedupe key)
+  url          String // canonical tweet URL, opened in the user's own logged-in browser
+  text         String
+  lang         String?
+  authorId     String? // numeric X user id (for DM compose links)
+  authorHandle String? // @handle
+  authorName   String?
+  authorAvatar String?
+  likeCount    Int      @default(0)
+  replyCount   Int      @default(0)
+  postedAt     DateTime?
+  matchedQuery String? // which TweetKeyword surfaced it
+
+  // Learning: the user marks each tweet relevant/not; those labels are fed back
+  // to the classifier as examples so future scoring matches their taste.
+  relevance String @default("unknown") // unknown | yes | no
+  aiScore   Int? // 0–100 model estimate of how good a lead this is
+  aiReason  String? // one-line model rationale
+  status    String @default("new") // new | contacted | ignored
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+  @@index([relevance])
+  @@index([createdAt])
+}

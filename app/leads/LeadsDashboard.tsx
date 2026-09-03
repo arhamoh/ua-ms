@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Search, ChevronDown, Send, PlayCircle, ExternalLink, CheckCircle2 } from 'lucide-react';
 import { searchLeads, setLeadStatus, convertLead, setupAndEnroll, runOutreachNow } from './actions';
+import XSignals, { type TweetLead, type TweetKeyword } from './XSignals';
 
 type SegmentDef = {
   key: string;
@@ -32,6 +33,9 @@ type Props = {
   leads: Lead[];
   segmentDefs: SegmentDef[];
   apolloReady: boolean;
+  tweetLeads: TweetLead[];
+  tweetKeywords: TweetKeyword[];
+  twitterReady: boolean;
 };
 
 const TITLE_OPTS = ['Founder', 'Co-Founder', 'CEO', 'CTO', 'COO', 'Owner', 'President', 'Managing Director', 'Head of Marketing', 'Marketing Director', 'CMO', 'Head of Product', 'Ecommerce Manager', 'Head of Ecommerce', 'Creative Director', 'General Manager'];
@@ -99,7 +103,7 @@ function MultiSelect({ options, selected, onChange, placeholder = 'Any' }: { opt
   );
 }
 
-export default function LeadsDashboard({ stats, leads, segmentDefs, apolloReady }: Props) {
+export default function LeadsDashboard({ stats, leads, segmentDefs, apolloReady, tweetLeads, tweetKeywords, twitterReady }: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const first = segmentDefs[0];
@@ -253,6 +257,9 @@ export default function LeadsDashboard({ stats, leads, segmentDefs, apolloReady 
           {msg && <span className="text-sm text-slate-500">{msg}</span>}
         </div>
       </section>
+
+      {/* X (Twitter) listener */}
+      <XSignals tweetLeads={tweetLeads} tweetKeywords={tweetKeywords} twitterReady={twitterReady} />
 
       {/* Leads table */}
       <section className="rounded-xl border border-slate-200 bg-white">

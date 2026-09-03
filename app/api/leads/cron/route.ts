@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { segments } from '@/lib/leadgen/icp';
 import { sourceSegment, scoreAll, hasApolloKey } from '@/lib/leadgen/pipeline';
 import { seedSequences, enrollSegment, runDue } from '@/lib/leadgen/outreach/engine';
+import { pollTweetLeads, classifyPendingTweets, twitterApiConfigured } from '@/lib/leadgen/xpipeline';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
@@ -17,8 +18,9 @@ function authorized(req: Request): boolean {
  * Scheduled lead-gen jobs. Trigger from Railway Cron or any external scheduler
  * (e.g. cron-job.org) with header `Authorization: Bearer <CRON_SECRET>`:
  *   GET /api/leads/cron?task=source     — source → score → enroll (daily)
+ *   GET /api/leads/cron?task=tweets     — poll X keywords → store → score
  *   GET /api/leads/cron?task=outreach   — send/queue due touches (daily)
- *   GET /api/leads/cron?task=all        — both (default)
+ *   GET /api/leads/cron?task=all        — all of the above (default)
  */
 export async function GET(req: Request) {
   if (!authorized(req)) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
@@ -37,6 +39,17 @@ export async function GET(req: Request) {
       await seedSequences();
       for (const s of segments) await enrollSegment(s.key);
       out.source = { perSegment: per, results };
+    }
+  }
+
+  if (task === 'tweets' || task === 'all') {
+    if (!twitterApiConfigured()) {
+      out.tweets = { skipped: true, reason: 'No TWITTERAPI_IO_KEY.' };
+    } else {
+      const per = Number(process.env.X_POLL_PER_QUERY ?? 20);
+      const poll = await pollTweetLeads(per);
+      const cls = await classifyPendingTweets();
+      out.tweets = { ...poll, scored: cls.scored };
     }
   }
 

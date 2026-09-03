@@ -7,6 +7,7 @@ import { segments, getSegment } from '@/lib/leadgen/icp';
 import { sourceUsing, scoreAll, hasApolloKey } from '@/lib/leadgen/pipeline';
 import { seedSequences, enrollSegment, runDue } from '@/lib/leadgen/outreach/engine';
 import { convertLeadToClient } from '@/lib/leadgen/convert';
+import { pollTweetLeads, classifyPendingTweets, reclassifyAllTweets, twitterApiConfigured } from '@/lib/leadgen/xpipeline';
 
 async function requireUser() {
   const user = await getSession();
@@ -94,4 +95,65 @@ export async function runOutreachNow() {
   const result = await runDue();
   revalidatePath('/leads');
   return { ok: true as const, ...result };
+}
+
+// ── X (Twitter) listener ─────────────────────────────────────────────────────
+
+/** Poll all active keywords for new tweets, then score the new ones. */
+export async function pollTweetsNow() {
+  await requireUser();
+  if (!twitterApiConfigured()) {
+    return { ok: false as const, error: 'TWITTERAPI_IO_KEY is not configured on the server.' };
+  }
+  const poll = await pollTweetLeads(Number(process.env.X_POLL_PER_QUERY ?? 20));
+  const cls = await classifyPendingTweets();
+  revalidatePath('/leads');
+  return { ok: true as const, ...poll, scored: cls.scored };
+}
+
+/** Re-score every tweet using everything it has learned from your labels. */
+export async function rescoreTweets() {
+  await requireUser();
+  const r = await reclassifyAllTweets();
+  revalidatePath('/leads');
+  return { ok: true as const, ...r };
+}
+
+/** Teach the listener: mark a tweet relevant / not-relevant (feeds future scoring). */
+export async function setTweetRelevance(id: string, relevance: 'yes' | 'no' | 'unknown') {
+  await requireUser();
+  if (!['yes', 'no', 'unknown'].includes(relevance)) return;
+  await prisma.tweetLead.update({ where: { id }, data: { relevance } });
+  revalidatePath('/leads');
+}
+
+/** Mark a tweet as contacted (you replied/DM'd) or ignored. */
+export async function setTweetStatus(id: string, status: 'new' | 'contacted' | 'ignored') {
+  await requireUser();
+  if (!['new', 'contacted', 'ignored'].includes(status)) return;
+  await prisma.tweetLead.update({ where: { id }, data: { status } });
+  revalidatePath('/leads');
+}
+
+/** Add a keyword/query the listener watches. */
+export async function addTweetKeyword(query: string) {
+  await requireUser();
+  const q = (query ?? '').trim().slice(0, 200);
+  if (!q) return;
+  await prisma.tweetKeyword.upsert({ where: { query: q }, update: { active: true }, create: { query: q } });
+  revalidatePath('/leads');
+}
+
+/** Enable/disable a watched keyword. */
+export async function toggleTweetKeyword(id: string, active: boolean) {
+  await requireUser();
+  await prisma.tweetKeyword.update({ where: { id }, data: { active } });
+  revalidatePath('/leads');
+}
+
+/** Delete a watched keyword. */
+export async function removeTweetKeyword(id: string) {
+  await requireUser();
+  await prisma.tweetKeyword.delete({ where: { id } });
+  revalidatePath('/leads');
 }
