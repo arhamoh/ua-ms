@@ -1,4 +1,4 @@
-import { Database, FileText, Trash2, SlidersHorizontal, Plus, Building2, Plug, Clock, AlertTriangle } from 'lucide-react';
+import { Database, FileText, Trash2, SlidersHorizontal, Plus, Building2, Plug, Clock, AlertTriangle, Bell } from 'lucide-react';
 import { prisma } from '@/lib/prisma';
 import { seedDemoData, backfillInvoices, clearDemoData, addOption, saveCompanySettings } from '@/app/actions';
 import { saveMyTimezone } from './actions';
@@ -9,6 +9,7 @@ import { getCompany } from '@/lib/company';
 import { getSession } from '@/lib/auth';
 import FadeIn from '@/components/FadeIn';
 import IntegrationsPanel from '@/components/IntegrationsPanel';
+import EnablePushButton from '@/components/EnablePushButton';
 import SettingsTabs, { type SettingsTab } from '@/components/SettingsTabs';
 import MigrationButton from '@/components/MigrationButton';
 import ResetDataPanel from '@/components/ResetDataPanel';
@@ -112,6 +113,26 @@ export default async function SettingsPage({
       <SettingsTabs
         tabs={[
           preferencesTab,
+          {
+            id: 'notifications',
+            label: 'Notifications',
+            icon: <Bell size={15} />,
+            content: (
+              <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                <div className="flex items-center gap-2">
+                  <Bell size={18} className="text-brand" />
+                  <h2 className="text-sm font-semibold">Phone &amp; push notifications</h2>
+                </div>
+                <p className="mb-4 mt-1 text-sm text-slate-500">
+                  Get a push notification on this device when a new qualified lead comes in. Enable it on each device you want alerts on — including your phone.
+                </p>
+                <EnablePushButton />
+                <p className="mt-4 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-500">
+                  On iPhone/iPad, first add Keel to your Home Screen (Share → Add to Home Screen), then open it from there and tap Enable — iOS only allows web push from an installed app.
+                </p>
+              </div>
+            ),
+          },
           {
             id: 'integrations',
             label: 'Integrations',
