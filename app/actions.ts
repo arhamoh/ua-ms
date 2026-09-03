@@ -1234,17 +1234,19 @@ export async function changePassword(newPassword: string): Promise<{ ok: boolean
   return { ok: true, message: 'Password updated.' };
 }
 
-/** AI-suggest pain-phrased X search queries from a rough topic the user types. */
-export async function suggestQueries(topic: string): Promise<{ ok: boolean; queries: string[]; message?: string }> {
+/** AI-suggest pain-phrased X search queries from a rough topic. Pass `avoid` to
+ *  keep getting fresh ones on repeated clicks. */
+export async function suggestQueries(topic: string, avoid: string[] = []): Promise<{ ok: boolean; queries: string[]; message?: string }> {
   await requireSuperAdmin();
   const t = (topic ?? '').trim();
   if (!t) return { ok: false, queries: [], message: 'Type something first.' };
   const key = process.env.OPENROUTER_API_KEY?.trim();
   if (!key) return { ok: false, queries: [], message: 'AI is not configured (OpenRouter).' };
   const model = process.env.OPENROUTER_MODEL || 'moonshotai/kimi-k2';
-  const system = `You turn a rough topic into X (Twitter) search queries that surface people voicing a PAIN a digital agency (web design/dev, Shopify/Webflow, branding, SEO, ads) could fix.
-Write 6 short search queries a frustrated prospect might literally tweet — venting, stuck, something broken/slow/costing them money — not neutral topic mentions.
-Use quotes for exact phrases; you may add - to exclude noise. No hashtags. Keep each under 60 chars.
+  const avoidList = (avoid || []).slice(0, 60).map((s) => `- ${s}`).join('\n');
+  const system = `You turn a rough topic into X (Twitter) search queries that surface people voicing a PAIN a digital agency (web design/dev, Shopify/Webflow, branding, SEO, paid ads) could fix.
+Write 8 short, DISTINCT search queries a frustrated prospect might literally tweet — venting, stuck, something broken/slow/costing them money/time, or asking who to hire. Vary the angle (speed, conversions, design, SEO, being ghosted, hiring). Not neutral topic mentions.
+Use quotes for exact phrases; you may add -word to exclude noise (e.g. -job -course). No hashtags. Keep each under 60 chars.${avoidList ? `\n\nDo NOT repeat or trivially reword any of these already-used queries:\n${avoidList}` : ''}
 Return ONLY a JSON object: {"queries":["...","..."]}.`;
   try {
     const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
@@ -1253,15 +1255,18 @@ Return ONLY a JSON object: {"queries":["...","..."]}.`;
       body: JSON.stringify({
         model,
         messages: [{ role: 'system', content: system }, { role: 'user', content: `Topic: ${t.slice(0, 200)}` }],
-        max_tokens: 400,
-        temperature: 0.6,
+        max_tokens: 500,
+        temperature: 0.9,
       }),
     });
     if (!res.ok) return { ok: false, queries: [], message: `AI error ${res.status}.` };
     const data = await res.json();
     const content: string = data?.choices?.[0]?.message?.content ?? '';
     const json = JSON.parse(content.slice(content.indexOf('{'), content.lastIndexOf('}') + 1));
-    const queries: string[] = Array.isArray(json?.queries) ? json.queries.map((q: unknown) => String(q).trim()).filter(Boolean).slice(0, 8) : [];
+    const avoidSet = new Set((avoid || []).map((s) => s.toLowerCase().trim()));
+    const queries: string[] = Array.isArray(json?.queries)
+      ? json.queries.map((q: unknown) => String(q).trim()).filter((q: string) => q && !avoidSet.has(q.toLowerCase())).slice(0, 8)
+      : [];
     return { ok: true, queries };
   } catch {
     return { ok: false, queries: [], message: 'Could not get suggestions.' };

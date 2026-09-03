@@ -107,7 +107,7 @@ export async function pollTweetsNow() {
   if (!twitterApiConfigured()) {
     return { ok: false as const, error: 'TWITTERAPI_IO_KEY is not configured on the server.' };
   }
-  const r = startPollJob(Number(process.env.X_POLL_PER_QUERY ?? 20));
+  const r = startPollJob(Number(process.env.X_POLL_PER_QUERY ?? 40));
   return { ok: true as const, started: r.started, alreadyRunning: r.alreadyRunning };
 }
 

@@ -48,7 +48,7 @@ export async function GET(req: Request) {
     if (!twitterApiConfigured()) {
       out.tweets = { skipped: true, reason: 'No TWITTERAPI_IO_KEY.' };
     } else {
-      const per = Number(process.env.X_POLL_PER_QUERY ?? 20);
+      const per = Number(process.env.X_POLL_PER_QUERY ?? 40);
       const poll = await pollTweetLeads(per);
       const cls = await classifyPendingTweets();
       const alert = await notifyNewQualifiedLeads();

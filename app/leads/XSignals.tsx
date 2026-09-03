@@ -19,6 +19,7 @@ import {
 } from './actions';
 import { suggestQueries } from '@/app/actions';
 import ConfirmModal from '@/components/ConfirmModal';
+import TweetPreviewModal from '@/components/TweetPreviewModal';
 
 export type TweetLead = {
   id: string;
@@ -116,11 +117,11 @@ export default function XSignals({ tweetLeads, tweetKeywords, twitterReady, last
     const t = topic.trim();
     if (!t) return;
     setSuggesting(true);
-    setSuggestions([]);
     try {
-      const r = await suggestQueries(t);
-      setSuggestions(r.queries ?? []);
-      if (!r.ok && r.message) setMsg(r.message);
+      const have = tweetKeywords.map((k) => k.query);
+      const r = await suggestQueries(t, [...have, ...suggestions]);
+      if (r.ok) setSuggestions((prev) => Array.from(new Set([...prev, ...r.queries])));
+      else if (r.message) setMsg(r.message);
     } catch {
       setMsg('Could not get suggestions.');
     } finally {
@@ -351,18 +352,26 @@ export default function XSignals({ tweetLeads, tweetKeywords, twitterReady, last
                 className="min-w-0 flex-1 rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs focus:border-brand focus:outline-none"
               />
               <button onClick={getSuggestions} disabled={suggesting || !topic.trim()} className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-brand px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-dark disabled:opacity-50">
-                {suggesting ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />} Suggest
+                {suggesting ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />} {suggestions.length ? 'Suggest more' : 'Suggest'}
               </button>
             </div>
-            {suggestions.length > 0 && (
-              <div className="mt-2 flex flex-wrap gap-1.5">
-                {suggestions.map((q) => (
-                  <button key={q} onClick={() => run(() => addTweetKeyword(q))} disabled={pending} className="rounded-full border border-brand/30 bg-white px-2.5 py-1 text-xs text-brand-dark hover:bg-brand-light disabled:opacity-50">
-                    + {q}
+            {(() => {
+              const have = new Set(tweetKeywords.map((k) => k.query));
+              const fresh = suggestions.filter((q) => !have.has(q));
+              if (fresh.length === 0) return null;
+              return (
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  <button onClick={() => run(() => Promise.all(fresh.map((q) => addTweetKeyword(q))))} disabled={pending} className="rounded-full bg-brand px-2.5 py-1 text-xs font-medium text-white hover:bg-brand-dark disabled:opacity-50">
+                    + Add all ({fresh.length})
                   </button>
-                ))}
-              </div>
-            )}
+                  {fresh.map((q) => (
+                    <button key={q} onClick={() => run(() => addTweetKeyword(q))} disabled={pending} className="rounded-full border border-brand/30 bg-white px-2.5 py-1 text-xs text-brand-dark hover:bg-brand-light disabled:opacity-50">
+                      + {q}
+                    </button>
+                  ))}
+                </div>
+              );
+            })()}
           </div>
 
           <div className="mt-4 flex flex-wrap items-center gap-2">
@@ -429,6 +438,7 @@ function TweetCard({ t, disabled, run }: { t: TweetLead; disabled: boolean; run:
   const [draft, setDraft] = useState(t.draft ?? '');
   const [open, setOpen] = useState(!!t.draft);
   const [copied, setCopied] = useState(false);
+  const [preview, setPreview] = useState(false);
 
   // Reply link prefilled with the (possibly edited) draft, so X opens ready to send.
   const replyUrl = `https://x.com/intent/tweet?in_reply_to=${t.tweetId}${draft.trim() ? `&text=${encodeURIComponent(draft.trim())}` : ''}`;
@@ -458,7 +468,13 @@ function TweetCard({ t, disabled, run }: { t: TweetLead; disabled: boolean; run:
         </span>
       </div>
 
-      <p className="mt-2 line-clamp-5 whitespace-pre-line text-sm leading-relaxed text-slate-700">{t.text}</p>
+      <p onClick={() => setPreview(true)} title="Preview tweet in Keel" className="mt-2 line-clamp-5 cursor-pointer whitespace-pre-line text-sm leading-relaxed text-slate-700 hover:text-slate-900">{t.text}</p>
+      <TweetPreviewModal
+        open={preview}
+        onClose={() => setPreview(false)}
+        tweet={{ tweetId: t.tweetId, url: t.url, text: t.text, authorHandle: t.authorHandle, authorName: t.authorName }}
+        replyUrl={replyUrl}
+      />
       {t.aiReason && <p className="mt-1.5 text-[11px] italic text-slate-400">“{t.aiReason}”</p>}
 
       <div className="mt-2 flex items-center gap-3 text-[11px] text-slate-400">
