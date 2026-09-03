@@ -47,18 +47,24 @@ export async function getActiveQueries(): Promise<string[]> {
  * tweetId). Returns counts. Never throws for a single bad query — it's logged and
  * skipped so one failure doesn't abort the whole run.
  */
-export async function pollTweetLeads(perQuery = 20): Promise<{ created: number; skipped: number; queries: number }> {
+export async function pollTweetLeads(
+  perQuery = 20,
+  onProgress?: (done: number, total: number) => void,
+): Promise<{ created: number; skipped: number; queries: number }> {
   if (!twitterApiConfigured()) throw new Error('TWITTERAPI_IO_KEY is not configured.');
   const queries = await getActiveQueries();
   let created = 0;
   let skipped = 0;
 
+  onProgress?.(0, queries.length);
+  let done = 0;
   for (const q of queries) {
     let hits;
     try {
       hits = await searchTweets(q, perQuery);
     } catch (e) {
       console.warn(`X listener: query "${q}" failed:`, (e as Error).message);
+      onProgress?.(++done, queries.length);
       continue;
     }
     const cutoff = Date.now() - 7 * 86400000;
@@ -91,6 +97,7 @@ export async function pollTweetLeads(perQuery = 20): Promise<{ created: number; 
       });
       created++;
     }
+    onProgress?.(++done, queries.length);
   }
   return { created, skipped, queries: queries.length };
 }

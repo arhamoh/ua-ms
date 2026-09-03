@@ -8,17 +8,19 @@ import { hydrateSecrets } from '@/lib/secrets';
 // globalThis so it survives module reloads and is shared across requests.
 
 export type PollResult = { created: number; skipped: number; queries: number; scored: number; notified: number };
+export type PollProgress = { done: number; total: number; phase: 'fetching' | 'scoring' };
 export type PollStatus = {
   running: boolean;
   startedAt: number | null;
   finishedAt: number | null;
   result: PollResult | null;
   error: string | null;
+  progress: PollProgress | null;
 };
 
 const g = globalThis as unknown as { __keelPollStatus?: PollStatus };
 if (!g.__keelPollStatus) {
-  g.__keelPollStatus = { running: false, startedAt: null, finishedAt: null, result: null, error: null };
+  g.__keelPollStatus = { running: false, startedAt: null, finishedAt: null, result: null, error: null, progress: null };
 }
 const status = g.__keelPollStatus;
 
@@ -36,11 +38,15 @@ export function startPollJob(perQuery = 20): { started: boolean; alreadyRunning:
   status.finishedAt = null;
   status.error = null;
   status.result = null;
+  status.progress = { done: 0, total: 0, phase: 'fetching' };
 
   void (async () => {
     try {
       await hydrateSecrets(); // ensure keys are loaded outside a request context
-      const poll = await pollTweetLeads(perQuery);
+      const poll = await pollTweetLeads(perQuery, (done, total) => {
+        status.progress = { done, total, phase: 'fetching' };
+      });
+      status.progress = { done: poll.queries, total: poll.queries, phase: 'scoring' };
       const cls = await classifyPendingTweets();
       const alert = await notifyNewQualifiedLeads();
       status.result = { ...poll, scored: cls.scored, notified: alert.notified };
@@ -49,6 +55,7 @@ export function startPollJob(perQuery = 20): { started: boolean; alreadyRunning:
     } finally {
       status.running = false;
       status.finishedAt = Date.now();
+      status.progress = null;
     }
   })();
 

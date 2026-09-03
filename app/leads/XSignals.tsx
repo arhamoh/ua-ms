@@ -71,7 +71,25 @@ export default function XSignals({ tweetLeads, tweetKeywords, twitterReady, last
   const [kw, setKw] = useState('');
   const [tab, setTab] = useState<'signals' | 'keywords'>('signals');
   const [fetching, setFetching] = useState(false);
+  const [progress, setProgress] = useState<{ done: number; total: number; phase: string } | null>(null);
   const [confirmClear, setConfirmClear] = useState(false);
+
+  // While fetching, poll the job status for live progress.
+  useEffect(() => {
+    if (!fetching) { setProgress(null); return; }
+    let active = true;
+    const check = async () => {
+      try {
+        const s = await pollStatus();
+        if (!active) return;
+        setProgress(s.progress ?? null);
+        if (!s.running) setFetching(false);
+      } catch { /* ignore */ }
+    };
+    check();
+    const id = setInterval(check, 2000);
+    return () => { active = false; clearInterval(id); };
+  }, [fetching]);
   const activeKw = tweetKeywords.filter((k) => k.active).length;
 
   // Reflect the background fetch live while on this page: spinner + auto-update.
@@ -228,11 +246,29 @@ export default function XSignals({ tweetLeads, tweetKeywords, twitterReady, last
                 </button>
               </div>
             </div>
-            <p className="text-xs text-slate-500">
-              {fetching
-                ? 'Fetching tweets — this can take up to a minute; the list updates when it’s done.'
-                : msg || (lastUpdated ? `Last updated ${ago(lastUpdated)} ago` : '')}
-            </p>
+            {fetching ? (
+              (() => {
+                const pct = progress && progress.total > 0
+                  ? (progress.phase === 'scoring' ? 92 : Math.min(90, Math.round((progress.done / progress.total) * 88)))
+                  : 4;
+                const label = progress
+                  ? (progress.phase === 'scoring' ? 'Scoring tweets…' : `Searching keywords ${progress.done}/${progress.total}…`)
+                  : 'Starting…';
+                return (
+                  <div>
+                    <div className="mb-1 flex items-center justify-between text-xs text-slate-500">
+                      <span>{label}</span>
+                      <span className="tabular-nums">{pct}%</span>
+                    </div>
+                    <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
+                      <div className="h-full rounded-full bg-brand transition-all duration-500" style={{ width: `${pct}%` }} />
+                    </div>
+                  </div>
+                );
+              })()
+            ) : (
+              <p className="text-xs text-slate-500">{msg || (lastUpdated ? `Last updated ${ago(lastUpdated)} ago` : '')}</p>
+            )}
           </div>
 
           <div className="p-4">
