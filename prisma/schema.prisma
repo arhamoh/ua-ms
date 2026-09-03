@@ -1015,6 +1015,7 @@ model TweetLead {
   relevance String @default("unknown") // unknown | yes | no
   aiScore   Int? // 0–100 model estimate of how good a lead this is
   aiReason  String? // one-line model rationale
+  draft     String? // AI-drafted reply the user can edit / send
   status    String @default("new") // new | contacted | ignored
 
   createdAt DateTime @default(now())

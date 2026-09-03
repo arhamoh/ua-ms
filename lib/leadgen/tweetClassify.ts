@@ -79,3 +79,42 @@ export async function classifyTweets(items: { id: string; text: string }[]): Pro
   }
   return out;
 }
+
+/**
+ * Draft a short, human reply to a prospect's tweet — as UA Digital (the agency),
+ * opening a conversation without sounding salesy or automated. Returns '' on failure.
+ */
+export async function draftReply(tweetText: string, authorHandle?: string | null): Promise<string> {
+  const key = process.env.OPENROUTER_API_KEY?.trim();
+  if (!key || !tweetText.trim()) return '';
+  const model = process.env.OPENROUTER_MODEL || 'moonshotai/kimi-k2';
+  const system = `You write the reply that a founder at UA Digital — a Montreal digital agency (web design/development, branding, SEO, paid ads) — would post to a prospect's tweet.
+
+Rules:
+- Sound like a real person, not a bot or an ad. Warm, direct, specific to their tweet.
+- Open a conversation; offer genuine help. A soft, low-pressure nudge — never "DM me!!!" spam.
+- One or two short sentences, under 240 characters total. No hashtags, no emoji spam (one is fine), no links.
+- Match the tweet's language (reply in French if the tweet is French).
+Return ONLY the reply text, nothing else.`;
+  try {
+    const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', 'X-Title': 'Keel' },
+      body: JSON.stringify({
+        model,
+        messages: [
+          { role: 'system', content: system },
+          { role: 'user', content: `Tweet${authorHandle ? ` from @${authorHandle}` : ''}:\n"${tweetText.replace(/\s+/g, ' ').trim().slice(0, 400)}"` },
+        ],
+        max_tokens: 160,
+        temperature: 0.7,
+      }),
+    });
+    if (!res.ok) return '';
+    const data = await res.json();
+    const reply: string = data?.choices?.[0]?.message?.content ?? '';
+    return reply.trim().replace(/^["']|["']$/g, '').slice(0, 400);
+  } catch {
+    return '';
+  }
+}

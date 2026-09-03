@@ -8,6 +8,7 @@ import { sourceUsing, scoreAll, hasApolloKey } from '@/lib/leadgen/pipeline';
 import { seedSequences, enrollSegment, runDue } from '@/lib/leadgen/outreach/engine';
 import { convertLeadToClient } from '@/lib/leadgen/convert';
 import { pollTweetLeads, classifyPendingTweets, reclassifyAllTweets, twitterApiConfigured } from '@/lib/leadgen/xpipeline';
+import { draftReply } from '@/lib/leadgen/tweetClassify';
 
 async function requireUser() {
   const user = await getSession();
@@ -125,6 +126,18 @@ export async function setTweetRelevance(id: string, relevance: 'yes' | 'no' | 'u
   if (!['yes', 'no', 'unknown'].includes(relevance)) return;
   await prisma.tweetLead.update({ where: { id }, data: { relevance } });
   revalidatePath('/leads');
+}
+
+/** Draft (or re-draft) a reply to this tweet with the AI, storing it on the lead. */
+export async function draftTweetReply(id: string) {
+  await requireUser();
+  const t = await prisma.tweetLead.findUnique({ where: { id }, select: { text: true, authorHandle: true } });
+  if (!t) return { ok: false as const, error: 'Tweet not found.' };
+  const draft = await draftReply(t.text, t.authorHandle);
+  if (!draft) return { ok: false as const, error: 'Could not draft a reply (is OpenRouter configured?).' };
+  await prisma.tweetLead.update({ where: { id }, data: { draft } });
+  revalidatePath('/leads');
+  return { ok: true as const, draft };
 }
 
 /** Mark a tweet as contacted (you replied/DM'd) or ignored. */

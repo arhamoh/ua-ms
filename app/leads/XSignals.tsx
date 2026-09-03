@@ -2,12 +2,13 @@
 
 import { useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { RefreshCw, Sparkles, ThumbsUp, ThumbsDown, ExternalLink, Reply, Mail, Check, X as XIcon, Plus, Heart, MessageCircle } from 'lucide-react';
+import { RefreshCw, Sparkles, ThumbsUp, ThumbsDown, ExternalLink, Reply, Mail, Check, X as XIcon, Plus, Heart, MessageCircle, PenLine, Copy, Loader2 } from 'lucide-react';
 import {
   pollTweetsNow,
   rescoreTweets,
   setTweetRelevance,
   setTweetStatus,
+  draftTweetReply,
   addTweetKeyword,
   toggleTweetKeyword,
   removeTweetKeyword,
@@ -29,6 +30,7 @@ export type TweetLead = {
   relevance: string;
   aiScore: number | null;
   aiReason: string | null;
+  draft: string | null;
   status: string;
 };
 export type TweetKeyword = { id: string; query: string; active: boolean };
@@ -158,8 +160,24 @@ export default function XSignals({ tweetLeads, tweetKeywords, twitterReady }: Pr
 
 function TweetCard({ t, disabled, run }: { t: TweetLead; disabled: boolean; run: (fn: () => Promise<unknown>, note?: string) => void }) {
   const handle = t.authorHandle ? `@${t.authorHandle}` : 'unknown';
-  const replyUrl = `https://x.com/intent/tweet?in_reply_to=${t.tweetId}`;
   const dmUrl = t.authorId ? `https://x.com/messages/compose?recipient_id=${t.authorId}` : t.authorHandle ? `https://x.com/${t.authorHandle}` : t.url;
+
+  const [drafting, startDraft] = useTransition();
+  const [draft, setDraft] = useState(t.draft ?? '');
+  const [open, setOpen] = useState(!!t.draft);
+  const [copied, setCopied] = useState(false);
+
+  // Reply link prefilled with the (possibly edited) draft, so X opens ready to send.
+  const replyUrl = `https://x.com/intent/tweet?in_reply_to=${t.tweetId}${draft.trim() ? `&text=${encodeURIComponent(draft.trim())}` : ''}`;
+
+  const generate = () =>
+    startDraft(async () => {
+      const r: any = await draftTweetReply(t.id);
+      if (r?.ok) { setDraft(r.draft); setOpen(true); }
+    });
+  const copy = async () => {
+    try { await navigator.clipboard.writeText(draft); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch {}
+  };
 
   return (
     <div className={`flex flex-col rounded-xl border p-3 transition ${t.status === 'contacted' ? 'border-emerald-200 bg-emerald-50/30' : 'border-slate-200 bg-white'}`}>
@@ -186,6 +204,30 @@ function TweetCard({ t, disabled, run }: { t: TweetLead; disabled: boolean; run:
         <span className="inline-flex items-center gap-0.5"><MessageCircle size={11} /> {t.replyCount}</span>
       </div>
 
+      {/* AI reply draft — edit inline, copy, or open X with it prefilled */}
+      {open && (
+        <div className="mt-2.5 rounded-lg border border-slate-200 bg-slate-50/70 p-2">
+          <textarea
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            rows={3}
+            placeholder="Your reply…"
+            className="w-full resize-y rounded-md border border-slate-200 bg-white px-2 py-1.5 text-xs leading-relaxed text-slate-700 focus:border-brand focus:outline-none"
+          />
+          <div className="mt-1.5 flex items-center justify-between">
+            <span className={`text-[10px] ${draft.length > 280 ? 'text-rose-500' : 'text-slate-400'}`}>{draft.length}/280</span>
+            <div className="flex items-center gap-1">
+              <button onClick={generate} disabled={drafting} title="Regenerate" className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-1.5 py-1 text-[11px] text-slate-500 hover:text-brand disabled:opacity-50">
+                {drafting ? <Loader2 size={11} className="animate-spin" /> : <Sparkles size={11} />} Redraft
+              </button>
+              <button onClick={copy} title="Copy" className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-1.5 py-1 text-[11px] text-slate-500 hover:text-brand">
+                {copied ? <Check size={11} /> : <Copy size={11} />} {copied ? 'Copied' : 'Copy'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Actions */}
       <div className="mt-3 flex items-center justify-between gap-1 border-t border-slate-100 pt-2">
         <div className="flex items-center gap-1">
@@ -195,10 +237,13 @@ function TweetCard({ t, disabled, run }: { t: TweetLead; disabled: boolean; run:
           <button onClick={() => run(() => setTweetRelevance(t.id, t.relevance === 'no' ? 'unknown' : 'no'))} disabled={disabled} title="Not relevant (teaches the model)" className={`grid h-7 w-7 place-items-center rounded-lg border transition disabled:opacity-50 ${t.relevance === 'no' ? 'border-rose-300 bg-rose-50 text-rose-700' : 'border-slate-200 text-slate-400 hover:text-rose-600'}`}>
             <ThumbsDown size={13} />
           </button>
+          <button onClick={open ? () => setOpen(false) : generate} disabled={drafting} title="Draft a reply with AI" className={`grid h-7 w-7 place-items-center rounded-lg border transition disabled:opacity-50 ${open ? 'border-brand/40 bg-brand-light text-brand-dark' : 'border-slate-200 text-slate-400 hover:text-brand'}`}>
+            {drafting ? <Loader2 size={13} className="animate-spin" /> : <PenLine size={13} />}
+          </button>
         </div>
         <div className="flex items-center gap-1">
           <a href={dmUrl} target="_blank" rel="noreferrer" title="DM" className="grid h-7 w-7 place-items-center rounded-lg border border-slate-200 text-slate-500 hover:border-sky-300 hover:text-sky-600"><Mail size={13} /></a>
-          <a href={replyUrl} target="_blank" rel="noreferrer" title="Reply" className="grid h-7 w-7 place-items-center rounded-lg border border-slate-200 text-slate-500 hover:border-sky-300 hover:text-sky-600"><Reply size={13} /></a>
+          <a href={replyUrl} target="_blank" rel="noreferrer" onClick={() => run(() => setTweetStatus(t.id, 'contacted'))} title={draft.trim() ? 'Reply (opens X with your draft)' : 'Reply'} className="grid h-7 w-7 place-items-center rounded-lg border border-slate-200 text-slate-500 hover:border-sky-300 hover:text-sky-600"><Reply size={13} /></a>
           <a href={t.url} target="_blank" rel="noreferrer" onClick={() => run(() => setTweetStatus(t.id, 'contacted'))} title="Open tweet" className="inline-flex items-center gap-1 rounded-lg bg-brand px-2.5 py-1.5 text-xs font-medium text-white hover:bg-brand-dark">
             Open <ExternalLink size={12} />
           </a>

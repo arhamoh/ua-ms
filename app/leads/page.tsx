@@ -64,6 +64,7 @@ export default async function LeadsPage() {
     relevance: t.relevance,
     aiScore: t.aiScore,
     aiReason: t.aiReason,
+    draft: t.draft,
     status: t.status,
   }));
   const tweetKeywords = keywordRaw.map((k) => ({ id: k.id, query: k.query, active: k.active }));

@@ -133,7 +133,7 @@ export async function getIntegrations(): Promise<IntegrationStatus[]> {
         { name: 'TWITTERAPI_IO_KEY', set: xSet, required: true },
         { name: 'TWITTER_QUERIES', set: isSet(e.TWITTER_QUERIES) },
       ],
-      testable: false,
+      testable: xSet,
     },
   ];
 

@@ -33,6 +33,7 @@ import { EXPENSE_CATEGORY_LABELS, INCOME_CATEGORY_LABELS } from '@/lib/enums';
 import { buildReport, reportToCsv, REPORT_LABELS, type ReportType, type LedgerEntry } from '@/lib/finance-reports';
 import { renderReportPdf } from '@/lib/report-pdf';
 import { waveConfigured, getWaveBusinesses, getWaveInvoices, mapWaveStatus, testWave } from '@/lib/wave';
+import { testTwitterApi } from '@/lib/leadgen/sources/xListener';
 import { DEFAULT_OPTIONS } from '@/lib/options';
 import type { ImportLine } from '@/lib/statement-parse';
 import { getSession } from '@/lib/auth';
@@ -1186,6 +1187,8 @@ export async function testIntegration(id: string): Promise<{ ok: boolean; messag
       return testOpenRouter();
     case 'wave':
       return testWave();
+    case 'x':
+      return testTwitterApi();
     default:
       return { ok: false, message: 'Nothing to test for this integration.' };
   }

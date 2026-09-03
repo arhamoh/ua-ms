@@ -15,6 +15,17 @@ export function twitterApiConfigured(): boolean {
   return !!process.env.TWITTERAPI_IO_KEY?.trim();
 }
 
+/** Live check the twitterapi.io key with a tiny query (a 200 means the key works). */
+export async function testTwitterApi(): Promise<{ ok: boolean; message: string }> {
+  if (!twitterApiConfigured()) return { ok: false, message: 'No twitterapi.io API key set.' };
+  try {
+    const hits = await searchTweets('web design', 1, 1);
+    return { ok: true, message: `Connected — a sample search returned ${hits.length} tweet(s).` };
+  } catch (e: any) {
+    return { ok: false, message: (e?.message ?? 'Connection failed.').slice(0, 180) };
+  }
+}
+
 /** A normalized tweet, provider-agnostic so we can swap X sources later. */
 export interface TweetHit {
   tweetId: string;
