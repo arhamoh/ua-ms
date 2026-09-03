@@ -18,6 +18,7 @@ import {
   pollStatus,
 } from './actions';
 import { suggestQueries } from '@/app/actions';
+import ConfirmModal from '@/components/ConfirmModal';
 
 export type TweetLead = {
   id: string;
@@ -70,6 +71,7 @@ export default function XSignals({ tweetLeads, tweetKeywords, twitterReady }: Pr
   const [kw, setKw] = useState('');
   const [tab, setTab] = useState<'signals' | 'keywords'>('signals');
   const [fetching, setFetching] = useState(false);
+  const [confirmClear, setConfirmClear] = useState(false);
   const activeKw = tweetKeywords.filter((k) => k.active).length;
 
   // Reflect the background fetch live while on this page: spinner + auto-update.
@@ -211,7 +213,7 @@ export default function XSignals({ tweetLeads, tweetKeywords, twitterReady }: Pr
               </div>
               <div className="flex items-center gap-2">
                 <button
-                  onClick={() => { if (window.confirm('Delete all fetched tweets? You can re-fetch afterwards. This does not touch your keywords.')) run(clearAllTweets); }}
+                  onClick={() => setConfirmClear(true)}
                   disabled={pending || fetching}
                   title="Clear all fetched tweets"
                   className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-500 hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600 disabled:opacity-50"
@@ -252,6 +254,17 @@ export default function XSignals({ tweetLeads, tweetKeywords, twitterReady }: Pr
           </div>
         </section>
       )}
+
+      <ConfirmModal
+        open={confirmClear}
+        title="Clear all fetched tweets?"
+        message="Deletes every fetched tweet so you can re-fetch a fresh batch. Your keywords are untouched."
+        confirmLabel="Clear all"
+        danger
+        pending={pending}
+        onConfirm={() => { run(clearAllTweets); setConfirmClear(false); }}
+        onCancel={() => setConfirmClear(false)}
+      />
 
       {tab === 'keywords' && (
         <section className="rounded-xl border border-slate-200 bg-white p-5">
