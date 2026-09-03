@@ -38,6 +38,7 @@ import type { ImportLine } from '@/lib/statement-parse';
 import { getSession } from '@/lib/auth';
 import { driveConfigured, uploadToDrive, testDriveConnection } from '@/lib/drive';
 import { testOpenRouter } from '@/lib/integrations';
+import { setSecret, clearSecret, isManagedSecret } from '@/lib/secrets';
 import { encryptSecret, decryptSecret } from '@/lib/crypto';
 import { randomUUID } from 'crypto';
 import { notifyUsers, resolveMentions } from '@/lib/notify';
@@ -1188,6 +1189,28 @@ export async function testIntegration(id: string): Promise<{ ok: boolean; messag
     default:
       return { ok: false, message: 'Nothing to test for this integration.' };
   }
+}
+
+/** Save an integration credential from the dashboard (encrypted at rest). */
+export async function saveIntegrationSecret(name: string, value: string): Promise<{ ok: boolean; message: string }> {
+  await requireSuperAdmin();
+  if (!isManagedSecret(name)) return { ok: false, message: 'That key can’t be set from here.' };
+  try {
+    await setSecret(name, value);
+    revalidatePath('/settings');
+    return { ok: true, message: `${name} saved.` };
+  } catch (e: any) {
+    return { ok: false, message: e?.message?.slice(0, 160) ?? 'Could not save.' };
+  }
+}
+
+/** Remove a dashboard-saved credential; it falls back to the deployment env if set there. */
+export async function clearIntegrationSecret(name: string): Promise<{ ok: boolean; message: string }> {
+  await requireSuperAdmin();
+  if (!isManagedSecret(name)) return { ok: false, message: 'That key can’t be cleared from here.' };
+  await clearSecret(name);
+  revalidatePath('/settings');
+  return { ok: true, message: `${name} cleared.` };
 }
 
 // ─── Wave Accounting: import invoices → link to clients & payments ────────────

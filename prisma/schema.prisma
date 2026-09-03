@@ -1024,3 +1024,13 @@ model TweetLead {
   @@index([relevance])
   @@index([createdAt])
 }
+
+// Integration credentials set from Settings → Integrations (instead of only
+// Railway env vars), so the app can be configured from the dashboard. Values are
+// encrypted at rest; env vars remain a fallback when no row is saved.
+model AppSecret {
+  name      String   @id // the env-var name, e.g. TWITTERAPI_IO_KEY
+  value     String // AES-256-GCM ciphertext (v1:iv:tag:ct)
+  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
+}

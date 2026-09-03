@@ -3,6 +3,7 @@ import { segments } from '@/lib/leadgen/icp';
 import { sourceSegment, scoreAll, hasApolloKey } from '@/lib/leadgen/pipeline';
 import { seedSequences, enrollSegment, runDue } from '@/lib/leadgen/outreach/engine';
 import { pollTweetLeads, classifyPendingTweets, twitterApiConfigured } from '@/lib/leadgen/xpipeline';
+import { hydrateSecrets } from '@/lib/secrets';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
@@ -23,6 +24,7 @@ function authorized(req: Request): boolean {
  *   GET /api/leads/cron?task=all        — all of the above (default)
  */
 export async function GET(req: Request) {
+  await hydrateSecrets().catch(() => {}); // pick up dashboard-managed keys (this route skips getSession)
   if (!authorized(req)) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
 
   const task = new URL(req.url).searchParams.get('task') ?? 'all';

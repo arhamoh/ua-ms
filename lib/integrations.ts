@@ -4,10 +4,11 @@
 
 import { prisma } from '@/lib/prisma';
 import { driveConfigured } from '@/lib/drive';
+import { hydrateSecrets, getSavedSecretNames, isManagedSecret } from '@/lib/secrets';
 
 const isSet = (v?: string | null) => Boolean(v && v.trim());
 
-export type EnvVarStatus = { name: string; set: boolean; required?: boolean };
+export type EnvVarStatus = { name: string; set: boolean; required?: boolean; saved?: boolean; editable?: boolean };
 export type IntegrationStatus = {
   id: string;
   name: string;
@@ -19,7 +20,9 @@ export type IntegrationStatus = {
 };
 
 export async function getIntegrations(): Promise<IntegrationStatus[]> {
+  await hydrateSecrets(); // reflect dashboard-saved keys in the statuses below
   const e = process.env;
+  const savedNames = await getSavedSecretNames();
 
   // Live DB ping — the one integration we can verify on load cheaply.
   let dbOk = false;
@@ -35,9 +38,10 @@ export async function getIntegrations(): Promise<IntegrationStatus[]> {
   const authSet = isSet(e.AUTH_SECRET);
   const orSet = isSet(e.OPENROUTER_API_KEY);
   const waveSet = isSet(e.WAVE_FULL_ACCESS_TOKEN);
+  const xSet = isSet(e.TWITTERAPI_IO_KEY);
   const drive = driveConfigured();
 
-  return [
+  const list: IntegrationStatus[] = [
     {
       id: 'database',
       name: 'Database (Postgres)',
@@ -117,7 +121,28 @@ export async function getIntegrations(): Promise<IntegrationStatus[]> {
       ],
       testable: waveSet,
     },
+    {
+      id: 'x',
+      name: 'X / Twitter listener',
+      description: 'Finds buying-intent tweets as leads via twitterapi.io (no X login needed).',
+      status: xSet ? 'connected' : 'off',
+      summary: xSet
+        ? 'Key present — manage keywords and poll on the Leads page.'
+        : 'Not configured — add your twitterapi.io API key to start listening.',
+      vars: [
+        { name: 'TWITTERAPI_IO_KEY', set: xSet, required: true },
+        { name: 'TWITTER_QUERIES', set: isSet(e.TWITTER_QUERIES) },
+      ],
+      testable: false,
+    },
   ];
+
+  // Tag each var: `editable` = settable from this dashboard; `saved` = a value is
+  // currently stored here (vs. only coming from the deployment env).
+  return list.map((it) => ({
+    ...it,
+    vars: it.vars.map((v) => ({ ...v, editable: isManagedSecret(v.name), saved: savedNames.has(v.name) })),
+  }));
 }
 
 // Live check the OpenRouter key (cheap auth/key endpoint, reports remaining credit).

@@ -1,9 +1,10 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { CheckCircle2, XCircle, AlertTriangle, Loader2, Plug } from 'lucide-react';
-import { testIntegration } from '@/app/actions';
-import type { IntegrationStatus } from '@/lib/integrations';
+import { CheckCircle2, XCircle, AlertTriangle, Loader2, Plug, Save, Trash2 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { testIntegration, saveIntegrationSecret, clearIntegrationSecret } from '@/app/actions';
+import type { IntegrationStatus, EnvVarStatus } from '@/lib/integrations';
 
 const STATUS: Record<IntegrationStatus['status'], { dot: string; label: string; cls: string }> = {
   connected: { dot: 'bg-emerald-500', label: 'Connected', cls: 'border-emerald-200 bg-emerald-50 text-emerald-700' },
@@ -22,8 +23,10 @@ export default function IntegrationsPanel({ integrations }: { integrations: Inte
 }
 
 function Card({ it }: { it: IntegrationStatus }) {
+  const router = useRouter();
   const [pending, start] = useTransition();
   const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null);
+  const [msg, setMsg] = useState('');
   const s = STATUS[it.status];
 
   const runTest = () =>
@@ -50,7 +53,7 @@ function Card({ it }: { it: IntegrationStatus }) {
         {it.vars.map((v) => (
           <span
             key={v.name}
-            title={v.set ? 'Set' : v.required ? 'Missing (required)' : 'Not set (optional)'}
+            title={v.set ? (v.saved ? 'Set (saved here)' : 'Set (from environment)') : v.required ? 'Missing (required)' : 'Not set (optional)'}
             className={`inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 font-mono text-[10px] ${
               v.set
                 ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
@@ -64,8 +67,18 @@ function Card({ it }: { it: IntegrationStatus }) {
         ))}
       </div>
 
+      {/* Editable keys — set them right here instead of via the server env. */}
+      {it.vars.some((v) => v.editable) && (
+        <div className="mt-3 space-y-2 border-t border-slate-100 pt-3">
+          {it.vars.filter((v) => v.editable).map((v) => (
+            <SecretRow key={v.name} v={v} onDone={(m) => { setMsg(m); router.refresh(); }} />
+          ))}
+          {msg && <p className="text-[11px] text-slate-500">{msg}</p>}
+        </div>
+      )}
+
       {it.testable && (
-        <div className="mt-3 flex flex-wrap items-center gap-2">
+        <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3">
           <button
             onClick={runTest}
             disabled={pending}
@@ -79,6 +92,44 @@ function Card({ it }: { it: IntegrationStatus }) {
             </span>
           )}
         </div>
+      )}
+    </div>
+  );
+}
+
+function SecretRow({ v, onDone }: { v: EnvVarStatus; onDone: (msg: string) => void }) {
+  const [pending, start] = useTransition();
+  const [val, setVal] = useState('');
+  const save = () =>
+    start(async () => {
+      const r = await saveIntegrationSecret(v.name, val);
+      setVal('');
+      onDone(r.message);
+    });
+  const clear = () =>
+    start(async () => {
+      const r = await clearIntegrationSecret(v.name);
+      onDone(r.message);
+    });
+  return (
+    <div className="flex items-center gap-1.5">
+      <label className="w-44 shrink-0 truncate font-mono text-[10px] text-slate-500" title={v.name}>{v.name}</label>
+      <input
+        type="password"
+        value={val}
+        onChange={(e) => setVal(e.target.value)}
+        onKeyDown={(e) => { if (e.key === 'Enter' && val.trim()) save(); }}
+        placeholder={v.saved ? '•••••••• saved — enter to replace' : v.set ? 'set via environment' : 'not set'}
+        autoComplete="off"
+        className="min-w-0 flex-1 rounded-md border border-slate-200 px-2 py-1 text-xs focus:border-brand focus:outline-none"
+      />
+      <button onClick={save} disabled={pending || !val.trim()} title="Save" className="grid h-7 w-7 shrink-0 place-items-center rounded-md bg-brand text-white hover:bg-brand-dark disabled:opacity-40">
+        {pending ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
+      </button>
+      {v.saved && (
+        <button onClick={clear} disabled={pending} title="Clear saved value" className="grid h-7 w-7 shrink-0 place-items-center rounded-md border border-slate-200 text-slate-400 hover:text-rose-600 disabled:opacity-40">
+          <Trash2 size={12} />
+        </button>
       )}
     </div>
   );

@@ -1,5 +1,6 @@
 import { cookies } from 'next/headers';
 import { SignJWT, jwtVerify } from 'jose';
+import { hydrateSecrets } from '@/lib/secrets';
 
 // NOTE: set AUTH_SECRET in the environment (Railway). The fallback only exists
 // so the app boots in dev / before the secret is configured.
@@ -40,6 +41,10 @@ export async function destroySession() {
 }
 
 export async function getSession(): Promise<SessionUser | null> {
+  // Load any dashboard-managed integration keys into process.env (TTL-cached, so
+  // this is a no-op on most calls). Keeps Settings-configured secrets in effect
+  // across every authenticated page, action, and route.
+  await hydrateSecrets().catch(() => {});
   const store = await cookies();
   const token = store.get(SESSION_COOKIE)?.value;
   if (!token) return null;
