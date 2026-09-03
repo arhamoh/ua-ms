@@ -408,26 +408,52 @@ function TweetCard({ t, disabled, run }: { t: TweetLead; disabled: boolean; run:
       {/* Actions */}
       <div className="mt-3 flex items-center justify-between gap-1 border-t border-slate-100 pt-2">
         <div className="flex items-center gap-1">
-          <button onClick={() => run(() => setTweetRelevance(t.id, t.relevance === 'yes' ? 'unknown' : 'yes'))} disabled={disabled} title="Relevant (teaches the model)" className={`grid h-7 w-7 place-items-center rounded-lg border transition disabled:opacity-50 ${t.relevance === 'yes' ? 'border-emerald-300 bg-emerald-50 text-emerald-700' : 'border-slate-200 text-slate-400 hover:text-emerald-600'}`}>
-            <ThumbsUp size={13} />
-          </button>
-          <button onClick={() => run(() => setTweetRelevance(t.id, t.relevance === 'no' ? 'unknown' : 'no'))} disabled={disabled} title="Not relevant (teaches the model)" className={`grid h-7 w-7 place-items-center rounded-lg border transition disabled:opacity-50 ${t.relevance === 'no' ? 'border-rose-300 bg-rose-50 text-rose-700' : 'border-slate-200 text-slate-400 hover:text-rose-600'}`}>
-            <ThumbsDown size={13} />
-          </button>
-          <button onClick={open ? () => setOpen(false) : generate} disabled={drafting} title="Draft a reply with AI" className={`grid h-7 w-7 place-items-center rounded-lg border transition disabled:opacity-50 ${open ? 'border-brand/40 bg-brand-light text-brand-dark' : 'border-slate-200 text-slate-400 hover:text-brand'}`}>
-            {drafting ? <Loader2 size={13} className="animate-spin" /> : <PenLine size={13} />}
-          </button>
+          <Tip label={t.relevance === 'yes' ? 'Marked relevant — undo' : 'Mark relevant (teaches the AI)'}>
+            <button onClick={() => run(() => setTweetRelevance(t.id, t.relevance === 'yes' ? 'unknown' : 'yes'))} disabled={disabled} className={`grid h-7 w-7 place-items-center rounded-lg border transition disabled:opacity-50 ${t.relevance === 'yes' ? 'border-emerald-300 bg-emerald-50 text-emerald-700' : 'border-slate-200 text-slate-400 hover:text-emerald-600'}`}>
+              <ThumbsUp size={13} />
+            </button>
+          </Tip>
+          <Tip label={t.relevance === 'no' ? 'Marked not relevant — undo' : 'Not relevant (teaches the AI)'}>
+            <button onClick={() => run(() => setTweetRelevance(t.id, t.relevance === 'no' ? 'unknown' : 'no'))} disabled={disabled} className={`grid h-7 w-7 place-items-center rounded-lg border transition disabled:opacity-50 ${t.relevance === 'no' ? 'border-rose-300 bg-rose-50 text-rose-700' : 'border-slate-200 text-slate-400 hover:text-rose-600'}`}>
+              <ThumbsDown size={13} />
+            </button>
+          </Tip>
+          <Tip label="Draft a reply with AI">
+            <button onClick={open ? () => setOpen(false) : generate} disabled={drafting} className={`grid h-7 w-7 place-items-center rounded-lg border transition disabled:opacity-50 ${open ? 'border-brand/40 bg-brand-light text-brand-dark' : 'border-slate-200 text-slate-400 hover:text-brand'}`}>
+              {drafting ? <Loader2 size={13} className="animate-spin" /> : <PenLine size={13} />}
+            </button>
+          </Tip>
         </div>
         <div className="flex items-center gap-1">
-          <a href={dmUrl} target="_blank" rel="noreferrer" title="DM" className="grid h-7 w-7 place-items-center rounded-lg border border-slate-200 text-slate-500 hover:border-sky-300 hover:text-sky-600"><Mail size={13} /></a>
-          <a href={replyUrl} target="_blank" rel="noreferrer" onClick={() => run(() => setTweetStatus(t.id, 'contacted'))} title={draft.trim() ? 'Reply (opens X with your draft)' : 'Reply'} className="grid h-7 w-7 place-items-center rounded-lg border border-slate-200 text-slate-500 hover:border-sky-300 hover:text-sky-600"><Reply size={13} /></a>
-          <a href={t.url} target="_blank" rel="noreferrer" onClick={() => run(() => setTweetStatus(t.id, 'contacted'))} title="Open tweet" className="inline-flex items-center gap-1 rounded-lg bg-brand px-2.5 py-1.5 text-xs font-medium text-white hover:bg-brand-dark">
-            Open <ExternalLink size={12} />
-          </a>
-          <button onClick={() => run(() => setTweetStatus(t.id, 'ignored'))} disabled={disabled} title="Ignore" className="grid h-7 w-7 place-items-center rounded-lg border border-slate-200 text-slate-400 hover:text-slate-600 disabled:opacity-50"><Check size={13} /></button>
+          <Tip label="Send a DM on X">
+            <a href={dmUrl} target="_blank" rel="noreferrer" className="grid h-7 w-7 place-items-center rounded-lg border border-slate-200 text-slate-500 hover:border-sky-300 hover:text-sky-600"><Mail size={13} /></a>
+          </Tip>
+          <Tip label={draft.trim() ? 'Reply on X (with your draft)' : 'Reply on X'}>
+            <a href={replyUrl} target="_blank" rel="noreferrer" onClick={() => run(() => setTweetStatus(t.id, 'contacted'))} className="grid h-7 w-7 place-items-center rounded-lg border border-slate-200 text-slate-500 hover:border-sky-300 hover:text-sky-600"><Reply size={13} /></a>
+          </Tip>
+          <Tip label="Open the tweet on X">
+            <a href={t.url} target="_blank" rel="noreferrer" onClick={() => run(() => setTweetStatus(t.id, 'contacted'))} className="inline-flex items-center gap-1 rounded-lg bg-brand px-2.5 py-1.5 text-xs font-medium text-white hover:bg-brand-dark">
+              Open <ExternalLink size={12} />
+            </a>
+          </Tip>
+          <Tip label="Ignore / hide this tweet">
+            <button onClick={() => run(() => setTweetStatus(t.id, 'ignored'))} disabled={disabled} className="grid h-7 w-7 place-items-center rounded-lg border border-slate-200 text-slate-400 hover:text-slate-600 disabled:opacity-50"><Check size={13} /></button>
+          </Tip>
         </div>
       </div>
     </div>
+  );
+}
+
+// Instant hover tooltip (native title is slow and easy to miss).
+function Tip({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <span className="group/tip relative inline-flex">
+      {children}
+      <span className="pointer-events-none absolute -top-8 left-1/2 z-30 -translate-x-1/2 whitespace-nowrap rounded-md bg-slate-800 px-2 py-1 text-[11px] font-medium text-white opacity-0 shadow-lg transition-opacity duration-150 group-hover/tip:opacity-100">
+        {label}
+      </span>
+    </span>
   );
 }
 
