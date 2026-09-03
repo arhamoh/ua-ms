@@ -1,9 +1,12 @@
 import { prisma } from '@/lib/prisma';
+import { sendPush } from '@/lib/push';
+import { pushAllowed } from '@/lib/notify-categories';
 
 type NewNotif = { type: string; title: string; body?: string | null; href?: string | null };
 
-// Best-effort: create a notification for each user. Never throws — notifications
-// must never break the underlying action.
+// Best-effort: create an in-app notification for each user AND send a phone push
+// to those who have that category enabled. Never throws — notifications must
+// never break the underlying action.
 export async function notifyUsers(userIds: (string | null | undefined)[], n: NewNotif) {
   try {
     const ids = Array.from(new Set(userIds.filter((x): x is string => !!x)));
@@ -17,6 +20,14 @@ export async function notifyUsers(userIds: (string | null | undefined)[], n: New
         href: n.href ?? null,
       })),
     });
+    // Phone push, per-user, respecting their category toggles.
+    try {
+      const users = await prisma.user.findMany({ where: { id: { in: ids } }, select: { id: true, notifyPrefs: true } });
+      const allowed = users.filter((u) => pushAllowed(u.notifyPrefs, n.type)).map((u) => u.id);
+      if (allowed.length) await sendPush(allowed, { title: n.title, body: n.body ?? undefined, url: n.href ?? '/' });
+    } catch {
+      /* push is best-effort */
+    }
   } catch {
     /* ignore */
   }

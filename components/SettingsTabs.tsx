@@ -12,23 +12,41 @@ export default function SettingsTabs({ tabs }: { tabs: SettingsTab[] }) {
 
   return (
     <div className="mt-5">
-      <div className="flex flex-wrap gap-1 border-b border-slate-200">
-        {tabs.map((t) => {
-          const on = t.id === active;
-          return (
-            <button
-              key={t.id}
-              onClick={() => setActive(t.id)}
-              className={`flex items-center gap-1.5 border-b-2 px-3 pb-2.5 pt-1.5 text-sm font-medium transition ${
-                on ? 'border-brand text-brand' : 'border-transparent text-slate-500 hover:text-slate-800'
-              }`}
-            >
-              {t.icon}
-              {t.label}
-            </button>
-          );
-        })}
+      {/* Mobile: a single dropdown instead of a wrapping row of tabs. */}
+      <div className="sm:hidden">
+        <label className="mb-1.5 block text-xs font-medium text-slate-500">Section</label>
+        <select
+          value={active}
+          onChange={(e) => setActive(e.target.value)}
+          className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm font-medium text-slate-700 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/10"
+        >
+          {tabs.map((t) => (
+            <option key={t.id} value={t.id}>{t.label}</option>
+          ))}
+        </select>
       </div>
+
+      {/* Desktop: one horizontal row that scrolls if needed — never wraps. */}
+      <div className="hidden border-b border-slate-200 sm:block">
+        <div className="-mb-px flex gap-1 overflow-x-auto">
+          {tabs.map((t) => {
+            const on = t.id === active;
+            return (
+              <button
+                key={t.id}
+                onClick={() => setActive(t.id)}
+                className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 px-3 pb-2.5 pt-1.5 text-sm font-medium transition ${
+                  on ? 'border-brand text-brand' : 'border-transparent text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                {t.icon}
+                {t.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       <div className="mt-6">{current?.content}</div>
     </div>
   );

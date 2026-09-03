@@ -10,6 +10,8 @@ import { getSession } from '@/lib/auth';
 import FadeIn from '@/components/FadeIn';
 import IntegrationsPanel from '@/components/IntegrationsPanel';
 import EnablePushButton from '@/components/EnablePushButton';
+import NotificationPrefs from '@/components/NotificationPrefs';
+import { normalizePrefs } from '@/lib/notify-categories';
 import SettingsTabs, { type SettingsTab } from '@/components/SettingsTabs';
 import MigrationButton from '@/components/MigrationButton';
 import ResetDataPanel from '@/components/ResetDataPanel';
@@ -43,7 +45,8 @@ export default async function SettingsPage({
   const integrations = await getIntegrations();
   const session = await getSession();
   const isSuperAdmin = !!session?.roles?.includes('SUPER_ADMIN');
-  const me = session ? await prisma.user.findUnique({ where: { id: session.id }, select: { timezone: true } }) : null;
+  const me = session ? await prisma.user.findUnique({ where: { id: session.id }, select: { timezone: true, notifyPrefs: true } }) : null;
+  const notifyPrefs = normalizePrefs(me?.notifyPrefs);
 
   const preferencesTab: SettingsTab = {
     id: 'preferences',
@@ -130,6 +133,7 @@ export default async function SettingsPage({
                 <p className="mt-4 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-500">
                   On iPhone/iPad, first add Keel to your Home Screen (Share → Add to Home Screen), then open it from there and tap Enable — iOS only allows web push from an installed app.
                 </p>
+                <NotificationPrefs initial={notifyPrefs} />
               </div>
             ),
           },

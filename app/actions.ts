@@ -40,6 +40,7 @@ import { getSession } from '@/lib/auth';
 import { driveConfigured, uploadToDrive, testDriveConnection } from '@/lib/drive';
 import { testOpenRouter } from '@/lib/integrations';
 import { setSecret, clearSecret, isManagedSecret } from '@/lib/secrets';
+import { NOTIFY_CATEGORIES } from '@/lib/notify-categories';
 import { encryptSecret, decryptSecret } from '@/lib/crypto';
 import { randomUUID } from 'crypto';
 import { notifyUsers, resolveMentions } from '@/lib/notify';
@@ -1192,6 +1193,16 @@ export async function testIntegration(id: string): Promise<{ ok: boolean; messag
     default:
       return { ok: false, message: 'Nothing to test for this integration.' };
   }
+}
+
+/** Save the current user's notification category toggles (which alerts push). */
+export async function saveNotifyPrefs(prefs: Record<string, boolean>) {
+  const user = await getSession();
+  if (!user) return;
+  const clean: Record<string, boolean> = {};
+  for (const c of NOTIFY_CATEGORIES) clean[c.id] = prefs?.[c.id] !== false; // default on
+  await prisma.user.update({ where: { id: user.id }, data: { notifyPrefs: clean } });
+  revalidatePath('/settings');
 }
 
 /** Save an integration credential from the dashboard (encrypted at rest). */

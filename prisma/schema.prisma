@@ -74,6 +74,7 @@ model User {
   passwordHash String?
   roles        Role[]   @default([])
   timezone     String?  // IANA tz of where this person works, e.g. "Asia/Karachi"
+  notifyPrefs  Json?    // per-category push toggles, e.g. { leads: true, messages: false }
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 

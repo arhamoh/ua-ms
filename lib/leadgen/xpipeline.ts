@@ -2,7 +2,6 @@ import { prisma } from '@/lib/prisma';
 import { searchTweets, twitterApiConfigured } from './sources/xListener';
 import { classifyTweets } from './tweetClassify';
 import { notifyUsers } from '@/lib/notify';
-import { sendPush } from '@/lib/push';
 
 export { twitterApiConfigured };
 
@@ -28,7 +27,6 @@ export async function notifyNewQualifiedLeads(): Promise<{ notified: number }> {
     const title = `New lead (${t.aiScore}) — ${who}`;
     const body = t.text.replace(/\s+/g, ' ').trim().slice(0, 140);
     await notifyUsers(adminIds, { type: 'x_lead', title, body, href: '/leads/x' });
-    await sendPush(adminIds, { title, body, url: '/leads/x' });
   }
   await prisma.tweetLead.updateMany({ where: { id: { in: fresh.map((t) => t.id) } }, data: { notified: true } });
   return { notified: fresh.length };
