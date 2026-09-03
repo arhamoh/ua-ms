@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { segments } from '@/lib/leadgen/icp';
 import { sourceSegment, scoreAll, hasApolloKey } from '@/lib/leadgen/pipeline';
 import { seedSequences, enrollSegment, runDue } from '@/lib/leadgen/outreach/engine';
-import { pollTweetLeads, classifyPendingTweets, twitterApiConfigured } from '@/lib/leadgen/xpipeline';
+import { pollTweetLeads, classifyPendingTweets, notifyNewQualifiedLeads, twitterApiConfigured } from '@/lib/leadgen/xpipeline';
 import { hydrateSecrets } from '@/lib/secrets';
 
 export const dynamic = 'force-dynamic';
@@ -51,7 +51,8 @@ export async function GET(req: Request) {
       const per = Number(process.env.X_POLL_PER_QUERY ?? 20);
       const poll = await pollTweetLeads(per);
       const cls = await classifyPendingTweets();
-      out.tweets = { ...poll, scored: cls.scored };
+      const alert = await notifyNewQualifiedLeads();
+      out.tweets = { ...poll, scored: cls.scored, notified: alert.notified };
     }
   }
 

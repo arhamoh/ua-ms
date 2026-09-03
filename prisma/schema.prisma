@@ -92,6 +92,7 @@ model User {
   loginsCreated     Login[]            @relation("LoginCreatedBy")
   loginShares       LoginShare[]       @relation("LoginShares")
   notifications     Notification[]     @relation("Notifications")
+  pushSubscriptions PushSubscription[]
   conversationMemberships ConversationMember[] @relation("ConversationMemberships")
   messagesSent      Message[]          @relation("MessagesSent")
   commentThreads    CommentThread[]    @relation("ThreadCreatedBy")
@@ -1017,6 +1018,7 @@ model TweetLead {
   aiReason  String? // one-line model rationale
   draft     String? // AI-drafted reply the user can edit / send
   status    String @default("new") // new | contacted | ignored
+  notified  Boolean @default(false) // a lead alert has already been sent for this tweet
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1024,6 +1026,20 @@ model TweetLead {
   @@index([status])
   @@index([relevance])
   @@index([createdAt])
+}
+
+// A browser/phone push subscription (Web Push), so the platform can send
+// notifications to a device even when the app isn't open.
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
+
+  @@index([userId])
 }
 
 // Integration credentials set from Settings → Integrations (instead of only

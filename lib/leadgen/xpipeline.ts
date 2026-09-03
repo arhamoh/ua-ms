@@ -1,8 +1,38 @@
 import { prisma } from '@/lib/prisma';
 import { searchTweets, twitterApiConfigured } from './sources/xListener';
 import { classifyTweets } from './tweetClassify';
+import { notifyUsers } from '@/lib/notify';
+import { sendPush } from '@/lib/push';
 
 export { twitterApiConfigured };
+
+/**
+ * Alert on freshly-found, high-scoring leads: one in-platform notification per
+ * lead for every super-admin, plus a phone push. Marks them notified so we never
+ * alert twice. Runs after scoring, on both manual polls and the cron.
+ */
+export async function notifyNewQualifiedLeads(): Promise<{ notified: number }> {
+  const minScore = Number(process.env.X_NOTIFY_MIN_SCORE ?? 70);
+  const fresh = await prisma.tweetLead.findMany({
+    where: { notified: false, relevance: { not: 'no' }, aiScore: { gte: minScore } },
+    orderBy: { aiScore: 'desc' },
+    take: 20,
+  });
+  if (fresh.length === 0) return { notified: 0 };
+
+  const admins = await prisma.user.findMany({ where: { roles: { has: 'SUPER_ADMIN' } }, select: { id: true } });
+  const adminIds = admins.map((a) => a.id);
+
+  for (const t of fresh) {
+    const who = t.authorHandle ? `@${t.authorHandle}` : 'someone';
+    const title = `New lead (${t.aiScore}) — ${who}`;
+    const body = t.text.replace(/\s+/g, ' ').trim().slice(0, 140);
+    await notifyUsers(adminIds, { type: 'x_lead', title, body, href: '/leads/x' });
+    await sendPush(adminIds, { title, body, url: '/leads/x' });
+  }
+  await prisma.tweetLead.updateMany({ where: { id: { in: fresh.map((t) => t.id) } }, data: { notified: true } });
+  return { notified: fresh.length };
+}
 
 /** Active queries: the TweetKeyword table, falling back to the TWITTER_QUERIES env (comma-separated). */
 export async function getActiveQueries(): Promise<string[]> {

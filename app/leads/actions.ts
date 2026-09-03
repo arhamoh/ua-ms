@@ -7,7 +7,7 @@ import { segments, getSegment } from '@/lib/leadgen/icp';
 import { sourceUsing, scoreAll, hasApolloKey } from '@/lib/leadgen/pipeline';
 import { seedSequences, enrollSegment, runDue } from '@/lib/leadgen/outreach/engine';
 import { convertLeadToClient } from '@/lib/leadgen/convert';
-import { pollTweetLeads, classifyPendingTweets, reclassifyAllTweets, twitterApiConfigured } from '@/lib/leadgen/xpipeline';
+import { pollTweetLeads, classifyPendingTweets, reclassifyAllTweets, notifyNewQualifiedLeads, twitterApiConfigured } from '@/lib/leadgen/xpipeline';
 import { draftReply } from '@/lib/leadgen/tweetClassify';
 
 async function requireUser() {
@@ -108,8 +108,9 @@ export async function pollTweetsNow() {
   }
   const poll = await pollTweetLeads(Number(process.env.X_POLL_PER_QUERY ?? 20));
   const cls = await classifyPendingTweets();
+  const alert = await notifyNewQualifiedLeads();
   revalidatePath('/leads');
-  return { ok: true as const, ...poll, scored: cls.scored };
+  return { ok: true as const, ...poll, scored: cls.scored, notified: alert.notified };
 }
 
 /** Re-score every tweet using everything it has learned from your labels. */

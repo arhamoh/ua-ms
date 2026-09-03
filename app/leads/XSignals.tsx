@@ -14,6 +14,7 @@ import {
   toggleTweetKeyword,
   removeTweetKeyword,
 } from './actions';
+import EnablePushButton from '@/components/EnablePushButton';
 
 export type TweetLead = {
   id: string;
@@ -135,6 +136,7 @@ export default function XSignals({ tweetLeads, tweetKeywords, twitterReady }: Pr
               {msg && <span className="ml-1 text-xs text-slate-500">{msg}</span>}
             </div>
             <div className="flex items-center gap-2">
+              <EnablePushButton />
               <button onClick={() => run(rescoreTweets)} disabled={pending} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50">
                 <Sparkles size={15} /> Re-score
               </button>

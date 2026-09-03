@@ -32,6 +32,9 @@ export const MANAGED_SECRETS = [
   'GOOGLE_SERVICE_ACCOUNT_JSON',
   'GOOGLE_SHARED_DRIVE_ID',
   'CRON_SECRET',
+  'VAPID_PUBLIC_KEY',
+  'VAPID_PRIVATE_KEY',
+  'VAPID_SUBJECT',
 ] as const;
 export type ManagedSecret = (typeof MANAGED_SECRETS)[number];
 
