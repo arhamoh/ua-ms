@@ -3,7 +3,7 @@
 import { useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { RefreshCw, Sparkles, ThumbsUp, ThumbsDown, ExternalLink, Reply, Mail, Check, X as XIcon, Plus, Heart, MessageCircle, PenLine, Copy, Loader2, ArrowLeft, Settings2, List } from 'lucide-react';
+import { RefreshCw, Sparkles, ThumbsUp, ThumbsDown, ExternalLink, Reply, Mail, Check, X as XIcon, Plus, Heart, MessageCircle, PenLine, Copy, Loader2, ArrowLeft, Hash, List } from 'lucide-react';
 import {
   pollTweetsNow,
   rescoreTweets,
@@ -62,7 +62,7 @@ export default function XSignals({ tweetLeads, tweetKeywords, twitterReady }: Pr
   const [msg, setMsg] = useState('');
   const [filter, setFilter] = useState<Filter>('top');
   const [kw, setKw] = useState('');
-  const [tab, setTab] = useState<'signals' | 'settings'>('signals');
+  const [tab, setTab] = useState<'signals' | 'keywords'>('signals');
   const activeKw = tweetKeywords.filter((k) => k.active).length;
 
   const run = (fn: () => Promise<unknown>, note?: string) =>
@@ -97,7 +97,7 @@ export default function XSignals({ tweetLeads, tweetKeywords, twitterReady }: Pr
           </div>
           <div className="flex gap-1 rounded-lg border border-slate-200 bg-white p-1">
             <TabBtn active={tab === 'signals'} onClick={() => setTab('signals')} icon={<List size={14} />}>Signals</TabBtn>
-            <TabBtn active={tab === 'settings'} onClick={() => setTab('settings')} icon={<Settings2 size={14} />}>Settings</TabBtn>
+            <TabBtn active={tab === 'keywords'} onClick={() => setTab('keywords')} icon={<Hash size={14} />}>Keywords{tweetKeywords.length ? ` · ${tweetKeywords.length}` : ''}</TabBtn>
           </div>
         </div>
       </div>
@@ -131,11 +131,11 @@ export default function XSignals({ tweetLeads, tweetKeywords, twitterReady }: Pr
             )}
             {activeKw === 0 && twitterReady && (
               <p className="mb-3 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-500">
-                No keywords yet — add some in the <button onClick={() => setTab('settings')} className="font-medium text-brand hover:underline">Settings</button> tab, then poll.
+                No keywords yet — add some in the <button onClick={() => setTab('keywords')} className="font-medium text-brand hover:underline">Keywords</button> tab, then poll.
               </p>
             )}
             {visible.length === 0 ? (
-              <div className="py-10 text-center text-sm text-slate-400">No tweets yet — add keywords in Settings and hit “Poll now”.</div>
+              <div className="py-10 text-center text-sm text-slate-400">No tweets yet — add keywords in the Keywords tab and hit “Poll now”.</div>
             ) : (
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
                 {visible.map((t) => (
@@ -147,9 +147,9 @@ export default function XSignals({ tweetLeads, tweetKeywords, twitterReady }: Pr
         </section>
       )}
 
-      {tab === 'settings' && (
+      {tab === 'keywords' && (
         <section className="rounded-xl border border-slate-200 bg-white p-5">
-          <h2 className="mb-1 flex items-center gap-2 text-sm font-semibold text-slate-700"><Settings2 size={16} className="text-brand" /> Keywords</h2>
+          <h2 className="mb-1 flex items-center gap-2 text-sm font-semibold text-slate-700"><Hash size={16} className="text-brand" /> Keywords &amp; queries</h2>
           <p className="mb-4 text-xs text-slate-500">
             Phrases the listener searches on X — you write these yourself, describing what a prospect would tweet. They accept X advanced-search operators
             (quotes for exact phrases, <span className="font-mono">OR</span>, <span className="font-mono">-word</span> to exclude, <span className="font-mono">lang:en</span>, <span className="font-mono">near:Montreal</span>).

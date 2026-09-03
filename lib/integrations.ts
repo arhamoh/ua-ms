@@ -127,12 +127,9 @@ export async function getIntegrations(): Promise<IntegrationStatus[]> {
       description: 'Finds buying-intent tweets as leads via twitterapi.io (no X login needed).',
       status: xSet ? 'connected' : 'off',
       summary: xSet
-        ? 'Key present — manage keywords and poll on the Leads page.'
+        ? 'Key present — manage keywords and poll on the Leads → X page.'
         : 'Not configured — add your twitterapi.io API key to start listening.',
-      vars: [
-        { name: 'TWITTERAPI_IO_KEY', set: xSet, required: true },
-        { name: 'TWITTER_QUERIES', set: isSet(e.TWITTER_QUERIES) },
-      ],
+      vars: [{ name: 'TWITTERAPI_IO_KEY', set: xSet, required: true }],
       testable: xSet,
     },
   ];
