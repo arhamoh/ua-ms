@@ -153,6 +153,38 @@ export async function setTweetStatus(id: string, status: 'new' | 'contacted' | '
   revalidatePath('/leads');
 }
 
+// A curated pain-phrased starter set for a web/dev/branding/SEO/ads agency.
+const RECOMMENDED_QUERIES = [
+  '"my website is so slow"',
+  '"website looks outdated" -job',
+  '"embarrassed by my website"',
+  '"hate my website" -job -hiring',
+  '"losing sales" (website OR checkout)',
+  '"our checkout keeps failing"',
+  '"no one buys from my website"',
+  '"struggling with shopify" -job -hiring',
+  '"shopify store looks bad"',
+  '"agency ghosted" OR "developer ghosted"',
+  '"fired my web" OR "fired my agency"',
+  '"no traffic to my website" -course',
+  '"need a web designer" -job -hiring -intern',
+  '"looking for a shopify developer" -job',
+];
+
+/** Load the recommended pain-phrased query set (skips ones you already have). */
+export async function loadRecommendedKeywords() {
+  await requireUser();
+  let added = 0;
+  for (const q of RECOMMENDED_QUERIES) {
+    const existing = await prisma.tweetKeyword.findUnique({ where: { query: q }, select: { id: true } });
+    if (existing) continue;
+    await prisma.tweetKeyword.create({ data: { query: q } });
+    added++;
+  }
+  revalidatePath('/leads');
+  return { ok: true as const, added };
+}
+
 /** Add a keyword/query the listener watches. */
 export async function addTweetKeyword(query: string) {
   await requireUser();
