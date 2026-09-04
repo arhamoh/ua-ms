@@ -4,11 +4,14 @@ import { ROLES, ROLE_LABELS } from '@/lib/enums';
 import RowActions from '@/components/RowActions';
 import AnimatedButton from '@/components/AnimatedButton';
 import TableTools from '@/components/TableTools';
+import RolesOverview from '@/components/RolesOverview';
 
 export const dynamic = 'force-dynamic';
 
 export default async function TeamPage() {
   const members = await prisma.user.findMany({ orderBy: { createdAt: 'asc' } });
+  const roleCounts: Record<string, number> = {};
+  for (const m of members) for (const r of m.roles) roleCounts[r] = (roleCounts[r] ?? 0) + 1;
 
   return (
     <div>
@@ -16,6 +19,10 @@ export default async function TeamPage() {
       <p className="mt-1 text-sm text-slate-500">
         Add team members and their roles. A person can hold multiple roles.
       </p>
+
+      <div className="mt-6">
+        <RolesOverview roleCounts={roleCounts} />
+      </div>
 
       <div className="mt-8 grid grid-cols-1 gap-8 lg:grid-cols-3">
         {/* Add member */}
