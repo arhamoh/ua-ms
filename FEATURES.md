@@ -46,12 +46,17 @@ clients; won deals flow straight into projects.
 - Super Admins / Admins see the whole team's calendar and pending requests.
 
 ### Drive (files)
-A **Google Drive browser** built in (Delivery → Drive): navigate folders, open
-files, and **one-click provision** a tidy folder tree for every client and
-project — `Client / Project / standard sub-folders`, with sub-folders tailored
-to the project type (design vs development/software). **Tag a teammate** on any
-file: they get read access plus a notification (in-app + push + email) with a
-direct link. Uploaded project files land in the connected Google Drive.
+A **Google Drive workspace** built in (Delivery → Drive):
+- **Browse, upload, rename, and delete** (to trash) files and folders.
+- **One-click provision** a tidy folder tree for every client and project —
+  `Client / Project / standard sub-folders` tailored to the project type (design
+  vs development/software).
+- **Tag a teammate** on any file → they get read access + a notification
+  (in-app + push + email) with a direct link.
+- **Comment** on a file with **@mentions** that notify the mentioned teammate.
+- **Project-scoped access:** Super Admin / Admin / Manager / PM see the whole
+  Drive; developers, designers and others see **only the folders of projects
+  they're assigned to**. Uploaded project files land in the connected Drive.
 
 ### Time tracking & Agency hours
 Per-person time entries with approvals and reports; timezone-aware agency

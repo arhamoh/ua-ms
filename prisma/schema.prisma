@@ -107,6 +107,7 @@ model User {
   meetingsRequested Meeting[]          @relation("MeetingRequester")
   meetingsToApprove Meeting[]          @relation("MeetingApprover")
   meetingAttendances MeetingAttendee[] @relation("MeetingAttendees")
+  driveComments     DriveFileComment[] @relation("DriveComments")
 
   @@index([email])
 }
@@ -1121,4 +1122,19 @@ model MeetingAttendee {
 
   @@index([meetingId])
   @@index([userId])
+}
+
+// In-platform comments on a Google Drive file (by Drive file id). @mentions
+// notify the tagged teammate; kept in Keel so we can notify, unlike Drive's own
+// comments.
+model DriveFileComment {
+  id        String   @id @default(cuid())
+  fileId    String // Google Drive file id
+  fileName  String
+  authorId  String?
+  author    User?    @relation("DriveComments", fields: [authorId], references: [id], onDelete: SetNull)
+  body      String
+  createdAt DateTime @default(now())
+
+  @@index([fileId, createdAt])
 }

@@ -56,6 +56,10 @@ import {
   ensureClientFolder,
   shareFile,
   folderLink,
+  isWithinFolders,
+  uploadFileToFolder,
+  renameDriveEntry as renameDriveEntryLib,
+  trashDriveEntry,
   type DriveEntry,
 } from '@/lib/drive';
 import { testGoogleConnection, resetGoogleTokenCache } from '@/lib/google';
@@ -1386,16 +1390,139 @@ export async function revealSecret(name: string): Promise<{ ok: boolean; value?:
   return { ok: true, value };
 }
 
-/** Browse Google Drive files/folders — navigate the connected account's Drive. */
+// Super Admin / Admin / Manager / PM see the whole Drive; everyone else is
+// scoped to the folders of projects they're assigned to.
+const DRIVE_PRIVILEGED = ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'PROJECT_MANAGER'];
+const drivePrivileged = (roles: string[]) => roles.some((r) => DRIVE_PRIVILEGED.includes(r));
+
+async function allowedDriveRoots(userId: string): Promise<{ ids: Set<string>; folders: { id: string; name: string }[] }> {
+  const memberships = await prisma.projectMember.findMany({
+    where: { userId },
+    include: { project: { select: { name: true, driveFolderId: true, client: { select: { name: true } } } } },
+  });
+  const seen = new Set<string>();
+  const folders: { id: string; name: string }[] = [];
+  for (const m of memberships) {
+    const p = m.project;
+    if (p.driveFolderId && !seen.has(p.driveFolderId)) {
+      seen.add(p.driveFolderId);
+      folders.push({ id: p.driveFolderId, name: `${p.client.name} — ${p.name}` });
+    }
+  }
+  return { ids: seen, folders };
+}
+
+// Confirm the signed-in user may act on a Drive file/folder (privileged, or it's
+// within one of their project folders).
+async function driveAccessOk(fileId: string): Promise<{ ok: true; me: NonNullable<Awaited<ReturnType<typeof getSession>>> } | { ok: false; error: string }> {
+  const me = await getSession();
+  if (!me) return { ok: false, error: 'Not signed in.' };
+  if (!driveConfigured()) return { ok: false, error: 'Google Drive isn’t connected.' };
+  if (drivePrivileged(me.roles)) return { ok: true, me };
+  const { ids } = await allowedDriveRoots(me.id);
+  if (ids.size && (await isWithinFolders(fileId, ids))) return { ok: true, me };
+  return { ok: false, error: 'You don’t have access to that file.' };
+}
+
+const asFolder = (id: string, name: string): DriveEntry => ({
+  id,
+  name,
+  mimeType: 'application/vnd.google-apps.folder',
+  isFolder: true,
+  size: null,
+  modifiedTime: null,
+  webViewLink: folderLink(id),
+});
+
+/** Browse Google Drive — full for privileged roles, project-scoped otherwise. */
 export async function browseDrive(folderId?: string): Promise<{ ok: boolean; files?: DriveEntry[]; error?: string }> {
   const me = await getSession();
   if (!me) return { ok: false, error: 'Not signed in.' };
   if (!driveConfigured()) return { ok: false, error: 'Google Drive isn’t connected.' };
   try {
+    if (drivePrivileged(me.roles)) return { ok: true, files: await listDriveFiles(folderId) };
+    const { ids, folders } = await allowedDriveRoots(me.id);
+    if (!folderId) return { ok: true, files: folders.map((f) => asFolder(f.id, f.name)) };
+    if (!(ids.size && (await isWithinFolders(folderId, ids)))) return { ok: false, error: 'You don’t have access to this folder.' };
     return { ok: true, files: await listDriveFiles(folderId) };
   } catch (e: any) {
     return { ok: false, error: e?.message?.slice(0, 200) ?? 'Could not read Drive.' };
   }
+}
+
+/** Upload a file into a Drive folder (scoped). */
+export async function uploadDriveFile(formData: FormData): Promise<{ ok: boolean; error?: string }> {
+  const folderId = String(formData.get('folderId') ?? '');
+  const file = formData.get('file') as File | null;
+  if (!folderId || !file) return { ok: false, error: 'Missing file or folder.' };
+  const acc = await driveAccessOk(folderId);
+  if (!acc.ok) return { ok: false, error: acc.error };
+  try {
+    const buffer = Buffer.from(await file.arrayBuffer());
+    await uploadFileToFolder(folderId, file.name, file.type || 'application/octet-stream', buffer);
+    return { ok: true };
+  } catch (e: any) {
+    return { ok: false, error: e?.message?.slice(0, 200) ?? 'Upload failed.' };
+  }
+}
+
+/** Rename a Drive file/folder (scoped). */
+export async function renameDriveEntry(fileId: string, name: string): Promise<{ ok: boolean; error?: string }> {
+  const acc = await driveAccessOk(fileId);
+  if (!acc.ok) return { ok: false, error: acc.error };
+  const clean = (name ?? '').trim();
+  if (!clean) return { ok: false, error: 'Name can’t be empty.' };
+  try {
+    await renameDriveEntryLib(fileId, clean);
+    return { ok: true };
+  } catch (e: any) {
+    return { ok: false, error: e?.message?.slice(0, 200) ?? 'Rename failed.' };
+  }
+}
+
+/** Move a Drive file/folder to trash (scoped). */
+export async function deleteDriveEntry(fileId: string): Promise<{ ok: boolean; error?: string }> {
+  const acc = await driveAccessOk(fileId);
+  if (!acc.ok) return { ok: false, error: acc.error };
+  try {
+    await trashDriveEntry(fileId);
+    return { ok: true };
+  } catch (e: any) {
+    return { ok: false, error: e?.message?.slice(0, 200) ?? 'Delete failed.' };
+  }
+}
+
+const driveFileLink = (fileId: string) => `https://drive.google.com/open?id=${fileId}`;
+
+/** Comments on a Drive file (scoped). */
+export async function listDriveComments(fileId: string): Promise<{ ok: boolean; comments?: { id: string; author: string; body: string; at: string }[]; error?: string }> {
+  const acc = await driveAccessOk(fileId);
+  if (!acc.ok) return { ok: false, error: acc.error };
+  const rows = await prisma.driveFileComment.findMany({
+    where: { fileId },
+    orderBy: { createdAt: 'asc' },
+    include: { author: { select: { name: true } } },
+  });
+  return { ok: true, comments: rows.map((r) => ({ id: r.id, author: r.author?.name ?? 'Someone', body: r.body, at: r.createdAt.toISOString() })) };
+}
+
+export async function addDriveComment(fileId: string, fileName: string, body: string): Promise<{ ok: boolean; error?: string }> {
+  const acc = await driveAccessOk(fileId);
+  if (!acc.ok) return { ok: false, error: acc.error };
+  const text = (body ?? '').trim();
+  if (!text) return { ok: false, error: 'Write a comment first.' };
+  await prisma.driveFileComment.create({ data: { fileId, fileName, authorId: acc.me.id, body: text } });
+  // Notify @mentioned teammates.
+  const mentioned = (await resolveMentions(text)).filter((id) => id !== acc.me.id);
+  if (mentioned.length) {
+    await notifyUsers(mentioned, {
+      type: 'file_comment',
+      title: `${acc.me.name} mentioned you on ${fileName}`,
+      body: text.slice(0, 140),
+      href: driveFileLink(fileId),
+    });
+  }
+  return { ok: true };
 }
 
 function escHtml(s: string): string {

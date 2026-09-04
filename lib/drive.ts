@@ -225,6 +225,57 @@ export async function ensureClientFolder(clientName: string): Promise<string> {
   return ensureFolder(c, clientName, c.rootParent);
 }
 
+async function getParents(c: Ctx, fileId: string): Promise<string[]> {
+  const p: any = { fileId, fields: 'parents' };
+  if (c.shared) p.supportsAllDrives = true;
+  const r = await c.drive.files.get(p);
+  return (r.data.parents as string[] | undefined) ?? [];
+}
+
+/** Whether a file/folder lives inside any of the allowed folder ids (walks up
+ *  the parent chain). Used to enforce project-scoped Drive access. */
+export async function isWithinFolders(fileId: string, allowed: Set<string>): Promise<boolean> {
+  if (allowed.has(fileId)) return true;
+  const c = await ctx();
+  let current: string | undefined = fileId;
+  let depth = 0;
+  while (current && depth < 12) {
+    if (allowed.has(current)) return true;
+    const parents = await getParents(c, current);
+    if (!parents.length) return false;
+    current = parents[0];
+    depth++;
+  }
+  return false;
+}
+
+export async function uploadFileToFolder(folderId: string, fileName: string, mimeType: string, buffer: Buffer): Promise<{ fileId: string; webViewLink: string | null }> {
+  const c = await ctx();
+  const params: any = {
+    requestBody: { name: fileName, parents: [folderId] },
+    media: { mimeType, body: Readable.from(buffer) },
+    fields: 'id, webViewLink',
+  };
+  if (c.shared) params.supportsAllDrives = true;
+  const created = await c.drive.files.create(params);
+  return { fileId: created.data.id as string, webViewLink: created.data.webViewLink ?? null };
+}
+
+export async function renameDriveEntry(fileId: string, name: string): Promise<void> {
+  const c = await ctx();
+  const params: any = { fileId, requestBody: { name }, fields: 'id' };
+  if (c.shared) params.supportsAllDrives = true;
+  await c.drive.files.update(params);
+}
+
+/** Move a file/folder to Drive trash (recoverable). */
+export async function trashDriveEntry(fileId: string): Promise<void> {
+  const c = await ctx();
+  const params: any = { fileId, requestBody: { trashed: true }, fields: 'id' };
+  if (c.shared) params.supportsAllDrives = true;
+  await c.drive.files.update(params);
+}
+
 /** Grant a person read access to a file so they can open it directly. */
 export async function shareFile(fileId: string, email: string, role: 'reader' | 'writer' = 'reader'): Promise<void> {
   const c = await ctx();

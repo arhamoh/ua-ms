@@ -11,6 +11,7 @@ export default async function DrivePage() {
   const me = await getSession();
   if (!me) return null;
   const canProvision = !!me.roles?.includes('SUPER_ADMIN');
+  const privileged = me.roles?.some((r) => ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'PROJECT_MANAGER'].includes(r));
   const connected = driveConfigured();
   const people = connected ? await prisma.user.findMany({ orderBy: { name: 'asc' }, select: { id: true, name: true } }) : [];
 
@@ -30,7 +31,7 @@ export default async function DrivePage() {
         </div>
       ) : (
         <div className="mt-6">
-          <DriveBrowser people={people} canProvision={canProvision} />
+          <DriveBrowser people={people} canProvision={canProvision} rootLabel={privileged ? 'My Drive' : 'My Projects'} />
         </div>
       )}
     </div>
