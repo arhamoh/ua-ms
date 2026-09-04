@@ -180,7 +180,9 @@ Super-Admin-only. Admins also see Super Admins labelled as "Admin".
 ### Integrations & secrets
 Every key is set in **Settings → Integrations** (no redeploy) — env vars are only
 a fallback, so you don't need to also set them in the host. Set values show
-masked with an **eye toggle** to reveal/edit. Cards are grouped by type.
+masked with an **eye toggle** to reveal/edit. Cards are grouped by type. Once
+Google is connected there's a **Send test email** button and a **Drive browser**
+to confirm everything works.
 
 ### Book & approve meetings
 **Meetings → Request a meeting**: pick who to meet, propose a time or ask their
