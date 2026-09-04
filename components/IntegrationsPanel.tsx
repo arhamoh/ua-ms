@@ -12,29 +12,49 @@ const STATUS: Record<IntegrationStatus['status'], { dot: string; label: string; 
   off: { dot: 'bg-slate-300', label: 'Not configured', cls: 'border-slate-200 bg-slate-50 text-slate-500' },
 };
 
+// Groups rendered as a single combined card (one border, sub-sections inside).
+const MERGED_GROUPS = new Set(['Google']);
+
 export default function IntegrationsPanel({ integrations }: { integrations: IntegrationStatus[] }) {
-  let lastGroup: string | null = null;
+  // Collapse into consecutive same-group runs.
+  const groups: { group: string; items: IntegrationStatus[] }[] = [];
+  for (const it of integrations) {
+    const last = groups[groups.length - 1];
+    if (last && last.group === it.group) last.items.push(it);
+    else groups.push({ group: it.group, items: [it] });
+  }
+
   return (
-    <div className="space-y-3">
-      {integrations.map((it) => {
-        const showHeader = it.group !== lastGroup;
-        lastGroup = it.group;
-        return (
-          <div key={it.id}>
-            {showHeader && (
-              <h4 className="mb-1.5 mt-4 text-[11px] font-semibold uppercase tracking-wider text-slate-400 first:mt-0">
-                {it.group}
-              </h4>
-            )}
-            <Card it={it} />
-          </div>
-        );
-      })}
+    <div className="space-y-4">
+      {groups.map((g) => (
+        <div key={g.group}>
+          <h4 className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-400">{g.group}</h4>
+          {MERGED_GROUPS.has(g.group) ? (
+            <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              {g.items.map((it, i) => (
+                <div key={it.id} className={i > 0 ? 'border-t border-slate-100 pt-4' : ''}>
+                  <IntegrationBody it={it} />
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {g.items.map((it) => (
+                <div key={it.id} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                  <IntegrationBody it={it} />
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      ))}
     </div>
   );
 }
 
-function Card({ it }: { it: IntegrationStatus }) {
+// The inner content of one integration — no outer border, so it works both as
+// its own card and as a section inside a merged card.
+function IntegrationBody({ it }: { it: IntegrationStatus }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null);
@@ -48,7 +68,7 @@ function Card({ it }: { it: IntegrationStatus }) {
     });
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+    <div>
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <h3 className="text-sm font-semibold text-slate-800">{it.name}</h3>

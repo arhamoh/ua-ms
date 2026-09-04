@@ -45,13 +45,14 @@ export async function getIntegrations(): Promise<IntegrationStatus[]> {
   const gmailClient = isSet(e.GOOGLE_OAUTH_CLIENT_ID) && isSet(e.GOOGLE_OAUTH_CLIENT_SECRET);
   const gmailLinked = isSet(e.GMAIL_OAUTH_REFRESH_TOKEN) && isSet(e.GMAIL_OAUTH_EMAIL);
 
-  // Grouped so similar integrations sit together in the UI.
+  // Grouped so similar integrations sit together in the UI. The "Google" group
+  // is rendered as a single combined card (Gmail + Drive) in IntegrationsPanel.
   const list: IntegrationStatus[] = [
-    // ── Email ──────────────────────────────────────────────────────────────
+    // ── Google (one card: Gmail + Drive) ────────────────────────────────────
     {
       id: 'gmail',
-      group: 'Email',
-      name: 'Gmail (Sign in with Google)',
+      group: 'Google',
+      name: 'Gmail — send email',
       description: 'Send email from your Google/Workspace account via OAuth — no app password needed.',
       status: gmailLinked ? 'connected' : gmailClient ? 'warn' : 'off',
       summary: gmailLinked
@@ -65,6 +66,20 @@ export async function getIntegrations(): Promise<IntegrationStatus[]> {
       ],
       testable: false,
     },
+    {
+      id: 'drive',
+      group: 'Google',
+      name: 'Google Drive — file uploads',
+      description: 'Stores uploaded project files in your Shared Drive (uses a service account).',
+      status: drive ? 'connected' : 'off',
+      summary: drive ? 'Keys present — run a test to confirm access.' : 'Not configured — file uploads are disabled.',
+      vars: [
+        { name: 'GOOGLE_SERVICE_ACCOUNT_JSON', set: isSet(e.GOOGLE_SERVICE_ACCOUNT_JSON), required: true },
+        { name: 'GOOGLE_SHARED_DRIVE_ID', set: isSet(e.GOOGLE_SHARED_DRIVE_ID), required: true },
+      ],
+      testable: drive,
+    },
+    // ── Email (alternative to Gmail) ────────────────────────────────────────
     {
       id: 'email',
       group: 'Email',
@@ -141,20 +156,6 @@ export async function getIntegrations(): Promise<IntegrationStatus[]> {
         { name: 'WAVE_BUSINESS_ID', set: isSet(e.WAVE_BUSINESS_ID) },
       ],
       testable: waveSet,
-    },
-    // ── Files ──────────────────────────────────────────────────────────────
-    {
-      id: 'drive',
-      group: 'Files',
-      name: 'Google Drive (file uploads)',
-      description: 'Stores uploaded project files in your Shared Drive.',
-      status: drive ? 'connected' : 'off',
-      summary: drive ? 'Keys present — run a test to confirm access.' : 'Not configured — file uploads are disabled.',
-      vars: [
-        { name: 'GOOGLE_SERVICE_ACCOUNT_JSON', set: isSet(e.GOOGLE_SERVICE_ACCOUNT_JSON), required: true },
-        { name: 'GOOGLE_SHARED_DRIVE_ID', set: isSet(e.GOOGLE_SHARED_DRIVE_ID), required: true },
-      ],
-      testable: drive,
     },
     // ── Automation ─────────────────────────────────────────────────────────
     {
