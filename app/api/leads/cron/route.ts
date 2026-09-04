@@ -3,6 +3,8 @@ import { segments } from '@/lib/leadgen/icp';
 import { sourceSegment, scoreAll, hasApolloKey } from '@/lib/leadgen/pipeline';
 import { seedSequences, enrollSegment, runDue } from '@/lib/leadgen/outreach/engine';
 import { pollTweetLeads, classifyPendingTweets, notifyNewQualifiedLeads, twitterApiConfigured } from '@/lib/leadgen/xpipeline';
+import { syncAllDeadlines } from '@/lib/deadline-sync';
+import { sendDueMeetingReminders } from '@/lib/meeting-reminders';
 import { hydrateSecrets } from '@/lib/secrets';
 
 export const dynamic = 'force-dynamic';
@@ -21,6 +23,8 @@ function authorized(req: Request): boolean {
  *   GET /api/leads/cron?task=source     — source → score → enroll (daily)
  *   GET /api/leads/cron?task=tweets     — poll X keywords → store → score
  *   GET /api/leads/cron?task=outreach   — send/queue due touches (daily)
+ *   GET /api/leads/cron?task=deadlines  — sync project deadlines → Google Cal (daily)
+ *   GET /api/leads/cron?task=reminders  — send due meeting reminders (every ~15m)
  *   GET /api/leads/cron?task=all        — all of the above (default)
  */
 export async function GET(req: Request) {
@@ -58,6 +62,14 @@ export async function GET(req: Request) {
 
   if (task === 'outreach' || task === 'all') {
     out.outreach = await runDue();
+  }
+
+  if (task === 'deadlines' || task === 'all') {
+    out.deadlines = await syncAllDeadlines();
+  }
+
+  if (task === 'reminders' || task === 'all') {
+    out.reminders = await sendDueMeetingReminders();
   }
 
   return NextResponse.json({ ok: true, ...out }, { headers: { 'Cache-Control': 'no-store' } });

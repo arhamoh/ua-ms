@@ -23,6 +23,7 @@ const TYPE_TO_CATEGORY: Record<string, NotifyCategory> = {
   meeting_declined: 'meetings',
   meeting_proposed: 'meetings',
   meeting_cancelled: 'meetings',
+  meeting_reminder: 'meetings',
   login_shared: 'team',
   leave: 'team',
 };

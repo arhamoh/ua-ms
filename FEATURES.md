@@ -41,6 +41,8 @@ clients; won deals flow straight into projects.
 - On approval it's booked, a **Google Meet link is auto-generated**, and every
   participant is notified **three ways**: in-app, phone push, and email — with an
   **.ics invite** so it lands in any calendar.
+- **Reminders** go out before each meeting; **project deadlines auto-sync** to
+  the calendar as all-day events.
 - Super Admins / Admins see the whole team's calendar and pending requests.
 
 ### Time tracking & Agency hours
@@ -139,9 +141,75 @@ instead of seven.
 
 ---
 
-## Roadmap / in progress
-- **Deadline → calendar sync** — project deadlines auto-appear on the calendar.
-- **Meeting reminders** — push/email a set time before a meeting starts.
+## Roadmap / ideas
+- **Free/busy availability** — see open slots when picking a meeting time.
+- **Two-way calendar sync** — reflect edits/cancellations made in Google back
+  into Keel.
+- **Per-user Google calendars** — each team member connects their own account.
+
+---
+
+## Setup & how-to guides
+
+Short, current tutorials for the things people set up or use most.
+
+### Connect Google (email, Calendar, Meet, Drive — one connection)
+1. In [Google Cloud](https://console.cloud.google.com), create a project and
+   **enable** the Gmail, Google Calendar and Google Drive APIs.
+2. **OAuth consent screen → User type = Internal** (skips verification for your
+   own Workspace).
+3. **Credentials → Create OAuth client ID → Web application**, and add the
+   redirect URI `https://<your-domain>/api/integrations/google/callback`.
+4. In Keel: **Settings → Integrations → Google Workspace** → paste the Client ID
+   & secret → **Save** → **Connect Google** → approve. Done — Gmail, Calendar,
+   Meet and Drive now run on that account. Until connected, email uses Resend and
+   meetings still work in-platform.
+
+### Add a team member
+**Team → Members → Add** a name, email and roles (optionally a temp password —
+otherwise one is generated). They get a username + temporary password (shown to
+you once, and emailed if welcome emails are on) and are **forced to set their own
+password on first login**.
+
+### Roles & permissions
+Seven roles (Super Admin → Sales). **Team → Role access** (Super-Admin-only)
+shows exactly what each role can reach. Admins see everything except Letters and
+the sensitive Settings tabs (Integrations, Database, Reset), which are
+Super-Admin-only. Admins also see Super Admins labelled as "Admin".
+
+### Integrations & secrets
+Every key is set in **Settings → Integrations** (no redeploy) — env vars are only
+a fallback, so you don't need to also set them in the host. Set values show
+masked with an **eye toggle** to reveal/edit. Cards are grouped by type.
+
+### Book & approve meetings
+**Meetings → Request a meeting**: pick who to meet, propose a time or ask their
+availability, add a client and attendees. The invitee (or an admin) approves,
+adjusts, declines, or proposes a new time. On approval it's booked with a Meet
+link and everyone is notified. Calendar has month/week/day/agenda views.
+
+### Automation (cron) — deadlines, reminders, lead-gen
+Set a **CRON_SECRET** (Settings → Integrations → Automation), then point a
+scheduler (Railway Cron / cron-job.org) at
+`/api/leads/cron?task=<task>` with header `Authorization: Bearer <CRON_SECRET>`:
+- `task=reminders` every ~15 min — meeting reminders.
+- `task=deadlines` daily — sync project deadlines to Google Calendar.
+- `task=all` also runs lead sourcing, X polling and outreach.
+
+### Lead generation
+- **Leads → Apollo:** search by title/industry/location; results are scored and
+  can be enrolled into outreach.
+- **Leads → X:** add keywords (or load recommended), poll, and the AI scores
+  buying-intent posts; label a few to teach it, draft replies, convert to client.
+
+### Statement import (finance)
+**Statements → upload** a bank/credit-card PDF; the AI parses it into
+transactions you can categorize (with reusable rules) and reconcile.
+
+### Notifications (install as an app)
+**Settings → Notifications → Enable** for phone/desktop push. On iPhone, first
+add Keel to your Home Screen, then open it and enable. Toggle categories
+(leads, messages, meetings, tasks, team) per device.
 
 ---
 

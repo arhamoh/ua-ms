@@ -293,6 +293,8 @@ model Project {
   // Timeline
   startDate       DateTime?
   deadline        DateTime?
+  deadlineEventId   String? // Google Calendar event mirroring the deadline (if synced)
+  deadlineSyncedFor DateTime? // the deadline value last synced, to detect changes
   priority        Priority      @default(MEDIUM)
 
   // Assets & links (v1 = links only)
@@ -1090,6 +1092,7 @@ model Meeting {
 
   proposedByApprover Boolean @default(false) // approver counter-proposed a time
   declineReason      String?
+  reminderSentAt     DateTime? // set once the pre-meeting reminder has gone out
 
   withMeet       Boolean @default(true)
   meetLink       String?

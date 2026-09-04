@@ -65,6 +65,24 @@ export async function createEvent(input: CreateEventInput): Promise<{ id: string
   return { id: ev.id, htmlLink: ev.htmlLink, meetLink: ev.hangoutLink };
 }
 
+function ymd(d: Date): string {
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
+}
+
+/** Create an all-day event (used for project deadlines). */
+export async function createAllDayEvent(input: { date: Date; title: string; description?: string }): Promise<{ id: string }> {
+  if (!calendarConfigured()) throw new Error('Google Calendar is not connected.');
+  const body = {
+    summary: input.title,
+    description: input.description || undefined,
+    start: { date: ymd(input.date) },
+    end: { date: ymd(new Date(input.date.getTime() + 86400000)) },
+    transparency: 'transparent',
+  };
+  const ev = await api(`/calendars/${encodeURIComponent(calendarId())}/events`, { method: 'POST', body: JSON.stringify(body) });
+  return { id: ev.id };
+}
+
 export async function deleteEvent(eventId: string): Promise<void> {
   if (!calendarConfigured() || !eventId) return;
   try {
