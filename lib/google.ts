@@ -32,6 +32,21 @@ export function googleConnectedEmail(): string | null {
   return process.env.GOOGLE_CONNECTED_EMAIL || null;
 }
 
+/**
+ * The app's PUBLIC origin, derived from proxy headers — not req.nextUrl.origin,
+ * which behind Railway's proxy returns the internal address (localhost:8080).
+ * APP_URL overrides everything when set.
+ */
+export function originFromRequest(req: Request): string {
+  if (process.env.APP_URL) return process.env.APP_URL.replace(/\/$/, '');
+  const h = req.headers;
+  const host = h.get('x-forwarded-host') || h.get('host') || '';
+  const proto = (h.get('x-forwarded-proto') || 'https').split(',')[0].trim();
+  if (host && !/^(localhost|127\.)/.test(host)) return `${proto}://${host}`;
+  if (process.env.RAILWAY_PUBLIC_DOMAIN) return `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`;
+  return host ? `${proto}://${host}` : '';
+}
+
 export function redirectUri(origin: string): string {
   let base = origin;
   // Behind a TLS-terminating proxy (e.g. Railway) the origin can come back as

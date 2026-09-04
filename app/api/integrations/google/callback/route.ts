@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { getSession } from '@/lib/auth';
 import { isSuperStrict } from '@/lib/permissions';
 import { hydrateSecrets, setSecret } from '@/lib/secrets';
-import { exchangeCode, fetchUserEmail, resetGoogleTokenCache } from '@/lib/google';
+import { exchangeCode, fetchUserEmail, resetGoogleTokenCache, originFromRequest } from '@/lib/google';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
   if (!code || !state || !cookieState || state !== cookieState) return back(req, 'err=google_state');
 
   try {
-    const { refreshToken, accessToken } = await exchangeCode(code, url.origin);
+    const { refreshToken, accessToken } = await exchangeCode(code, originFromRequest(req));
     if (!refreshToken) return back(req, 'err=google_norefresh');
     const email = accessToken ? await fetchUserEmail(accessToken) : null;
     if (!email) return back(req, 'err=google_email');
