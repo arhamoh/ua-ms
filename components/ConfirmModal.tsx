@@ -33,7 +33,7 @@ export default function ConfirmModal({
           <button
             onClick={onConfirm}
             disabled={pending}
-            className={`rounded-lg px-4 py-2 text-sm font-medium text-white transition disabled:opacity-50 ${danger ? 'bg-rose-600 hover:bg-rose-700' : 'bg-brand hover:bg-brand-dark'}`}
+            className="rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white transition hover:bg-brand-dark disabled:opacity-50"
           >
             {pending ? 'Working…' : confirmLabel}
           </button>

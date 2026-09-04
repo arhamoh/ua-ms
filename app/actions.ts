@@ -88,7 +88,9 @@ function normCat(v: string | null | undefined): string {
 
 export async function createTeamMember(formData: FormData) {
   const admin = await getSession();
-  const name = str(formData.get('name'));
+  const first = str(formData.get('firstName'));
+  const last = str(formData.get('lastName'));
+  const name = [first, last].filter(Boolean).join(' ') || str(formData.get('name'));
   const email = str(formData.get('email'));
   const roles = formData
     .getAll('roles')
@@ -103,17 +105,20 @@ export async function createTeamMember(formData: FormData) {
   const tempPassword = generateTempPassword();
   const passwordHash = await bcrypt.hash(tempPassword, 10);
 
-  // Login handle: use the one the admin typed (must be unique), otherwise derive
-  // it from the email with a numeric suffix on clash.
-  const typedUsername = str(formData.get('username'));
+  // Login handle: default to firstname.lastname; the admin can override it (then
+  // it must be unique). Auto-generated ones get a numeric suffix on clash.
+  const desired = (str(formData.get('username')) ?? '').toLowerCase().replace(/[^a-z0-9._-]/g, '');
+  const overridden = str(formData.get('usernameTouched')) === '1' && !!desired;
   let username: string;
-  if (typedUsername) {
-    username = typedUsername.toLowerCase().replace(/[^a-z0-9._-]/g, '');
-    if (!username) throw new Error('Username can only contain letters, numbers, dots, dashes and underscores.');
+  if (overridden) {
+    username = desired;
     const clash = await prisma.user.findFirst({ where: { OR: [{ username }, { email: username }] }, select: { id: true } });
     if (clash) throw new Error('That username is already taken.');
   } else {
-    const base = usernameFromEmail(email!);
+    const base =
+      [first, last].filter(Boolean).map((s) => s!.toLowerCase().replace(/[^a-z0-9]/g, '')).filter(Boolean).join('.') ||
+      desired ||
+      usernameFromEmail(email!);
     username = base;
     for (let i = 2; await prisma.user.findUnique({ where: { username }, select: { id: true } }); i++) {
       username = `${base}${i}`;
