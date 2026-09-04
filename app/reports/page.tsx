@@ -11,7 +11,7 @@ import TableTools from '@/components/TableTools';
 
 export const dynamic = 'force-dynamic';
 
-const ADMIN_ROLES = ['SUPER_ADMIN', 'MANAGER'];
+const ADMIN_ROLES = ['SUPER_ADMIN', 'ADMIN', 'MANAGER'];
 const inputCls = 'w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/10';
 const pad = (n: number) => String(n).padStart(2, '0');
 const fmt = (d: Date) => d.toISOString().slice(0, 10);

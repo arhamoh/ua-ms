@@ -1579,7 +1579,7 @@ export async function importStatementExpenses(items: ImportItem[]): Promise<{ co
       let category = normCat(it.category);
       // The interest → fee rule, enforced server-side regardless of the client.
       if (/interest/i.test(title)) {
-        title = 'Interest expense';
+        title = 'Additional fee of credit card';
         category = 'FEES';
       }
 
@@ -1685,7 +1685,7 @@ export async function importStatementLines(
       let title = (it.title ?? '').trim() || 'Expense';
       let category = normCat(it.category);
       if (/interest/i.test(title)) {
-        title = 'Interest expense';
+        title = 'Additional fee of credit card';
         category = 'FEES';
       }
       let gst: number | null = null;
@@ -1852,7 +1852,7 @@ function monthRangeFromStatement(periodLabel: string | null, fileName: string): 
 // month. Manual entries are never touched.
 export async function clearStatementImport(statementId: string): Promise<{ ok: boolean; message: string }> {
   const session = await getSession();
-  if (!session?.roles?.includes('SUPER_ADMIN')) return { ok: false, message: 'Not authorized.' };
+  if (!session?.roles?.some((r) => r === 'SUPER_ADMIN' || r === 'ADMIN')) return { ok: false, message: 'Not authorized.' };
   if (!statementId) return { ok: false, message: 'No statement given.' };
   const stmt = await prisma.statement.findUnique({ where: { id: statementId }, select: { id: true, periodLabel: true, fileName: true } });
   if (!stmt) return { ok: false, message: 'Statement not found.' };
@@ -1892,7 +1892,7 @@ export async function clearStatementImport(statementId: string): Promise<{ ok: b
 // statement goes back to the review board exactly as it was.
 export async function revertStatementToPending(statementId: string): Promise<{ ok: boolean; message: string }> {
   const session = await getSession();
-  if (!session?.roles?.includes('SUPER_ADMIN')) return { ok: false, message: 'Not authorized.' };
+  if (!session?.roles?.some((r) => r === 'SUPER_ADMIN' || r === 'ADMIN')) return { ok: false, message: 'Not authorized.' };
   if (!statementId) return { ok: false, message: 'No statement given.' };
   const stmt = await prisma.statement.findUnique({ where: { id: statementId } });
   if (!stmt) return { ok: false, message: 'Statement not found.' };
@@ -1968,7 +1968,7 @@ export async function revertStatementToPending(statementId: string): Promise<{ o
 // together), reverting them all back to pending imports.
 export async function undoLastImport(): Promise<{ ok: boolean; message: string }> {
   const session = await getSession();
-  if (!session?.roles?.includes('SUPER_ADMIN')) return { ok: false, message: 'Not authorized.' };
+  if (!session?.roles?.some((r) => r === 'SUPER_ADMIN' || r === 'ADMIN')) return { ok: false, message: 'Not authorized.' };
   const latest = await prisma.statement.findFirst({ where: { source: 'IMPORT' }, orderBy: { createdAt: 'desc' }, select: { createdAt: true } });
   if (!latest) return { ok: false, message: 'No imported statements to undo.' };
   // Statements committed together share (near-)identical createdAt; take the
@@ -2000,7 +2000,7 @@ export async function revertStatementsToPending(ids: string[]): Promise<{ ok: bo
 export async function resetData(scopes: string[]): Promise<{ ok: boolean; message: string }> {
   const RESET_SCOPES = ['finance', 'invoices', 'statements', 'filings', 'loans', 'commissions', 'salaryPayments', 'time', 'leads', 'projects', 'clients'];
   const session = await getSession();
-  if (!session?.roles?.includes('SUPER_ADMIN')) return { ok: false, message: 'Not authorized — super admins only.' };
+  if (!session?.roles?.some((r) => r === 'SUPER_ADMIN' || r === 'ADMIN')) return { ok: false, message: 'Not authorized — super admins only.' };
   const set = new Set((scopes ?? []).filter((s) => RESET_SCOPES.includes(s)));
   if (set.size === 0) return { ok: false, message: 'Nothing selected.' };
 
@@ -2286,7 +2286,7 @@ async function commitPendingCore(id: string): Promise<{ ok: boolean; targetMonth
       let title = (l.title || 'Expense').slice(0, 200);
       let category = normCat(l.category);
       if (/interest/i.test(title)) {
-        title = 'Interest expense';
+        title = 'Additional fee of credit card';
         category = 'FEES';
       }
       expenseData.push({ title, category, amount, currency, amountCad, fxRate, gst, qst, date, note: l.note?.trim() || 'Imported from statement', reimbursed: true });
@@ -2525,9 +2525,11 @@ export async function deleteStatement(id: string) {
 
 // ─── Letters / documents (super-admin) ───────────────────────────────────────
 
+// Admin-level actions: Super Admin OR Admin. (Letters stay Super-Admin-only at
+// the page/route/nav level, which Admins can't reach.)
 async function requireSuperAdmin() {
   const s = await getSession();
-  if (!s || !s.roles.includes('SUPER_ADMIN')) throw new Error('Not authorized.');
+  if (!s || !s.roles.some((r) => r === 'SUPER_ADMIN' || r === 'ADMIN')) throw new Error('Not authorized.');
   return s;
 }
 
@@ -3035,7 +3037,7 @@ export async function deleteCommentThread(threadId: string) {
   const s = await getSession();
   if (!s || !threadId) return;
   const thread = await prisma.commentThread.findUnique({ where: { id: threadId }, select: { createdById: true } });
-  const isAdmin = s.roles?.some((r) => r === 'SUPER_ADMIN' || r === 'MANAGER');
+  const isAdmin = s.roles?.some((r) => r === 'SUPER_ADMIN' || r === 'ADMIN' || r === 'MANAGER');
   if (!thread || (thread.createdById !== s.id && !isAdmin)) return;
   await prisma.commentThread.delete({ where: { id: threadId } });
 }
@@ -3188,7 +3190,7 @@ export async function setConversationRead(conversationId: string, read: boolean)
 // already-committed migrations — never resets or generates. Super-admin only.
 export async function runMigrations(): Promise<{ ok: boolean; output: string }> {
   const s = await getSession();
-  if (!s?.roles?.includes('SUPER_ADMIN')) return { ok: false, output: 'Not authorized — super admin only.' };
+  if (!s?.roles?.some((r) => r === 'SUPER_ADMIN' || r === 'ADMIN')) return { ok: false, output: 'Not authorized — super admin only.' };
   try {
     const { execFile } = await import('child_process');
     const { promisify } = await import('util');
@@ -3208,7 +3210,7 @@ export async function runMigrations(): Promise<{ ok: boolean; output: string }> 
 
 // ─── Attendance (check in / out) & leave ─────────────────────────────────────
 
-const ATTENDANCE_ADMIN_ROLES = ['SUPER_ADMIN', 'MANAGER'];
+const ATTENDANCE_ADMIN_ROLES = ['SUPER_ADMIN', 'ADMIN', 'MANAGER'];
 const LEAVE_TYPES = ['VACATION', 'SICK', 'ABSENT', 'UNPAID', 'OTHER'];
 
 function isAttendanceAdmin(s: { roles?: string[] } | null) {

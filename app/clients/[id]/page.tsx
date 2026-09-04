@@ -54,7 +54,7 @@ export default async function ClientProfilePage({
   if (!client) notFound();
 
   const session = await getSession();
-  const isAdmin = !!session?.roles?.some((r) => r === 'SUPER_ADMIN' || r === 'MANAGER');
+  const isAdmin = !!session?.roles?.some((r) => r === 'SUPER_ADMIN' || r === 'ADMIN' || r === 'MANAGER');
 
   // All totals are normalized to CAD using live rates (payments lock in the
   // rate captured when recorded; projects/budgets convert at the current rate).

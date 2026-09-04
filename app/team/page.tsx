@@ -1,6 +1,8 @@
 import { prisma } from '@/lib/prisma';
+import { getSession } from '@/lib/auth';
 import { createTeamMember, deleteUser } from '@/app/actions';
-import { ROLES, ROLE_LABELS } from '@/lib/enums';
+import { ROLES } from '@/lib/enums';
+import { roleLabelFor, isSuperStrict } from '@/lib/permissions';
 import RowActions from '@/components/RowActions';
 import AnimatedButton from '@/components/AnimatedButton';
 import TableTools from '@/components/TableTools';
@@ -9,9 +11,14 @@ import RolesOverview from '@/components/RolesOverview';
 export const dynamic = 'force-dynamic';
 
 export default async function TeamPage() {
+  const session = await getSession();
+  const viewerRoles = session?.roles ?? [];
+  const viewerIsSuper = isSuperStrict(viewerRoles);
   const members = await prisma.user.findMany({ orderBy: { createdAt: 'asc' } });
   const roleCounts: Record<string, number> = {};
   for (const m of members) for (const r of m.roles) roleCounts[r] = (roleCounts[r] ?? 0) + 1;
+  // A non-super viewer (Admin) can't create Super Admins and sees them as "Admin".
+  const assignableRoles = ROLES.filter((r) => viewerIsSuper || r !== 'SUPER_ADMIN');
 
   return (
     <div>
@@ -21,7 +28,7 @@ export default async function TeamPage() {
       </p>
 
       <div className="mt-6">
-        <RolesOverview roleCounts={roleCounts} />
+        <RolesOverview roleCounts={roleCounts} viewerIsSuper={viewerIsSuper} />
       </div>
 
       <div className="mt-8 grid grid-cols-1 gap-8 lg:grid-cols-3">
@@ -56,10 +63,10 @@ export default async function TeamPage() {
 
             <span className="mb-1 block text-xs font-medium text-slate-600">Roles</span>
             <div className="mb-5 space-y-2">
-              {ROLES.map((r) => (
+              {assignableRoles.map((r) => (
                 <label key={r} className="flex items-center gap-2 text-sm">
                   <input type="checkbox" name="roles" value={r} className="rounded border-slate-300" />
-                  {ROLE_LABELS[r]}
+                  {roleLabelFor(r, viewerRoles)}
                 </label>
               ))}
             </div>
@@ -106,7 +113,7 @@ export default async function TeamPage() {
                                 key={r}
                                 className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600"
                               >
-                                {ROLE_LABELS[r] ?? r}
+                                {roleLabelFor(r, viewerRoles)}
                               </span>
                             ))
                           )}

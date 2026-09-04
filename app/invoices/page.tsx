@@ -30,7 +30,7 @@ export default async function InvoicesPage() {
     );
     return Math.max(0, inv.amount - paid);
   };
-  const canWave = !!session?.roles?.includes('SUPER_ADMIN') && waveConfigured();
+  const canWave = !!session?.roles?.some((r) => r === 'SUPER_ADMIN' || r === 'ADMIN') && waveConfigured();
 
   return (
     <div>

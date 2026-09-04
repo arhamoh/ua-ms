@@ -112,7 +112,7 @@ export default async function DashboardPage() {
   const recentProjects = projects.slice(0, 6);
 
   // Top X signals (super admins only — the Leads/X area is admin-gated).
-  const isSuper = !!session?.roles?.includes('SUPER_ADMIN');
+  const isSuper = !!session?.roles?.some((r) => r === 'SUPER_ADMIN' || r === 'ADMIN');
   const signalRows = isSuper
     ? await prisma.tweetLead.findMany({
         where: { status: { not: 'ignored' }, relevance: { not: 'no' }, postedAt: { gte: new Date(Date.now() - 7 * 86400000) } },

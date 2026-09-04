@@ -63,7 +63,7 @@ async function hardRefresh() {
   window.location.reload();
 }
 
-type NavItem = { href: string; label: string; icon: LucideIcon; adminOnly?: boolean; superAdminOnly?: boolean; pmUp?: boolean };
+type NavItem = { href: string; label: string; icon: LucideIcon; adminOnly?: boolean; superAdminOnly?: boolean; elevatedOnly?: boolean; pmUp?: boolean };
 type NavSection = { title?: string; items: NavItem[] };
 
 const navSections: NavSection[] = [
@@ -78,7 +78,7 @@ const navSections: NavSection[] = [
   },
   {
     title: 'Growth',
-    items: [{ href: '/leads', label: 'Leads', icon: Target, superAdminOnly: true }],
+    items: [{ href: '/leads', label: 'Leads', icon: Target, elevatedOnly: true }],
   },
   {
     title: 'Money',
@@ -123,8 +123,9 @@ function NavContent({
   const pathname = usePathname();
   const isActive = (href: string) =>
     href === '/' ? pathname === '/' : pathname.startsWith(href);
-  const isAdmin = !!user?.roles?.some((r) => r === 'SUPER_ADMIN' || r === 'MANAGER');
+  const isAdmin = !!user?.roles?.some((r) => r === 'SUPER_ADMIN' || r === 'ADMIN' || r === 'MANAGER');
   const isSuperAdmin = !!user?.roles?.includes('SUPER_ADMIN');
+  const isElevated = !!user?.roles?.some((r) => r === 'SUPER_ADMIN' || r === 'ADMIN');
   const isPmUp = canManageAgencyHours(user?.roles);
 
   return (
@@ -138,7 +139,7 @@ function NavContent({
       <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto px-3 py-4">
         {navSections.map((section, si) => {
           const items = section.items.filter(
-            (it) => (!it.adminOnly || isAdmin) && (!it.superAdminOnly || isSuperAdmin) && (!it.pmUp || isPmUp),
+            (it) => (!it.adminOnly || isAdmin) && (!it.superAdminOnly || isSuperAdmin) && (!it.elevatedOnly || isElevated) && (!it.pmUp || isPmUp),
           );
           if (items.length === 0) return null;
           return (
@@ -346,7 +347,7 @@ export default function AppShell({
 
           <div className="ml-auto flex items-center gap-2 sm:gap-3">
             <HeaderClock initial={attendance ?? { open: false, checkInAt: null }} />
-            {user?.roles?.includes('SUPER_ADMIN') && <MigrationButton variant="header" />}
+            {user?.roles?.some((r) => r === 'SUPER_ADMIN' || r === 'ADMIN') && <MigrationButton variant="header" />}
             <button
               onClick={hardRefresh}
               className="grid h-9 w-9 place-items-center rounded-xl border border-slate-200 text-slate-500 transition hover:bg-slate-50 hover:text-brand active:rotate-180"

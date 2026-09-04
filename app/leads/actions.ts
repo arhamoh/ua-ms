@@ -13,7 +13,7 @@ import { draftReply } from '@/lib/leadgen/tweetClassify';
 
 async function requireUser() {
   const user = await getSession();
-  if (!user || !user.roles.includes('SUPER_ADMIN')) throw new Error('Unauthorized');
+  if (!user || !user.roles.some((r) => r === 'SUPER_ADMIN' || r === 'ADMIN')) throw new Error('Unauthorized');
   return user;
 }
 

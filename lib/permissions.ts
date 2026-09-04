@@ -5,13 +5,14 @@
 
 import { ROLE_LABELS } from '@/lib/enums';
 
-export type Role = 'SUPER_ADMIN' | 'MANAGER' | 'PROJECT_MANAGER' | 'DEVELOPER' | 'DESIGNER' | 'SALES';
+export type Role = 'SUPER_ADMIN' | 'ADMIN' | 'MANAGER' | 'PROJECT_MANAGER' | 'DEVELOPER' | 'DESIGNER' | 'SALES';
 
 // Display order + a one-line description of what each type of user is.
-export const ROLE_ORDER: Role[] = ['SUPER_ADMIN', 'MANAGER', 'PROJECT_MANAGER', 'DEVELOPER', 'DESIGNER', 'SALES'];
+export const ROLE_ORDER: Role[] = ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'PROJECT_MANAGER', 'DEVELOPER', 'DESIGNER', 'SALES'];
 
 export const ROLE_DESCRIPTIONS: Record<Role, string> = {
-  SUPER_ADMIN: 'Full access to everything — finance, leads, letters, settings, and every admin tool.',
+  SUPER_ADMIN: 'Full access to everything — including Letters and every admin tool.',
+  ADMIN: 'Near-full access: finance, leads, settings, and admin tools — everything except Letters.',
   MANAGER: 'Runs the team day-to-day: reports and time approvals, plus all delivery and money views.',
   PROJECT_MANAGER: 'Leads projects: approve tasks, manage agency hours and shared logins.',
   DEVELOPER: 'Delivery role: projects, tasks, time, messages, and shared logins.',
@@ -21,13 +22,28 @@ export const ROLE_DESCRIPTIONS: Record<Role, string> = {
 
 export const roleLabel = (r: string) => ROLE_LABELS[r] ?? r;
 
+// Access helpers used by pages/actions.
+export const isSuperStrict = (roles?: string[] | null) => !!roles?.includes('SUPER_ADMIN');
+// "Elevated" = Super Admin or Admin — everything a super admin can do EXCEPT Letters.
+export const isElevated = (roles?: string[] | null) => !!roles?.some((r) => r === 'SUPER_ADMIN' || r === 'ADMIN');
+
+/**
+ * Label a role from the current viewer's perspective. A non-super viewer (i.e.
+ * an Admin) sees Super Admins as plain "Admin", so the two look identical.
+ */
+export function roleLabelFor(role: string, viewerRoles?: string[] | null): string {
+  if (role === 'SUPER_ADMIN' && !isSuperStrict(viewerRoles)) return 'Admin';
+  return ROLE_LABELS[role] ?? role;
+}
+
 // An area of the app + which roles can access it. `'all'` = every signed-in
 // member. Grouped to match the sidebar.
 export type Area = { key: string; label: string; group: string; roles: Role[] | 'all' };
 
-const ADMIN: Role[] = ['SUPER_ADMIN', 'MANAGER'];
-const PM_UP: Role[] = ['SUPER_ADMIN', 'MANAGER', 'PROJECT_MANAGER'];
-const SUPER: Role[] = ['SUPER_ADMIN'];
+const ADMIN: Role[] = ['SUPER_ADMIN', 'ADMIN', 'MANAGER'];
+const PM_UP: Role[] = ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'PROJECT_MANAGER'];
+const ELEVATED: Role[] = ['SUPER_ADMIN', 'ADMIN']; // super-level except Letters
+const SUPER: Role[] = ['SUPER_ADMIN']; // Letters only
 
 export const AREAS: Area[] = [
   { key: 'dashboard', label: 'Dashboard', group: 'General', roles: 'all' },
@@ -37,7 +53,7 @@ export const AREAS: Area[] = [
   { key: 'task_approval', label: 'Approve tasks', group: 'Delivery', roles: PM_UP },
   { key: 'agency_hours', label: 'Manage agency hours', group: 'Delivery', roles: PM_UP },
 
-  { key: 'leads', label: 'Leads (Apollo & X)', group: 'Growth', roles: SUPER },
+  { key: 'leads', label: 'Leads (Apollo & X)', group: 'Growth', roles: ELEVATED },
 
   { key: 'invoices', label: 'Invoices', group: 'Money', roles: 'all' },
   { key: 'finance', label: 'Finance', group: 'Money', roles: 'all' },
@@ -55,7 +71,7 @@ export const AREAS: Area[] = [
   { key: 'logins_view', label: 'Shared logins — view', group: 'More', roles: 'all' },
   { key: 'logins_manage', label: 'Shared logins — manage', group: 'More', roles: PM_UP },
   { key: 'settings', label: 'Settings (personal)', group: 'More', roles: 'all' },
-  { key: 'settings_admin', label: 'Settings — integrations, database, reset', group: 'More', roles: SUPER },
+  { key: 'settings_admin', label: 'Settings — integrations, database, reset', group: 'More', roles: ELEVATED },
 ];
 
 /** Does this role have access to an area? */

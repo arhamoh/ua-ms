@@ -45,7 +45,7 @@ export default async function SettingsPage({
   const company = await getCompany();
   const integrations = await getIntegrations();
   const session = await getSession();
-  const isSuperAdmin = !!session?.roles?.includes('SUPER_ADMIN');
+  const isSuperAdmin = !!session?.roles?.some((r) => r === 'SUPER_ADMIN' || r === 'ADMIN');
   const me = session ? await prisma.user.findUnique({ where: { id: session.id }, select: { timezone: true, notifyPrefs: true, username: true } }) : null;
   const notifyPrefs = normalizePrefs(me?.notifyPrefs);
 

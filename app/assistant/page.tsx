@@ -22,7 +22,7 @@ function Stat({ icon, label, value }: { icon: React.ReactNode; label: string; va
 
 export default async function AssistantPage() {
   const session = await getSession();
-  const isSuperAdmin = !!session?.roles?.includes('SUPER_ADMIN');
+  const isSuperAdmin = !!session?.roles?.some((r) => r === 'SUPER_ADMIN' || r === 'ADMIN');
   const history = session ? await getAssistantHistory(session.id) : [];
   const usage = isSuperAdmin ? await getAssistantUsage() : null;
 

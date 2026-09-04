@@ -80,7 +80,7 @@ export default async function ProjectDetailPage({
 
   const c = project.client;
   const activeTab = tab === 'tasks' ? 'tasks' : tab === 'files' ? 'files' : tab === 'discussion' ? 'discussion' : 'overview';
-  const isAdmin = !!session?.roles?.some((r) => r === 'SUPER_ADMIN' || r === 'MANAGER');
+  const isAdmin = !!session?.roles?.some((r) => r === 'SUPER_ADMIN' || r === 'ADMIN' || r === 'MANAGER');
 
   // Unique members for the assignee picker.
   const memberMap = new Map<string, { id: string; name: string }>();

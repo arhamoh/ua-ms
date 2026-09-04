@@ -19,7 +19,7 @@ export async function notifyNewQualifiedLeads(): Promise<{ notified: number }> {
   });
   if (fresh.length === 0) return { notified: 0 };
 
-  const admins = await prisma.user.findMany({ where: { roles: { has: 'SUPER_ADMIN' } }, select: { id: true } });
+  const admins = await prisma.user.findMany({ where: { roles: { hasSome: ['SUPER_ADMIN', 'ADMIN'] } }, select: { id: true } });
   const adminIds = admins.map((a) => a.id);
 
   for (const t of fresh) {

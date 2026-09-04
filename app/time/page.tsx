@@ -16,7 +16,7 @@ export const dynamic = 'force-dynamic';
 const inputCls =
   'w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/10';
 
-const ADMIN_ROLES = ['SUPER_ADMIN', 'MANAGER'];
+const ADMIN_ROLES = ['SUPER_ADMIN', 'ADMIN', 'MANAGER'];
 const fmtDate = (d: Date) => d.toISOString().slice(0, 10);
 const fmtTime = (d: Date | null) => (d ? new Date(d).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '—');
 

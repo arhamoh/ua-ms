@@ -184,7 +184,7 @@ export function toLines(
       const type: 'expense' | 'income' | 'transfer' =
         (rule?.type as any) ?? (cardPmt ? 'transfer' : isExpense ? 'expense' : 'income');
       const title =
-        rule?.title || (cardPmt ? 'Credit card payment' : interest ? 'Interest expense' : b.desc || (isExpense ? 'Expense' : 'Income'));
+        rule?.title || (cardPmt ? 'Credit card payment' : interest ? 'Additional fee of credit card' : b.desc || (isExpense ? 'Expense' : 'Income'));
       const category =
         rule?.category ??
         (type === 'transfer' ? 'CREDIT_CARD_PAYMENT' : type === 'income' ? 'OTHER' : interest ? 'FEES' : b.category || guessCategory(b.desc));

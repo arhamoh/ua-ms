@@ -7,7 +7,7 @@ import TimeEntryEditForm from '@/components/TimeEntryEditForm';
 
 export const dynamic = 'force-dynamic';
 
-const ADMIN_ROLES = ['SUPER_ADMIN', 'MANAGER'];
+const ADMIN_ROLES = ['SUPER_ADMIN', 'ADMIN', 'MANAGER'];
 
 export default async function EditTimeEntryPage({
   params,
