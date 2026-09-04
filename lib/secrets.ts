@@ -31,6 +31,10 @@ export const MANAGED_SECRETS = [
   'INVOICE_FROM_EMAIL',
   'GOOGLE_SERVICE_ACCOUNT_JSON',
   'GOOGLE_SHARED_DRIVE_ID',
+  // Google Calendar + Meet (same service account, via domain-wide delegation).
+  'GOOGLE_CALENDAR_IMPERSONATE_EMAIL',
+  'GOOGLE_CALENDAR_ID',
+  'GOOGLE_CALENDAR_TZ',
   'CRON_SECRET',
   'VAPID_PUBLIC_KEY',
   'VAPID_PRIVATE_KEY',

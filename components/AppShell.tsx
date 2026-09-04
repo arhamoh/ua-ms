@@ -27,6 +27,7 @@ import {
   Globe,
   ReceiptText,
   Mail,
+  CalendarClock,
   PanelLeftClose,
   PanelLeftOpen,
   type LucideIcon,
@@ -73,6 +74,7 @@ const navSections: NavSection[] = [
     items: [
       { href: '/clients', label: 'Clients', icon: Briefcase },
       { href: '/projects', label: 'Projects', icon: FolderKanban },
+      { href: '/meetings', label: 'Meetings', icon: CalendarClock },
       { href: '/agency-hours', label: 'Agency Hours', icon: Globe, pmUp: true },
     ],
   },

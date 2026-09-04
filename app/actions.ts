@@ -48,6 +48,7 @@ import {
 } from '@/lib/welcome-email';
 import { stashCredentials } from '@/lib/pending-credentials';
 import { driveConfigured, uploadToDrive, testDriveConnection } from '@/lib/drive';
+import { testCalendarConnection } from '@/lib/google-calendar';
 import { testOpenRouter } from '@/lib/integrations';
 import { setSecret, clearSecret, isManagedSecret, getSecret } from '@/lib/secrets';
 import { NOTIFY_CATEGORIES } from '@/lib/notify-categories';
@@ -1229,6 +1230,8 @@ export async function testIntegration(id: string): Promise<{ ok: boolean; messag
       return testDriveConnection();
     case 'email':
       return verifyEmailConnection();
+    case 'calendar':
+      return testCalendarConnection();
     case 'openrouter':
       return testOpenRouter();
     case 'wave':

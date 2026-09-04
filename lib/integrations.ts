@@ -42,6 +42,7 @@ export async function getIntegrations(): Promise<IntegrationStatus[]> {
   const xSet = isSet(e.TWITTERAPI_IO_KEY);
   const apolloSet = isSet(e.APOLLO_API_KEY);
   const drive = driveConfigured();
+  const calendar = isSet(e.GOOGLE_SERVICE_ACCOUNT_JSON) && isSet(e.GOOGLE_CALENDAR_IMPERSONATE_EMAIL);
 
   // Grouped so similar integrations sit together in the UI. The "Google" group
   // is rendered as a single combined card in IntegrationsPanel.
@@ -59,6 +60,22 @@ export async function getIntegrations(): Promise<IntegrationStatus[]> {
         { name: 'GOOGLE_SHARED_DRIVE_ID', set: isSet(e.GOOGLE_SHARED_DRIVE_ID), required: true },
       ],
       testable: drive,
+    },
+    {
+      id: 'calendar',
+      group: 'Google',
+      name: 'Google Calendar & Meet',
+      description: 'Book meetings with Meet links and show upcoming meetings, on the Meetings page. Uses the same service account (needs domain-wide delegation).',
+      status: calendar ? 'connected' : 'off',
+      summary: calendar
+        ? 'Keys present — run a test to confirm calendar access.'
+        : 'Not configured — set the impersonation email (and grant the service account calendar access).',
+      vars: [
+        { name: 'GOOGLE_CALENDAR_IMPERSONATE_EMAIL', set: isSet(e.GOOGLE_CALENDAR_IMPERSONATE_EMAIL), required: true },
+        { name: 'GOOGLE_CALENDAR_ID', set: isSet(e.GOOGLE_CALENDAR_ID) },
+        { name: 'GOOGLE_CALENDAR_TZ', set: isSet(e.GOOGLE_CALENDAR_TZ) },
+      ],
+      testable: calendar,
     },
     // ── Email (Resend / SMTP) ───────────────────────────────────────────────
     {
