@@ -7,6 +7,7 @@ import RowActions from '@/components/RowActions';
 import AnimatedButton from '@/components/AnimatedButton';
 import TableTools from '@/components/TableTools';
 import RolesOverview from '@/components/RolesOverview';
+import TeamTabs from '@/components/TeamTabs';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,18 +21,8 @@ export default async function TeamPage() {
   // A non-super viewer (Admin) can't create Super Admins and sees them as "Admin".
   const assignableRoles = ROLES.filter((r) => viewerIsSuper || r !== 'SUPER_ADMIN');
 
-  return (
-    <div>
-      <h1 className="text-2xl font-bold tracking-tight">Team</h1>
-      <p className="mt-1 text-sm text-slate-500">
-        Add team members and their roles. A person can hold multiple roles.
-      </p>
-
-      <div className="mt-6">
-        <RolesOverview roleCounts={roleCounts} viewerIsSuper={viewerIsSuper} />
-      </div>
-
-      <div className="mt-8 grid grid-cols-1 gap-8 lg:grid-cols-3">
+  const membersSection = (
+    <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
         {/* Add member */}
         <div className="lg:col-span-1">
           <form
@@ -134,7 +125,21 @@ export default async function TeamPage() {
             </TableTools>
           )}
         </div>
-      </div>
+    </div>
+  );
+
+  const rolesSection = viewerIsSuper ? (
+    <RolesOverview roleCounts={roleCounts} viewerIsSuper={viewerIsSuper} />
+  ) : null;
+
+  return (
+    <div>
+      <h1 className="text-2xl font-bold tracking-tight">Team</h1>
+      <p className="mt-1 text-sm text-slate-500">
+        Add team members and their roles. A person can hold multiple roles.
+      </p>
+
+      <TeamTabs members={membersSection} roles={rolesSection} />
     </div>
   );
 }
