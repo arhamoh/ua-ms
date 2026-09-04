@@ -39,6 +39,7 @@ export async function getIntegrations(): Promise<IntegrationStatus[]> {
   const orSet = isSet(e.OPENROUTER_API_KEY);
   const waveSet = isSet(e.WAVE_FULL_ACCESS_TOKEN);
   const xSet = isSet(e.TWITTERAPI_IO_KEY);
+  const apolloSet = isSet(e.APOLLO_API_KEY);
   const drive = driveConfigured();
 
   const list: IntegrationStatus[] = [
@@ -120,6 +121,17 @@ export async function getIntegrations(): Promise<IntegrationStatus[]> {
         { name: 'WAVE_BUSINESS_ID', set: isSet(e.WAVE_BUSINESS_ID) },
       ],
       testable: waveSet,
+    },
+    {
+      id: 'apollo',
+      name: 'Apollo (lead search)',
+      description: 'Sources B2B leads by title, industry and location on the Leads → Apollo page.',
+      status: apolloSet ? 'connected' : 'off',
+      summary: apolloSet
+        ? 'Key present — search for leads on the Leads → Apollo page.'
+        : 'Not configured — add your Apollo API key to search for leads.',
+      vars: [{ name: 'APOLLO_API_KEY', set: apolloSet, required: true }],
+      testable: false,
     },
     {
       id: 'x',
