@@ -20,7 +20,8 @@ import TaskBoard from '@/components/TaskBoard';
 import ProjectFiles from '@/components/ProjectFiles';
 import CommentThreads from '@/components/CommentThreads';
 import ProjectStatusSelect from '@/components/ProjectStatusSelect';
-import { driveConfigured } from '@/lib/drive';
+import { driveConfigured, folderLink } from '@/lib/drive';
+import ProjectDriveSection from '@/components/ProjectDriveSection';
 
 export const dynamic = 'force-dynamic';
 
@@ -87,6 +88,12 @@ export default async function ProjectDetailPage({
   project.members.forEach((m) => memberMap.set(m.user.id, { id: m.user.id, name: m.user.name }));
   const members = Array.from(memberMap.values());
 
+  // Drive access for the Files tab.
+  const drivePrivileged = !!session?.roles?.some((r) => ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'PROJECT_MANAGER'].includes(r));
+  const canViewDrive = drivePrivileged || project.members.some((m) => m.user.id === session?.id);
+  const canSetupDrive = !!session?.roles?.some((r) => r === 'SUPER_ADMIN' || r === 'ADMIN');
+  const drivePeople = driveConfigured() ? await prisma.user.findMany({ orderBy: { name: 'asc' }, select: { id: true, name: true } }) : [];
+
   const boardTasks = project.tasks.map((t) => ({
     id: t.id,
     title: t.title,
@@ -151,7 +158,18 @@ export default async function ProjectDetailPage({
       {activeTab === 'tasks' ? (
         <TaskBoard projectId={project.id} initialTasks={boardTasks} members={members} canApprove={canApprove} allTags={allTags} meId={session?.id ?? ''} isAdmin={isAdmin} />
       ) : activeTab === 'files' ? (
-        <ProjectFiles projectId={project.id} files={project.files} driveOk={driveConfigured()} />
+        <div className="space-y-6">
+          {driveConfigured() && canViewDrive && (
+            <ProjectDriveSection
+              projectId={project.id}
+              driveFolderId={project.driveFolderId}
+              driveLink={project.driveFolderId ? folderLink(project.driveFolderId) : null}
+              people={drivePeople}
+              canSetup={canSetupDrive}
+            />
+          )}
+          <ProjectFiles projectId={project.id} files={project.files} driveOk={driveConfigured()} />
+        </div>
       ) : activeTab === 'discussion' ? (
         <CommentThreads entityType="project" entityId={project.id} href={`/projects/${project.id}?tab=discussion`} meId={session?.id ?? ''} isAdmin={isAdmin} />
       ) : (

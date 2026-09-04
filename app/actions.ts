@@ -1569,6 +1569,27 @@ export async function provisionAllDriveFolders(): Promise<{ ok: boolean; clients
   }
 }
 
+/** Provision the Drive folder tree for a single project (elevated). */
+export async function setupProjectDrive(projectId: string): Promise<{ ok: boolean; folderId?: string; error?: string }> {
+  await requireSuperAdmin();
+  if (!driveConfigured()) return { ok: false, error: 'Google Drive isn’t connected.' };
+  const project = await prisma.project.findUnique({ where: { id: projectId }, include: { client: { select: { id: true, name: true } } } });
+  if (!project) return { ok: false, error: 'Project not found.' };
+  try {
+    const { clientFolderId, projectFolderId } = await provisionProjectFolders({
+      clientName: project.client.name,
+      projectName: project.name,
+      projectType: project.type,
+    });
+    await prisma.client.update({ where: { id: project.client.id }, data: { driveFolderId: clientFolderId } });
+    await prisma.project.update({ where: { id: project.id }, data: { driveFolderId: projectFolderId } });
+    revalidatePath(`/projects/${projectId}`);
+    return { ok: true, folderId: projectFolderId };
+  } catch (e: any) {
+    return { ok: false, error: e?.message?.slice(0, 200) ?? 'Could not create folders.' };
+  }
+}
+
 /** Tag a teammate on a Drive file: grant them read access and notify them with a
  *  direct link (in-app + push + email). */
 export async function tagFileToUser(

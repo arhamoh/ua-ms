@@ -1,9 +1,9 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { CheckCircle2, XCircle, AlertTriangle, Loader2, Plug, Save, Trash2, Eye, EyeOff, LogIn, Unlink, Copy, Check } from 'lucide-react';
+import { CheckCircle2, XCircle, AlertTriangle, Loader2, Plug, Save, Trash2, Eye, EyeOff, LogIn, Unlink, Copy, Check, Mail } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { testIntegration, saveIntegrationSecret, clearIntegrationSecret, revealSecret, disconnectGoogle } from '@/app/actions';
+import { testIntegration, saveIntegrationSecret, clearIntegrationSecret, revealSecret, disconnectGoogle, sendTestEmail } from '@/app/actions';
 import type { IntegrationStatus, EnvVarStatus } from '@/lib/integrations';
 
 const STATUS: Record<IntegrationStatus['status'], { dot: string; label: string; cls: string }> = {
@@ -135,8 +135,17 @@ function IntegrationBody({ it }: { it: IntegrationStatus }) {
 function GoogleConnect({ it, onChange }: { it: IntegrationStatus; onChange: () => void }) {
   const [pending, start] = useTransition();
   const [copied, setCopied] = useState(false);
+  const [emailing, setEmailing] = useState(false);
+  const [emailMsg, setEmailMsg] = useState<{ ok: boolean; message: string } | null>(null);
   const clientReady = it.vars.filter((v) => v.required).every((v) => v.set);
   const connected = it.status === 'connected';
+
+  const sendTest = async () => {
+    setEmailing(true);
+    setEmailMsg(null);
+    setEmailMsg(await sendTestEmail(''));
+    setEmailing(false);
+  };
 
   // The exact redirect URI this app will send — must be registered verbatim in
   // the Google Cloud OAuth client. Built from the real browser origin (https).
@@ -180,13 +189,28 @@ function GoogleConnect({ it, onChange }: { it: IntegrationStatus; onChange: () =
       )}
       <div className="flex flex-wrap items-center gap-2">
       {connected ? (
-        <button
-          onClick={disconnect}
-          disabled={pending}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs font-medium text-rose-600 transition hover:bg-rose-50 disabled:opacity-50"
-        >
-          {pending ? <Loader2 size={13} className="animate-spin" /> : <Unlink size={13} />} Disconnect Google
-        </button>
+        <>
+          <button
+            onClick={disconnect}
+            disabled={pending}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs font-medium text-rose-600 transition hover:bg-rose-50 disabled:opacity-50"
+          >
+            {pending ? <Loader2 size={13} className="animate-spin" /> : <Unlink size={13} />} Disconnect Google
+          </button>
+          <button
+            onClick={sendTest}
+            disabled={emailing}
+            title="Send a sample welcome email to yourself"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
+          >
+            {emailing ? <Loader2 size={13} className="animate-spin" /> : <Mail size={13} />} Send test email
+          </button>
+          {emailMsg && (
+            <span className={`inline-flex items-center gap-1 text-xs ${emailMsg.ok ? 'text-emerald-600' : 'text-rose-600'}`}>
+              {emailMsg.ok ? <CheckCircle2 size={13} /> : <AlertTriangle size={13} />} {emailMsg.message}
+            </span>
+          )}
+        </>
       ) : clientReady ? (
         <a
           href="/api/integrations/google/start"

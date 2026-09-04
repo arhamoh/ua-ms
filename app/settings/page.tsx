@@ -9,7 +9,6 @@ import { getCompany } from '@/lib/company';
 import { getSession } from '@/lib/auth';
 import FadeIn from '@/components/FadeIn';
 import IntegrationsPanel from '@/components/IntegrationsPanel';
-import EmailTestPanel from '@/components/EmailTestPanel';
 import EnablePushButton from '@/components/EnablePushButton';
 import NotificationPrefs from '@/components/NotificationPrefs';
 import AccountSettings from '@/components/AccountSettings';
@@ -58,7 +57,6 @@ export default async function SettingsPage({
   const session = await getSession();
   // Integrations, Database and Reset are Super-Admin-only — Admins don't see them.
   const isSuper = !!session?.roles?.includes('SUPER_ADMIN');
-  const emailReady = integrations.some((i) => i.id === 'google' && i.status === 'connected');
   const me = session ? await prisma.user.findUnique({ where: { id: session.id }, select: { timezone: true, notifyPrefs: true, username: true } }) : null;
   const notifyPrefs = normalizePrefs(me?.notifyPrefs);
 
@@ -135,9 +133,7 @@ export default async function SettingsPage({
         <IntegrationsPanel integrations={integrations} />
         <p className="mt-2 text-xs text-slate-400">
           Set keys right here, or in Railway → Variables. Secret values are never shown — only whether each one is set.
-        </p>
-        <EmailTestPanel defaultTo={session?.email ?? ''} emailReady={emailReady} />
-      </div>
+        </p>      </div>
     ),
   };
 

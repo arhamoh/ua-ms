@@ -1,14 +1,26 @@
 'use client';
 
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 
 export type SettingsTab = { id: string; label: string; icon?: ReactNode; content: ReactNode };
 
 // Tabbed container for the Settings page. Each tab's content is server-rendered
-// and passed in as a ReactNode, so server-action forms keep working.
+// and passed in as a ReactNode, so server-action forms keep working. The active
+// tab is mirrored to the URL hash so a refresh (or shared link) reopens it.
 export default function SettingsTabs({ tabs }: { tabs: SettingsTab[] }) {
   const [active, setActive] = useState(tabs[0]?.id);
   const current = tabs.find((t) => t.id === active) ?? tabs[0];
+
+  useEffect(() => {
+    const h = window.location.hash.replace('#', '');
+    if (h && tabs.some((t) => t.id === h)) setActive(h);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const select = (id: string) => {
+    setActive(id);
+    try { history.replaceState(null, '', `#${id}`); } catch { /* ignore */ }
+  };
 
   return (
     <div className="mt-5">
@@ -17,7 +29,7 @@ export default function SettingsTabs({ tabs }: { tabs: SettingsTab[] }) {
         <label className="mb-1.5 block text-xs font-medium text-slate-500">Section</label>
         <select
           value={active}
-          onChange={(e) => setActive(e.target.value)}
+          onChange={(e) => select(e.target.value)}
           className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm font-medium text-slate-700 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/10"
         >
           {tabs.map((t) => (
@@ -34,7 +46,7 @@ export default function SettingsTabs({ tabs }: { tabs: SettingsTab[] }) {
             return (
               <button
                 key={t.id}
-                onClick={() => setActive(t.id)}
+                onClick={() => select(t.id)}
                 className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 px-3 pb-2.5 pt-1.5 text-sm font-medium transition ${
                   on ? 'border-brand text-brand' : 'border-transparent text-slate-500 hover:text-slate-800'
                 }`}

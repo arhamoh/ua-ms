@@ -33,8 +33,18 @@ function fmtDate(s: string | null) {
   try { return new Intl.DateTimeFormat('en-CA', { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date(s)); } catch { return ''; }
 }
 
-export default function DriveBrowser({ people, canProvision, rootLabel = 'My Drive' }: { people: Person[]; canProvision: boolean; rootLabel?: string }) {
-  const [path, setPath] = useState<Crumb[]>([{ id: undefined, name: rootLabel }]);
+export default function DriveBrowser({
+  people,
+  canProvision,
+  rootLabel = 'My Drive',
+  startFolder,
+}: {
+  people: Person[];
+  canProvision: boolean;
+  rootLabel?: string;
+  startFolder?: { id: string; name: string };
+}) {
+  const [path, setPath] = useState<Crumb[]>([startFolder ? { id: startFolder.id, name: startFolder.name } : { id: undefined, name: rootLabel }]);
   const [files, setFiles] = useState<DriveEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -50,7 +60,7 @@ export default function DriveBrowser({ people, canProvision, rootLabel = 'My Dri
     setLoading(false);
     if (r.ok) setFiles(r.files ?? []); else setError(r.error ?? 'Could not read Drive.');
   }, []);
-  useEffect(() => { load(undefined); }, [load]);
+  useEffect(() => { load(startFolder?.id); }, [load, startFolder?.id]);
 
   const flash = (m: string) => { setToast(m); setTimeout(() => setToast(''), 2500); };
   const current = path[path.length - 1];
