@@ -42,30 +42,11 @@ export async function getIntegrations(): Promise<IntegrationStatus[]> {
   const xSet = isSet(e.TWITTERAPI_IO_KEY);
   const apolloSet = isSet(e.APOLLO_API_KEY);
   const drive = driveConfigured();
-  const gmailClient = isSet(e.GOOGLE_OAUTH_CLIENT_ID) && isSet(e.GOOGLE_OAUTH_CLIENT_SECRET);
-  const gmailLinked = isSet(e.GMAIL_OAUTH_REFRESH_TOKEN) && isSet(e.GMAIL_OAUTH_EMAIL);
 
   // Grouped so similar integrations sit together in the UI. The "Google" group
-  // is rendered as a single combined card (Gmail + Drive) in IntegrationsPanel.
+  // is rendered as a single combined card in IntegrationsPanel.
   const list: IntegrationStatus[] = [
-    // ── Google (one card: Gmail + Drive) ────────────────────────────────────
-    {
-      id: 'gmail',
-      group: 'Google',
-      name: 'Gmail — send email',
-      description: 'Send email from your Google/Workspace account via OAuth — no app password needed.',
-      status: gmailLinked ? 'connected' : gmailClient ? 'warn' : 'off',
-      summary: gmailLinked
-        ? `Connected as ${e.GMAIL_OAUTH_EMAIL}.`
-        : gmailClient
-          ? 'Client keys set — click “Connect Gmail” below to finish.'
-          : 'Add your Google OAuth client ID & secret, then connect your account.',
-      vars: [
-        { name: 'GOOGLE_OAUTH_CLIENT_ID', set: isSet(e.GOOGLE_OAUTH_CLIENT_ID), required: true },
-        { name: 'GOOGLE_OAUTH_CLIENT_SECRET', set: isSet(e.GOOGLE_OAUTH_CLIENT_SECRET), required: true },
-      ],
-      testable: false,
-    },
+    // ── Google (one combined card) ──────────────────────────────────────────
     {
       id: 'drive',
       group: 'Google',
@@ -79,18 +60,18 @@ export async function getIntegrations(): Promise<IntegrationStatus[]> {
       ],
       testable: drive,
     },
-    // ── Email (alternative to Gmail) ────────────────────────────────────────
+    // ── Email (Resend / SMTP) ───────────────────────────────────────────────
     {
       id: 'email',
       group: 'Email',
-      name: 'Email — SMTP / Resend (alternative)',
-      description: 'Send email via an SMTP app password or Resend, instead of connecting Gmail above.',
+      name: 'Email (Resend / SMTP)',
+      description: 'Sends invoices, receipts and welcome emails via Resend (or an SMTP app password).',
       status: smtp || resend ? 'connected' : 'off',
-      summary: smtp
-        ? 'Using SMTP.'
-        : resend
-          ? 'Using Resend.'
-          : 'Optional — use this only if you’re not connecting Gmail above.',
+      summary: resend
+        ? 'Using Resend.'
+        : smtp
+          ? 'Using SMTP.'
+          : 'Not configured — set a Resend API key + from-address to send email.',
       vars: [
         { name: 'SMTP_HOST', set: isSet(e.SMTP_HOST) },
         { name: 'SMTP_USER', set: isSet(e.SMTP_USER) },

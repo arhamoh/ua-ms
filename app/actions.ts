@@ -1373,14 +1373,6 @@ export async function revealSecret(name: string): Promise<{ ok: boolean; value?:
   return { ok: true, value };
 }
 
-/** Disconnect the linked Gmail account (clears the stored OAuth tokens). */
-export async function disconnectGmail(): Promise<{ ok: boolean; message: string }> {
-  await requireSuperStrict();
-  await clearSecret('GMAIL_OAUTH_REFRESH_TOKEN');
-  await clearSecret('GMAIL_OAUTH_EMAIL');
-  return { ok: true, message: 'Gmail disconnected.' };
-}
-
 export async function clearIntegrationSecret(name: string): Promise<{ ok: boolean; message: string }> {
   await requireSuperStrict();
   if (!isManagedSecret(name)) return { ok: false, message: 'That key can’t be cleared from here.' };
