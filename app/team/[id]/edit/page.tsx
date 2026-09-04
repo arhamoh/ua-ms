@@ -24,7 +24,7 @@ export default async function EditTeamMemberPage({ params }: { params: Promise<{
       </Link>
       <div className="mb-6 mt-2">
         <h1 className="text-2xl font-bold tracking-tight">Edit team member</h1>
-        <p className="mt-1 text-sm text-slate-500">Update name, email and roles.</p>
+        <p className="mt-1 text-sm text-slate-500">Update name, email, username, roles and password.</p>
       </div>
 
       <form action={updateUser} className="max-w-lg rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -38,6 +38,23 @@ export default async function EditTeamMemberPage({ params }: { params: Promise<{
         <label className="mb-4 block">
           <span className="mb-1 block text-xs font-medium text-slate-600">Email *</span>
           <input name="email" type="email" required defaultValue={member.email ?? ''} className={inputCls} placeholder="jane@agency.com" />
+        </label>
+
+        <label className="mb-4 block">
+          <span className="mb-1 block text-xs font-medium text-slate-600">
+            Username <span className="font-normal text-slate-400">(optional)</span>
+          </span>
+          <input
+            name="username"
+            type="text"
+            autoCapitalize="none"
+            autoCorrect="off"
+            autoComplete="off"
+            defaultValue={member.username ?? ''}
+            className={inputCls}
+            placeholder="Leave blank to sign in with email"
+          />
+          <span className="mt-1 block text-[11px] text-slate-400">They can sign in with this or their email.</span>
         </label>
 
         <span className="mb-1 block text-xs font-medium text-slate-600">Roles</span>

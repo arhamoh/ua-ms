@@ -1902,11 +1902,26 @@ export async function updateUser(formData: FormData) {
   const id = str(formData.get('userId'));
   if (!id) return;
   const roles = formData.getAll('roles').map((r) => r.toString()).filter((r) => ROLES.includes(r)) as any[];
+
+  // Username: blank clears it; otherwise sanitize and ensure it's unique.
+  const rawUsername = str(formData.get('username'));
+  let username: string | null = null;
+  if (rawUsername) {
+    username = rawUsername.toLowerCase().replace(/[^a-z0-9._-]/g, '');
+    if (!username) throw new Error('Username can only contain letters, numbers, dots, dashes and underscores.');
+    const clash = await prisma.user.findFirst({
+      where: { id: { not: id }, OR: [{ username }, { email: username }] },
+      select: { id: true },
+    });
+    if (clash) throw new Error('That username is already taken.');
+  }
+
   await prisma.user.update({
     where: { id },
     data: {
       name: str(formData.get('name')) || 'Member',
       email: (str(formData.get('email')) || '').toLowerCase(),
+      username,
       roles,
     },
   });
