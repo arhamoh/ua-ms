@@ -25,7 +25,7 @@ export default function EmailTestPanel({ defaultTo, emailReady }: { defaultTo: s
       </div>
       <p className="mt-1 text-xs text-slate-500">
         Sends a sample welcome email so you can see exactly what new members receive.
-        {!emailReady && ' Configure Resend above first.'}
+        {!emailReady && ' Connect Google (or configure Resend) above first.'}
       </p>
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <input

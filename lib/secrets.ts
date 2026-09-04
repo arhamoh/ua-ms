@@ -25,12 +25,16 @@ export const MANAGED_SECRETS = [
   'WAVE_BUSINESS_ID',
   'RESEND_API_KEY',
   'INVOICE_FROM_EMAIL',
-  'GOOGLE_SERVICE_ACCOUNT_JSON',
-  'GOOGLE_SHARED_DRIVE_ID',
-  // Google Calendar + Meet (same service account, via domain-wide delegation).
-  'GOOGLE_CALENDAR_IMPERSONATE_EMAIL',
+  // Unified "Connect Google" (OAuth) — powers Gmail, Calendar, Meet and Drive.
+  'GOOGLE_OAUTH_CLIENT_ID',
+  'GOOGLE_OAUTH_CLIENT_SECRET',
+  'GOOGLE_REFRESH_TOKEN',
+  'GOOGLE_CONNECTED_EMAIL',
   'GOOGLE_CALENDAR_ID',
   'GOOGLE_CALENDAR_TZ',
+  // Legacy service-account fallback for Drive.
+  'GOOGLE_SERVICE_ACCOUNT_JSON',
+  'GOOGLE_SHARED_DRIVE_ID',
   'CRON_SECRET',
   'VAPID_PUBLIC_KEY',
   'VAPID_PRIVATE_KEY',

@@ -1,9 +1,9 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { CheckCircle2, XCircle, AlertTriangle, Loader2, Plug, Save, Trash2, Eye, EyeOff } from 'lucide-react';
+import { CheckCircle2, XCircle, AlertTriangle, Loader2, Plug, Save, Trash2, Eye, EyeOff, LogIn, Unlink } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { testIntegration, saveIntegrationSecret, clearIntegrationSecret, revealSecret } from '@/app/actions';
+import { testIntegration, saveIntegrationSecret, clearIntegrationSecret, revealSecret, disconnectGoogle } from '@/app/actions';
 import type { IntegrationStatus, EnvVarStatus } from '@/lib/integrations';
 
 const STATUS: Record<IntegrationStatus['status'], { dot: string; label: string; cls: string }> = {
@@ -109,6 +109,9 @@ function IntegrationBody({ it }: { it: IntegrationStatus }) {
         </div>
       )}
 
+      {/* Unified Google connect / disconnect. */}
+      {it.id === 'google' && <GoogleConnect it={it} onChange={() => router.refresh()} />}
+
       {it.testable && (
         <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3">
           <button
@@ -124,6 +127,41 @@ function IntegrationBody({ it }: { it: IntegrationStatus }) {
             </span>
           )}
         </div>
+      )}
+    </div>
+  );
+}
+
+function GoogleConnect({ it, onChange }: { it: IntegrationStatus; onChange: () => void }) {
+  const [pending, start] = useTransition();
+  const clientReady = it.vars.filter((v) => v.required).every((v) => v.set);
+  const connected = it.status === 'connected';
+
+  const disconnect = () =>
+    start(async () => {
+      await disconnectGoogle();
+      onChange();
+    });
+
+  return (
+    <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3">
+      {connected ? (
+        <button
+          onClick={disconnect}
+          disabled={pending}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs font-medium text-rose-600 transition hover:bg-rose-50 disabled:opacity-50"
+        >
+          {pending ? <Loader2 size={13} className="animate-spin" /> : <Unlink size={13} />} Disconnect Google
+        </button>
+      ) : clientReady ? (
+        <a
+          href="/api/integrations/google/start"
+          className="inline-flex items-center gap-1.5 rounded-lg bg-brand px-2.5 py-1.5 text-xs font-medium text-white shadow-sm transition hover:bg-brand-dark"
+        >
+          <LogIn size={13} /> Connect Google
+        </a>
+      ) : (
+        <p className="text-xs text-slate-400">Save the client ID &amp; secret above, then reload to connect.</p>
       )}
     </div>
   );

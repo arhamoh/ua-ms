@@ -54,6 +54,10 @@ export function buildIcs(input: IcsInput): string {
 }
 
 /** Base64 of an .ics for use as an email attachment. */
-export function icsAttachment(input: IcsInput): { filename: string; content: string } {
-  return { filename: 'invite.ics', content: Buffer.from(buildIcs(input), 'utf8').toString('base64') };
+export function icsAttachment(input: IcsInput): { filename: string; content: string; contentType: string } {
+  return {
+    filename: 'invite.ics',
+    content: Buffer.from(buildIcs(input), 'utf8').toString('base64'),
+    contentType: 'text/calendar; charset=utf-8; method=REQUEST',
+  };
 }

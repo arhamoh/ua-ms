@@ -94,8 +94,9 @@ X/twitterapi.io, Wave accounting, automation/cron, push.** Secrets are stored
 ---
 
 ## Platform qualities
-- **White-label ready** — one connected Google Workspace account can power email,
-  calendar, Meet and file storage (see roadmap).
+- **White-label ready** — a single **"Connect Google"** button links one Google
+  Workspace account that powers email (Gmail), Calendar, Meet and Drive file
+  storage — one-click onboarding for every new customer.
 - **PWA / installable** on desktop and phone, with push notifications.
 - **Multi-currency & multi-timezone** throughout.
 - **Security:** JWT sessions, AES-256-GCM-encrypted secrets and vault entries,
@@ -139,9 +140,6 @@ instead of seven.
 ---
 
 ## Roadmap / in progress
-- **One-click "Connect Google"** — a single Sign-in-with-Google that powers Gmail
-  sending, Calendar, Meet and Drive from one connected Workspace account (making
-  white-label onboarding a single button).
 - **Deadline → calendar sync** — project deadlines auto-appear on the calendar.
 - **Meeting reminders** — push/email a set time before a meeting starts.
 

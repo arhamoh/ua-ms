@@ -1,34 +1,19 @@
 import 'server-only';
-import { JWT } from 'google-auth-library';
+import { googleConnected, getAccessToken } from '@/lib/google';
 
-// Google Calendar + Meet via the same service account used for Drive, using
-// domain-wide delegation to act as a real Workspace user (required to create
-// Meet links). This is an OPTIONAL enhancement layered on top of the in-platform
-// meetings: when connected, an approved meeting is mirrored to Google Calendar
-// with a Meet link and the attendees are invited by email.
+// Google Calendar + Meet via the unified "Connect Google" account. Events are
+// created on the connected account's calendar; Meet links work because we act as
+// that real user. This is an optional enhancement — approved meetings still work
+// in-platform (with email .ics invites) when Google isn't connected.
 
-const SCOPES = ['https://www.googleapis.com/auth/calendar'];
 const BASE = 'https://www.googleapis.com/calendar/v3';
 
 export function calendarConfigured(): boolean {
-  return Boolean(process.env.GOOGLE_SERVICE_ACCOUNT_JSON && process.env.GOOGLE_CALENDAR_IMPERSONATE_EMAIL);
+  return googleConnected();
 }
 
 function calendarId(): string {
   return process.env.GOOGLE_CALENDAR_ID || 'primary';
-}
-
-async function getAccessToken(): Promise<string> {
-  const json = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON as string);
-  const jwt = new JWT({
-    email: json.client_email,
-    key: json.private_key,
-    scopes: SCOPES,
-    subject: process.env.GOOGLE_CALENDAR_IMPERSONATE_EMAIL, // domain-wide delegation
-  });
-  const { access_token } = await jwt.authorize();
-  if (!access_token) throw new Error('No access token — check domain-wide delegation for the service account.');
-  return access_token;
 }
 
 async function api(path: string, init?: RequestInit): Promise<any> {
@@ -41,12 +26,11 @@ async function api(path: string, init?: RequestInit): Promise<any> {
   return res.status === 204 ? {} : res.json();
 }
 
-/** Live check for the Settings integrations panel. */
 export async function testCalendarConnection(): Promise<{ ok: boolean; message: string }> {
-  if (!calendarConfigured()) return { ok: false, message: 'Not configured.' };
+  if (!calendarConfigured()) return { ok: false, message: 'Not connected.' };
   try {
     const data = await api(`/calendars/${encodeURIComponent(calendarId())}`);
-    return { ok: true, message: `Connected to “${data.summary ?? calendarId()}”.` };
+    return { ok: true, message: `Calendar ready (“${data.summary ?? calendarId()}”).` };
   } catch (e: any) {
     return { ok: false, message: e?.message?.slice(0, 200) ?? 'Connection failed.' };
   }
@@ -61,8 +45,6 @@ export interface CreateEventInput {
   withMeet?: boolean;
 }
 
-/** Create a calendar event (optionally with a Meet link) and invite attendees.
- *  Returns the event id, its Calendar link, and the Meet link if requested. */
 export async function createEvent(input: CreateEventInput): Promise<{ id: string; htmlLink?: string; meetLink?: string }> {
   if (!calendarConfigured()) throw new Error('Google Calendar is not connected.');
   const body: any = {
@@ -83,7 +65,6 @@ export async function createEvent(input: CreateEventInput): Promise<{ id: string
   return { id: ev.id, htmlLink: ev.htmlLink, meetLink: ev.hangoutLink };
 }
 
-/** Delete a previously-created event (best-effort; ignores 404/410). */
 export async function deleteEvent(eventId: string): Promise<void> {
   if (!calendarConfigured() || !eventId) return;
   try {

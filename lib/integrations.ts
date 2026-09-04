@@ -3,7 +3,6 @@
 // SECURITY: never expose secret values — only presence (set / not set).
 
 import { prisma } from '@/lib/prisma';
-import { driveConfigured } from '@/lib/drive';
 import { hydrateSecrets, getSavedSecretNames, isManagedSecret } from '@/lib/secrets';
 
 const isSet = (v?: string | null) => Boolean(v && v.trim());
@@ -40,57 +39,47 @@ export async function getIntegrations(): Promise<IntegrationStatus[]> {
   const waveSet = isSet(e.WAVE_FULL_ACCESS_TOKEN);
   const xSet = isSet(e.TWITTERAPI_IO_KEY);
   const apolloSet = isSet(e.APOLLO_API_KEY);
-  const drive = driveConfigured();
-  const calendar = isSet(e.GOOGLE_SERVICE_ACCOUNT_JSON) && isSet(e.GOOGLE_CALENDAR_IMPERSONATE_EMAIL);
+  const googleClient = isSet(e.GOOGLE_OAUTH_CLIENT_ID) && isSet(e.GOOGLE_OAUTH_CLIENT_SECRET);
+  const googleLinked = isSet(e.GOOGLE_REFRESH_TOKEN) && isSet(e.GOOGLE_CONNECTED_EMAIL);
 
   // Grouped so similar integrations sit together in the UI. The "Google" group
   // is rendered as a single combined card in IntegrationsPanel.
   const list: IntegrationStatus[] = [
-    // ── Google (one combined card) ──────────────────────────────────────────
+    // ── Google (one connection powers Gmail, Calendar, Meet & Drive) ─────────
     {
-      id: 'drive',
+      id: 'google',
       group: 'Google',
-      name: 'Google Drive — file uploads',
-      description: 'Stores uploaded project files in your Shared Drive (uses a service account).',
-      status: drive ? 'connected' : 'off',
-      summary: drive ? 'Keys present — run a test to confirm access.' : 'Not configured — file uploads are disabled.',
+      name: 'Google Workspace — one connection',
+      description: 'Connect once with Google to power email (Gmail), Calendar, Meet, and Drive file uploads.',
+      status: googleLinked ? 'connected' : googleClient ? 'warn' : 'off',
+      summary: googleLinked
+        ? `Connected as ${e.GOOGLE_CONNECTED_EMAIL} — powering Gmail, Calendar, Meet & Drive.`
+        : googleClient
+          ? 'Client keys set — click “Connect Google” below to finish.'
+          : 'Add your Google OAuth client ID & secret, then connect your account.',
       vars: [
-        { name: 'GOOGLE_SERVICE_ACCOUNT_JSON', set: isSet(e.GOOGLE_SERVICE_ACCOUNT_JSON), required: true },
-        { name: 'GOOGLE_SHARED_DRIVE_ID', set: isSet(e.GOOGLE_SHARED_DRIVE_ID), required: true },
+        { name: 'GOOGLE_OAUTH_CLIENT_ID', set: isSet(e.GOOGLE_OAUTH_CLIENT_ID), required: true },
+        { name: 'GOOGLE_OAUTH_CLIENT_SECRET', set: isSet(e.GOOGLE_OAUTH_CLIENT_SECRET), required: true },
       ],
-      testable: drive,
+      testable: googleLinked,
     },
-    {
-      id: 'calendar',
-      group: 'Google',
-      name: 'Google Calendar & Meet',
-      description: 'Book meetings with Meet links and show upcoming meetings, on the Meetings page. Uses the same service account (needs domain-wide delegation).',
-      status: calendar ? 'connected' : 'off',
-      summary: calendar
-        ? 'Keys present — run a test to confirm calendar access.'
-        : 'Not configured — set the impersonation email (and grant the service account calendar access).',
-      vars: [
-        { name: 'GOOGLE_CALENDAR_IMPERSONATE_EMAIL', set: isSet(e.GOOGLE_CALENDAR_IMPERSONATE_EMAIL), required: true },
-        { name: 'GOOGLE_CALENDAR_ID', set: isSet(e.GOOGLE_CALENDAR_ID) },
-        { name: 'GOOGLE_CALENDAR_TZ', set: isSet(e.GOOGLE_CALENDAR_TZ) },
-      ],
-      testable: calendar,
-    },
-    // ── Email (Resend) ──────────────────────────────────────────────────────
+    // ── Email (Resend fallback) ─────────────────────────────────────────────
     {
       id: 'email',
       group: 'Email',
-      name: 'Email (Resend)',
-      description: 'Sends invoices, receipts and welcome emails via Resend.',
-      status: resend ? 'connected' : 'off',
-      summary: resend
-        ? 'Using Resend.'
-        : 'Not configured — set a Resend API key + from-address to send email.',
+      name: 'Email — Resend (fallback)',
+      description: 'Used to send email only when Google above isn’t connected.',
+      status: googleLinked ? 'connected' : resend ? 'connected' : 'off',
+      summary: googleLinked
+        ? 'Google is connected — email is sent through Gmail; Resend isn’t used.'
+        : resend
+          ? 'Using Resend.'
+          : 'Optional — connect Google above, or set a Resend key to send email.',
       vars: [
-        { name: 'RESEND_API_KEY', set: isSet(e.RESEND_API_KEY), required: true },
-        { name: 'INVOICE_FROM_EMAIL', set: isSet(e.INVOICE_FROM_EMAIL), required: true },
+        { name: 'RESEND_API_KEY', set: isSet(e.RESEND_API_KEY) },
+        { name: 'INVOICE_FROM_EMAIL', set: isSet(e.INVOICE_FROM_EMAIL) },
       ],
-      testable: resend,
+      testable: resend && !googleLinked,
     },
     // ── AI ─────────────────────────────────────────────────────────────────
     {

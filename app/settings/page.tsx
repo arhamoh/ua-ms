@@ -29,14 +29,24 @@ const MESSAGES: Record<string, string> = {
   cleared: 'Demo data removed.',
   invoices: 'Generated invoices for any projects that were missing one.',
   company: 'Company details saved.',
+  google: 'Google connected — Gmail, Calendar, Meet and Drive are now powered by your account.',
+};
+
+const ERRORS: Record<string, string> = {
+  google_client: 'Add your Google OAuth client ID & secret first, then connect.',
+  google_denied: 'Google connection was cancelled.',
+  google_state: 'Google connection expired — please try again.',
+  google_norefresh: 'Google didn’t return a refresh token. Remove Keel’s access in your Google account, then connect again.',
+  google_email: 'Couldn’t read which Google account you connected — try again.',
+  google_exchange: 'Google connection failed. Double-check the client ID/secret and redirect URI.',
 };
 
 export default async function SettingsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ done?: string }>;
+  searchParams: Promise<{ done?: string; err?: string }>;
 }) {
-  const { done } = await searchParams;
+  const { done, err } = await searchParams;
   await ensureOptionsSeeded();
   // Surface newer built-in defaults (e.g. Wise/Remitly) on already-seeded DBs.
   await Promise.all(OPTION_KINDS.map((k) => ensureOptionDefaults(k.kind)));
@@ -140,6 +150,9 @@ export default async function SettingsPage({
 
       {done && MESSAGES[done] && (
         <div className="mt-4 rounded-lg bg-emerald-50 px-4 py-2.5 text-sm text-emerald-700">{MESSAGES[done]}</div>
+      )}
+      {err && ERRORS[err] && (
+        <div className="mt-4 rounded-lg bg-rose-50 px-4 py-2.5 text-sm text-rose-600">{ERRORS[err]}</div>
       )}
 
       <SettingsTabs

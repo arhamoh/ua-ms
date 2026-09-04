@@ -1,95 +1,111 @@
 import { drive as makeDrive } from '@googleapis/drive';
-import { JWT } from 'google-auth-library';
+import { JWT, OAuth2Client } from 'google-auth-library';
 import { Readable } from 'stream';
+import { googleConnected, getAccessToken } from '@/lib/google';
+
+// Drive works either through the unified "Connect Google" account (files in that
+// account's My Drive) or, as a fallback, a service account + Shared Drive.
 
 export function driveConfigured() {
-  return Boolean(process.env.GOOGLE_SERVICE_ACCOUNT_JSON && process.env.GOOGLE_SHARED_DRIVE_ID);
+  return googleConnected() || Boolean(process.env.GOOGLE_SERVICE_ACCOUNT_JSON && process.env.GOOGLE_SHARED_DRIVE_ID);
 }
 
-function getDrive() {
+type DriveClient = ReturnType<typeof makeDrive>;
+interface Ctx {
+  drive: DriveClient;
+  shared: boolean; // service-account Shared Drive mode
+  driveId?: string;
+  rootParent: string;
+}
+
+async function ctx(): Promise<Ctx> {
+  if (googleConnected()) {
+    const auth = new OAuth2Client();
+    auth.setCredentials({ access_token: await getAccessToken() });
+    return { drive: makeDrive({ version: 'v3', auth: auth as any }), shared: false, rootParent: 'root' };
+  }
   const json = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON as string);
-  const auth = new JWT({
-    email: json.client_email,
-    key: json.private_key,
-    scopes: ['https://www.googleapis.com/auth/drive'],
-  });
-  // auth client type version skew between google-auth-library and @googleapis/drive
-  return makeDrive({ version: 'v3', auth: auth as any });
+  const auth = new JWT({ email: json.client_email, key: json.private_key, scopes: ['https://www.googleapis.com/auth/drive'] });
+  const driveId = process.env.GOOGLE_SHARED_DRIVE_ID as string;
+  return { drive: makeDrive({ version: 'v3', auth: auth as any }), shared: true, driveId, rootParent: driveId };
 }
 
-type DriveClient = ReturnType<typeof getDrive>;
+const esc = (name: string) => name.replace(/'/g, "\\'");
 
-// Live connectivity check for the Settings integrations panel.
 export async function testDriveConnection(): Promise<{ ok: boolean; message: string }> {
   if (!driveConfigured()) return { ok: false, message: 'Not configured.' };
   try {
-    const driveId = process.env.GOOGLE_SHARED_DRIVE_ID as string;
-    const res = await getDrive().drives.get({ driveId, fields: 'id,name' });
-    return { ok: true, message: `Connected to “${res.data.name ?? driveId}”.` };
+    const c = await ctx();
+    if (c.shared) {
+      const res = await c.drive.drives.get({ driveId: c.driveId!, fields: 'id,name' });
+      return { ok: true, message: `Connected to “${res.data.name ?? c.driveId}”.` };
+    }
+    await c.drive.files.list({ pageSize: 1, fields: 'files(id)' });
+    return { ok: true, message: 'Google Drive ready.' };
   } catch (err: any) {
     return { ok: false, message: err?.message?.slice(0, 200) ?? 'Connection failed.' };
   }
 }
 
-const esc = (name: string) => name.replace(/'/g, "\\'");
-
-// Find a folder by name under a parent, creating it if missing. Shared-drive aware.
-async function ensureFolder(drive: DriveClient, name: string, parentId: string, driveId: string) {
-  const list = await drive.files.list({
+async function ensureFolder(c: Ctx, name: string, parentId: string): Promise<string> {
+  const listParams: any = {
     q: `name='${esc(name)}' and mimeType='application/vnd.google-apps.folder' and '${parentId}' in parents and trashed=false`,
-    corpora: 'drive',
-    driveId,
-    includeItemsFromAllDrives: true,
-    supportsAllDrives: true,
     fields: 'files(id,name)',
-  });
+  };
+  if (c.shared) {
+    listParams.corpora = 'drive';
+    listParams.driveId = c.driveId;
+    listParams.includeItemsFromAllDrives = true;
+    listParams.supportsAllDrives = true;
+  }
+  const list = await c.drive.files.list(listParams);
   const found = list.data.files?.[0];
   if (found?.id) return found.id;
 
-  const created = await drive.files.create({
+  const createParams: any = {
     requestBody: { name, mimeType: 'application/vnd.google-apps.folder', parents: [parentId] },
-    supportsAllDrives: true,
     fields: 'id',
-  });
+  };
+  if (c.shared) createParams.supportsAllDrives = true;
+  const created = await c.drive.files.create(createParams);
   return created.data.id as string;
 }
 
-// Downloads a Drive file's bytes (via the service account) — used to proxy
-// message-attachment thumbnails so images render inline.
 export async function downloadDriveFile(fileId: string): Promise<{ buffer: Buffer; mimeType: string } | null> {
   try {
-    const drive = getDrive();
-    const meta = await drive.files.get({ fileId, fields: 'mimeType', supportsAllDrives: true });
-    const res = await drive.files.get(
-      { fileId, alt: 'media', supportsAllDrives: true },
-      { responseType: 'arraybuffer' },
-    );
+    const c = await ctx();
+    const metaParams: any = { fileId, fields: 'mimeType' };
+    const mediaParams: any = { fileId, alt: 'media' };
+    if (c.shared) {
+      metaParams.supportsAllDrives = true;
+      mediaParams.supportsAllDrives = true;
+    }
+    const meta = await c.drive.files.get(metaParams);
+    const res = await c.drive.files.get(mediaParams, { responseType: 'arraybuffer' });
     return { buffer: Buffer.from(res.data as ArrayBuffer), mimeType: meta.data.mimeType ?? 'application/octet-stream' };
   } catch {
     return null;
   }
 }
 
-// Uploads into a single named folder under the Shared Drive (e.g. "Messages").
 export async function uploadToDriveFolder(opts: {
   folder: string;
   fileName: string;
   mimeType: string;
   buffer: Buffer;
 }): Promise<{ fileId: string; webViewLink: string | null }> {
-  const driveId = process.env.GOOGLE_SHARED_DRIVE_ID as string;
-  const drive = getDrive();
-  const folderId = await ensureFolder(drive, opts.folder, driveId, driveId);
-  const created = await drive.files.create({
+  const c = await ctx();
+  const folderId = await ensureFolder(c, opts.folder, c.rootParent);
+  const createParams: any = {
     requestBody: { name: opts.fileName, parents: [folderId] },
     media: { mimeType: opts.mimeType, body: Readable.from(opts.buffer) },
-    supportsAllDrives: true,
     fields: 'id, webViewLink',
-  });
+  };
+  if (c.shared) createParams.supportsAllDrives = true;
+  const created = await c.drive.files.create(createParams);
   return { fileId: created.data.id as string, webViewLink: created.data.webViewLink ?? null };
 }
 
-// Uploads into: <Shared Drive>/<Client - Project>/<Category>/<file>
 export async function uploadToDrive(opts: {
   clientName: string;
   projectName: string;
@@ -98,18 +114,15 @@ export async function uploadToDrive(opts: {
   mimeType: string;
   buffer: Buffer;
 }): Promise<{ fileId: string; webViewLink: string | null }> {
-  const driveId = process.env.GOOGLE_SHARED_DRIVE_ID as string;
-  const drive = getDrive();
-
-  const projectFolder = await ensureFolder(drive, `${opts.clientName} - ${opts.projectName}`, driveId, driveId);
-  const catFolder = await ensureFolder(drive, opts.categoryLabel, projectFolder, driveId);
-
-  const created = await drive.files.create({
+  const c = await ctx();
+  const projectFolder = await ensureFolder(c, `${opts.clientName} - ${opts.projectName}`, c.rootParent);
+  const catFolder = await ensureFolder(c, opts.categoryLabel, projectFolder);
+  const createParams: any = {
     requestBody: { name: opts.fileName, parents: [catFolder] },
     media: { mimeType: opts.mimeType, body: Readable.from(opts.buffer) },
-    supportsAllDrives: true,
     fields: 'id, webViewLink',
-  });
-
+  };
+  if (c.shared) createParams.supportsAllDrives = true;
+  const created = await c.drive.files.create(createParams);
   return { fileId: created.data.id as string, webViewLink: created.data.webViewLink ?? null };
 }

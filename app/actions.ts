@@ -48,7 +48,7 @@ import {
 } from '@/lib/welcome-email';
 import { stashCredentials } from '@/lib/pending-credentials';
 import { driveConfigured, uploadToDrive, testDriveConnection } from '@/lib/drive';
-import { testCalendarConnection } from '@/lib/google-calendar';
+import { testGoogleConnection, resetGoogleTokenCache } from '@/lib/google';
 import { testOpenRouter } from '@/lib/integrations';
 import { setSecret, clearSecret, isManagedSecret, getSecret } from '@/lib/secrets';
 import { NOTIFY_CATEGORIES } from '@/lib/notify-categories';
@@ -1230,8 +1230,8 @@ export async function testIntegration(id: string): Promise<{ ok: boolean; messag
       return testDriveConnection();
     case 'email':
       return verifyEmailConnection();
-    case 'calendar':
-      return testCalendarConnection();
+    case 'google':
+      return testGoogleConnection();
     case 'openrouter':
       return testOpenRouter();
     case 'wave':
@@ -1374,6 +1374,15 @@ export async function revealSecret(name: string): Promise<{ ok: boolean; value?:
   const value = await getSecret(name);
   if (!value) return { ok: false, message: 'Not set.' };
   return { ok: true, value };
+}
+
+/** Disconnect the linked Google account (clears the stored tokens). */
+export async function disconnectGoogle(): Promise<{ ok: boolean; message: string }> {
+  await requireSuperStrict();
+  await clearSecret('GOOGLE_REFRESH_TOKEN');
+  await clearSecret('GOOGLE_CONNECTED_EMAIL');
+  resetGoogleTokenCache();
+  return { ok: true, message: 'Google disconnected.' };
 }
 
 export async function clearIntegrationSecret(name: string): Promise<{ ok: boolean; message: string }> {
