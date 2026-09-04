@@ -17,6 +17,7 @@ export type IntegrationStatus = {
   summary: string;
   vars: EnvVarStatus[];
   testable: boolean;
+  group: string;
 };
 
 export async function getIntegrations(): Promise<IntegrationStatus[]> {
@@ -41,50 +42,40 @@ export async function getIntegrations(): Promise<IntegrationStatus[]> {
   const xSet = isSet(e.TWITTERAPI_IO_KEY);
   const apolloSet = isSet(e.APOLLO_API_KEY);
   const drive = driveConfigured();
+  const gmailClient = isSet(e.GOOGLE_OAUTH_CLIENT_ID) && isSet(e.GOOGLE_OAUTH_CLIENT_SECRET);
+  const gmailLinked = isSet(e.GMAIL_OAUTH_REFRESH_TOKEN) && isSet(e.GMAIL_OAUTH_EMAIL);
 
+  // Grouped so similar integrations sit together in the UI.
   const list: IntegrationStatus[] = [
+    // ── Email ──────────────────────────────────────────────────────────────
     {
-      id: 'database',
-      name: 'Database (Postgres)',
-      description: 'Core data store — managed by Railway.',
-      status: dbOk ? 'connected' : 'off',
-      summary: dbOk ? 'Connected — test query succeeded.' : 'Cannot reach the database.',
-      vars: [{ name: 'DATABASE_URL', set: isSet(e.DATABASE_URL), required: true }],
-      testable: false,
-    },
-    {
-      id: 'auth',
-      name: 'Authentication',
-      description: 'Secret used to sign login sessions.',
-      status: authSet ? 'connected' : 'warn',
-      summary: authSet
-        ? 'Custom secret set.'
-        : 'Using an insecure dev fallback — set AUTH_SECRET in Railway.',
-      vars: [{ name: 'AUTH_SECRET', set: authSet, required: true }],
-      testable: false,
-    },
-    {
-      id: 'drive',
-      name: 'Google Drive (file uploads)',
-      description: 'Stores uploaded project files in your Shared Drive.',
-      status: drive ? 'connected' : 'off',
-      summary: drive ? 'Keys present — run a test to confirm access.' : 'Not configured — file uploads are disabled.',
+      id: 'gmail',
+      group: 'Email',
+      name: 'Gmail (Sign in with Google)',
+      description: 'Send email from your Google/Workspace account via OAuth — no app password needed.',
+      status: gmailLinked ? 'connected' : gmailClient ? 'warn' : 'off',
+      summary: gmailLinked
+        ? `Connected as ${e.GMAIL_OAUTH_EMAIL}.`
+        : gmailClient
+          ? 'Client keys set — click “Connect Gmail” below to finish.'
+          : 'Add your Google OAuth client ID & secret, then connect your account.',
       vars: [
-        { name: 'GOOGLE_SERVICE_ACCOUNT_JSON', set: isSet(e.GOOGLE_SERVICE_ACCOUNT_JSON), required: true },
-        { name: 'GOOGLE_SHARED_DRIVE_ID', set: isSet(e.GOOGLE_SHARED_DRIVE_ID), required: true },
+        { name: 'GOOGLE_OAUTH_CLIENT_ID', set: isSet(e.GOOGLE_OAUTH_CLIENT_ID), required: true },
+        { name: 'GOOGLE_OAUTH_CLIENT_SECRET', set: isSet(e.GOOGLE_OAUTH_CLIENT_SECRET), required: true },
       ],
-      testable: drive,
+      testable: false,
     },
     {
       id: 'email',
-      name: 'Email (invoices & receipts)',
-      description: 'Sends invoice/receipt emails via Gmail/SMTP or Resend.',
+      group: 'Email',
+      name: 'Email — SMTP / Resend (alternative)',
+      description: 'Send email via an SMTP app password or Resend, instead of connecting Gmail above.',
       status: smtp || resend ? 'connected' : 'off',
       summary: smtp
-        ? 'Using Gmail/SMTP.'
+        ? 'Using SMTP.'
         : resend
           ? 'Using Resend.'
-          : 'Not configured — sending emails is disabled.',
+          : 'Optional — use this only if you’re not connecting Gmail above.',
       vars: [
         { name: 'SMTP_HOST', set: isSet(e.SMTP_HOST) },
         { name: 'SMTP_USER', set: isSet(e.SMTP_USER) },
@@ -95,8 +86,10 @@ export async function getIntegrations(): Promise<IntegrationStatus[]> {
       ],
       testable: smtp || resend,
     },
+    // ── AI ─────────────────────────────────────────────────────────────────
     {
       id: 'openrouter',
+      group: 'AI',
       name: 'AI (OpenRouter)',
       description: 'Powers the assistant chatbot, bill-photo OCR, and PDF statement import.',
       status: orSet ? 'connected' : 'off',
@@ -108,8 +101,35 @@ export async function getIntegrations(): Promise<IntegrationStatus[]> {
       ],
       testable: orSet,
     },
+    // ── Leads ──────────────────────────────────────────────────────────────
+    {
+      id: 'apollo',
+      group: 'Leads',
+      name: 'Apollo (lead search)',
+      description: 'Sources B2B leads by title, industry and location on the Leads → Apollo page.',
+      status: apolloSet ? 'connected' : 'off',
+      summary: apolloSet
+        ? 'Key present — search for leads on the Leads → Apollo page.'
+        : 'Not configured — add your Apollo API key to search for leads.',
+      vars: [{ name: 'APOLLO_API_KEY', set: apolloSet, required: true }],
+      testable: false,
+    },
+    {
+      id: 'x',
+      group: 'Leads',
+      name: 'X / Twitter listener',
+      description: 'Finds buying-intent tweets as leads via twitterapi.io (no X login needed).',
+      status: xSet ? 'connected' : 'off',
+      summary: xSet
+        ? 'Key present — manage keywords and poll on the Leads → X page.'
+        : 'Not configured — add your twitterapi.io API key to start listening.',
+      vars: [{ name: 'TWITTERAPI_IO_KEY', set: xSet, required: true }],
+      testable: xSet,
+    },
+    // ── Accounting ─────────────────────────────────────────────────────────
     {
       id: 'wave',
+      group: 'Accounting',
       name: 'Wave Accounting',
       description: 'Import invoices from Wave and match them to clients & payments.',
       status: waveSet ? 'connected' : 'off',
@@ -122,30 +142,24 @@ export async function getIntegrations(): Promise<IntegrationStatus[]> {
       ],
       testable: waveSet,
     },
+    // ── Files ──────────────────────────────────────────────────────────────
     {
-      id: 'apollo',
-      name: 'Apollo (lead search)',
-      description: 'Sources B2B leads by title, industry and location on the Leads → Apollo page.',
-      status: apolloSet ? 'connected' : 'off',
-      summary: apolloSet
-        ? 'Key present — search for leads on the Leads → Apollo page.'
-        : 'Not configured — add your Apollo API key to search for leads.',
-      vars: [{ name: 'APOLLO_API_KEY', set: apolloSet, required: true }],
-      testable: false,
+      id: 'drive',
+      group: 'Files',
+      name: 'Google Drive (file uploads)',
+      description: 'Stores uploaded project files in your Shared Drive.',
+      status: drive ? 'connected' : 'off',
+      summary: drive ? 'Keys present — run a test to confirm access.' : 'Not configured — file uploads are disabled.',
+      vars: [
+        { name: 'GOOGLE_SERVICE_ACCOUNT_JSON', set: isSet(e.GOOGLE_SERVICE_ACCOUNT_JSON), required: true },
+        { name: 'GOOGLE_SHARED_DRIVE_ID', set: isSet(e.GOOGLE_SHARED_DRIVE_ID), required: true },
+      ],
+      testable: drive,
     },
-    {
-      id: 'x',
-      name: 'X / Twitter listener',
-      description: 'Finds buying-intent tweets as leads via twitterapi.io (no X login needed).',
-      status: xSet ? 'connected' : 'off',
-      summary: xSet
-        ? 'Key present — manage keywords and poll on the Leads → X page.'
-        : 'Not configured — add your twitterapi.io API key to start listening.',
-      vars: [{ name: 'TWITTERAPI_IO_KEY', set: xSet, required: true }],
-      testable: xSet,
-    },
+    // ── Automation ─────────────────────────────────────────────────────────
     {
       id: 'automation',
+      group: 'Automation',
       name: 'Automation (scheduled polling)',
       description: 'Lets a scheduler run lead polling + outreach on a timer. Point Railway Cron (or cron-job.org) at /api/leads/cron?task=all with header "Authorization: Bearer <CRON_SECRET>".',
       status: isSet(e.CRON_SECRET) ? 'connected' : 'off',
@@ -153,6 +167,29 @@ export async function getIntegrations(): Promise<IntegrationStatus[]> {
         ? 'Secret set — add a cron schedule in Railway hitting /api/leads/cron.'
         : 'Set a CRON_SECRET, then schedule /api/leads/cron in Railway to poll automatically.',
       vars: [{ name: 'CRON_SECRET', set: isSet(e.CRON_SECRET) }],
+      testable: false,
+    },
+    // ── System (deployment-managed) ────────────────────────────────────────
+    {
+      id: 'database',
+      group: 'System',
+      name: 'Database (Postgres)',
+      description: 'Core data store — managed by Railway.',
+      status: dbOk ? 'connected' : 'off',
+      summary: dbOk ? 'Connected — test query succeeded.' : 'Cannot reach the database.',
+      vars: [{ name: 'DATABASE_URL', set: isSet(e.DATABASE_URL), required: true }],
+      testable: false,
+    },
+    {
+      id: 'auth',
+      group: 'System',
+      name: 'Authentication',
+      description: 'Secret used to sign login sessions.',
+      status: authSet ? 'connected' : 'warn',
+      summary: authSet
+        ? 'Custom secret set.'
+        : 'Using an insecure dev fallback — set AUTH_SECRET in Railway.',
+      vars: [{ name: 'AUTH_SECRET', set: authSet, required: true }],
       testable: false,
     },
   ];

@@ -7,18 +7,51 @@ function smtpConfigured() {
   return Boolean(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS);
 }
 
+// Gmail via "Sign in with Google" — client keys + a captured refresh token.
+function gmailOAuthConfigured() {
+  return Boolean(
+    process.env.GOOGLE_OAUTH_CLIENT_ID &&
+      process.env.GOOGLE_OAUTH_CLIENT_SECRET &&
+      process.env.GMAIL_OAUTH_REFRESH_TOKEN &&
+      process.env.GMAIL_OAUTH_EMAIL,
+  );
+}
+
 function resendConfigured() {
   return Boolean(process.env.RESEND_API_KEY && process.env.INVOICE_FROM_EMAIL);
 }
 
 export function emailConfigured() {
-  return smtpConfigured() || resendConfigured();
+  return gmailOAuthConfigured() || smtpConfigured() || resendConfigured();
+}
+
+// A Gmail transport that mints access tokens from the stored refresh token.
+function gmailOAuthTransport() {
+  return nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+      type: 'OAuth2',
+      user: process.env.GMAIL_OAUTH_EMAIL!,
+      clientId: process.env.GOOGLE_OAUTH_CLIENT_ID,
+      clientSecret: process.env.GOOGLE_OAUTH_CLIENT_SECRET,
+      refreshToken: process.env.GMAIL_OAUTH_REFRESH_TOKEN,
+    },
+  });
+}
+
+async function sendViaGmailOAuth(to: string, subject: string, html: string) {
+  const from = process.env.SMTP_FROM || process.env.GMAIL_OAUTH_EMAIL!;
+  await gmailOAuthTransport().sendMail({ from, to, subject, html });
 }
 
 // Live connectivity check for the Settings integrations panel. Verifies SMTP
 // auth, or that the Resend API key is accepted — without sending an email.
 export async function verifyEmailConnection(): Promise<{ ok: boolean; message: string }> {
   try {
+    if (gmailOAuthConfigured()) {
+      await gmailOAuthTransport().verify();
+      return { ok: true, message: `Gmail connected as ${process.env.GMAIL_OAUTH_EMAIL}.` };
+    }
     if (smtpConfigured()) {
       const port = Number(process.env.SMTP_PORT ?? 465);
       const transport = nodemailer.createTransport({
@@ -78,6 +111,10 @@ export async function sendEmail({
   html: string;
 }): Promise<{ ok: boolean; error?: string }> {
   try {
+    if (gmailOAuthConfigured()) {
+      await sendViaGmailOAuth(to, subject, html);
+      return { ok: true };
+    }
     if (smtpConfigured()) {
       await sendViaSmtp(to, subject, html);
       return { ok: true };
@@ -86,7 +123,7 @@ export async function sendEmail({
       await sendViaResend(to, subject, html);
       return { ok: true };
     }
-    return { ok: false, error: 'Email not configured (set SMTP_* for Gmail, or RESEND_API_KEY + INVOICE_FROM_EMAIL).' };
+    return { ok: false, error: 'Email not configured (connect Gmail, set SMTP_*, or set RESEND_API_KEY + INVOICE_FROM_EMAIL).' };
   } catch (e: any) {
     return { ok: false, error: e?.message ?? 'Email send failed' };
   }

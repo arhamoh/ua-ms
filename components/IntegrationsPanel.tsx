@@ -1,9 +1,9 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { CheckCircle2, XCircle, AlertTriangle, Loader2, Plug, Save, Trash2 } from 'lucide-react';
+import { CheckCircle2, XCircle, AlertTriangle, Loader2, Plug, Save, Trash2, Eye, EyeOff, LogIn, Unlink } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { testIntegration, saveIntegrationSecret, clearIntegrationSecret } from '@/app/actions';
+import { testIntegration, saveIntegrationSecret, clearIntegrationSecret, revealSecret, disconnectGmail } from '@/app/actions';
 import type { IntegrationStatus, EnvVarStatus } from '@/lib/integrations';
 
 const STATUS: Record<IntegrationStatus['status'], { dot: string; label: string; cls: string }> = {
@@ -13,11 +13,23 @@ const STATUS: Record<IntegrationStatus['status'], { dot: string; label: string; 
 };
 
 export default function IntegrationsPanel({ integrations }: { integrations: IntegrationStatus[] }) {
+  let lastGroup: string | null = null;
   return (
     <div className="space-y-3">
-      {integrations.map((it) => (
-        <Card key={it.id} it={it} />
-      ))}
+      {integrations.map((it) => {
+        const showHeader = it.group !== lastGroup;
+        lastGroup = it.group;
+        return (
+          <div key={it.id}>
+            {showHeader && (
+              <h4 className="mb-1.5 mt-4 text-[11px] font-semibold uppercase tracking-wider text-slate-400 first:mt-0">
+                {it.group}
+              </h4>
+            )}
+            <Card it={it} />
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -77,6 +89,9 @@ function Card({ it }: { it: IntegrationStatus }) {
         </div>
       )}
 
+      {/* Gmail OAuth connect / disconnect. */}
+      {it.id === 'gmail' && <GmailConnect it={it} onChange={() => router.refresh()} />}
+
       {it.testable && (
         <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3">
           <button
@@ -97,32 +112,101 @@ function Card({ it }: { it: IntegrationStatus }) {
   );
 }
 
+function GmailConnect({ it, onChange }: { it: IntegrationStatus; onChange: () => void }) {
+  const [pending, start] = useTransition();
+  const clientReady = it.vars.filter((v) => v.required).every((v) => v.set);
+  const connected = it.status === 'connected';
+
+  const disconnect = () =>
+    start(async () => {
+      await disconnectGmail();
+      onChange();
+    });
+
+  return (
+    <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3">
+      {connected ? (
+        <button
+          onClick={disconnect}
+          disabled={pending}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs font-medium text-rose-600 transition hover:bg-rose-50 disabled:opacity-50"
+        >
+          {pending ? <Loader2 size={13} className="animate-spin" /> : <Unlink size={13} />} Disconnect Gmail
+        </button>
+      ) : clientReady ? (
+        <a
+          href="/api/integrations/google/start"
+          className="inline-flex items-center gap-1.5 rounded-lg bg-brand px-2.5 py-1.5 text-xs font-medium text-white shadow-sm transition hover:bg-brand-dark"
+        >
+          <LogIn size={13} /> Connect Gmail
+        </a>
+      ) : (
+        <p className="text-xs text-slate-400">Save the client ID &amp; secret above, then reload to connect.</p>
+      )}
+    </div>
+  );
+}
+
 function SecretRow({ v, onDone }: { v: EnvVarStatus; onDone: (msg: string) => void }) {
   const [pending, start] = useTransition();
+  const [revealing, setRevealing] = useState(false);
+  const [shown, setShown] = useState(false); // showing the current value in clear text
   const [val, setVal] = useState('');
+
   const save = () =>
     start(async () => {
       const r = await saveIntegrationSecret(v.name, val);
       setVal('');
+      setShown(false);
       onDone(r.message);
     });
   const clear = () =>
     start(async () => {
       const r = await clearIntegrationSecret(v.name);
+      setVal('');
+      setShown(false);
       onDone(r.message);
     });
+
+  const toggleReveal = async () => {
+    if (shown) {
+      setShown(false);
+      setVal('');
+      return;
+    }
+    setRevealing(true);
+    const r = await revealSecret(v.name);
+    setRevealing(false);
+    if (r.ok && r.value != null) {
+      setVal(r.value);
+      setShown(true);
+    } else {
+      onDone(r.message ?? 'Nothing to show.');
+    }
+  };
+
   return (
     <div className="flex items-center gap-1.5">
       <label className="w-44 shrink-0 truncate font-mono text-[10px] text-slate-500" title={v.name}>{v.name}</label>
       <input
-        type="password"
+        type={shown ? 'text' : 'password'}
         value={val}
-        onChange={(e) => setVal(e.target.value)}
+        onChange={(e) => { setVal(e.target.value); setShown(true); }}
         onKeyDown={(e) => { if (e.key === 'Enter' && val.trim()) save(); }}
-        placeholder={v.saved ? '•••••••• saved — enter to replace' : v.set ? 'set via environment' : 'not set'}
+        placeholder={v.saved ? '•••••••• saved — reveal or replace' : v.set ? '•••••••• set via environment' : 'not set'}
         autoComplete="off"
         className="min-w-0 flex-1 rounded-md border border-slate-200 px-2 py-1 text-xs focus:border-brand focus:outline-none"
       />
+      {v.set && (
+        <button
+          onClick={toggleReveal}
+          disabled={pending || revealing}
+          title={shown ? 'Hide' : 'Reveal current value'}
+          className="grid h-7 w-7 shrink-0 place-items-center rounded-md border border-slate-200 text-slate-400 hover:text-slate-700 disabled:opacity-40"
+        >
+          {revealing ? <Loader2 size={12} className="animate-spin" /> : shown ? <EyeOff size={12} /> : <Eye size={12} />}
+        </button>
+      )}
       <button onClick={save} disabled={pending || !val.trim()} title="Save" className="grid h-7 w-7 shrink-0 place-items-center rounded-md bg-brand text-white hover:bg-brand-dark disabled:opacity-40">
         {pending ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
       </button>

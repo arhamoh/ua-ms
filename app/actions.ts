@@ -49,7 +49,7 @@ import {
 import { stashCredentials } from '@/lib/pending-credentials';
 import { driveConfigured, uploadToDrive, testDriveConnection } from '@/lib/drive';
 import { testOpenRouter } from '@/lib/integrations';
-import { setSecret, clearSecret, isManagedSecret } from '@/lib/secrets';
+import { setSecret, clearSecret, isManagedSecret, getSecret } from '@/lib/secrets';
 import { NOTIFY_CATEGORIES } from '@/lib/notify-categories';
 import { encryptSecret, decryptSecret } from '@/lib/crypto';
 import { randomUUID } from 'crypto';
@@ -1363,6 +1363,24 @@ export async function saveIntegrationSecret(name: string, value: string): Promis
 }
 
 /** Remove a dashboard-saved credential; it falls back to the deployment env if set there. */
+/** Reveal a managed secret's current value (saved or from env) to a Super Admin
+ *  who clicks the eye toggle. Never exposed to anyone else. */
+export async function revealSecret(name: string): Promise<{ ok: boolean; value?: string; message?: string }> {
+  await requireSuperStrict();
+  if (!isManagedSecret(name)) return { ok: false, message: 'That value can’t be shown here.' };
+  const value = await getSecret(name);
+  if (!value) return { ok: false, message: 'Not set.' };
+  return { ok: true, value };
+}
+
+/** Disconnect the linked Gmail account (clears the stored OAuth tokens). */
+export async function disconnectGmail(): Promise<{ ok: boolean; message: string }> {
+  await requireSuperStrict();
+  await clearSecret('GMAIL_OAUTH_REFRESH_TOKEN');
+  await clearSecret('GMAIL_OAUTH_EMAIL');
+  return { ok: true, message: 'Gmail disconnected.' };
+}
+
 export async function clearIntegrationSecret(name: string): Promise<{ ok: boolean; message: string }> {
   await requireSuperStrict();
   if (!isManagedSecret(name)) return { ok: false, message: 'That key can’t be cleared from here.' };

@@ -31,6 +31,13 @@ export const MANAGED_SECRETS = [
   'INVOICE_FROM_EMAIL',
   'GOOGLE_SERVICE_ACCOUNT_JSON',
   'GOOGLE_SHARED_DRIVE_ID',
+  // Gmail "Sign in with Google" (OAuth) for sending email. Client id/secret are
+  // entered by the admin; the refresh token + connected address are captured by
+  // the OAuth callback.
+  'GOOGLE_OAUTH_CLIENT_ID',
+  'GOOGLE_OAUTH_CLIENT_SECRET',
+  'GMAIL_OAUTH_REFRESH_TOKEN',
+  'GMAIL_OAUTH_EMAIL',
   'CRON_SECRET',
   'VAPID_PUBLIC_KEY',
   'VAPID_PRIVATE_KEY',

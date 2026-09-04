@@ -29,14 +29,24 @@ const MESSAGES: Record<string, string> = {
   cleared: 'Demo data removed.',
   invoices: 'Generated invoices for any projects that were missing one.',
   company: 'Company details saved.',
+  gmail: 'Gmail connected — Keel can now send email from your Google account.',
+};
+
+const ERRORS: Record<string, string> = {
+  gmail_client: 'Add your Google OAuth client ID & secret first, then connect.',
+  gmail_denied: 'Gmail connection was cancelled.',
+  gmail_state: 'Gmail connection expired — please try again.',
+  gmail_norefresh: 'Google didn’t return a refresh token. Remove Keel’s access in your Google account, then connect again.',
+  gmail_email: 'Couldn’t read which Google account you connected — try again.',
+  gmail_exchange: 'Gmail connection failed. Double-check the client ID/secret and redirect URI.',
 };
 
 export default async function SettingsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ done?: string }>;
+  searchParams: Promise<{ done?: string; err?: string }>;
 }) {
-  const { done } = await searchParams;
+  const { done, err } = await searchParams;
   await ensureOptionsSeeded();
   // Surface newer built-in defaults (e.g. Wise/Remitly) on already-seeded DBs.
   await Promise.all(OPTION_KINDS.map((k) => ensureOptionDefaults(k.kind)));
@@ -48,7 +58,7 @@ export default async function SettingsPage({
   const session = await getSession();
   // Integrations, Database and Reset are Super-Admin-only — Admins don't see them.
   const isSuper = !!session?.roles?.includes('SUPER_ADMIN');
-  const emailReady = integrations.some((i) => i.id === 'email' && i.status === 'connected');
+  const emailReady = integrations.some((i) => (i.id === 'email' || i.id === 'gmail') && i.status === 'connected');
   const me = session ? await prisma.user.findUnique({ where: { id: session.id }, select: { timezone: true, notifyPrefs: true, username: true } }) : null;
   const notifyPrefs = normalizePrefs(me?.notifyPrefs);
 
@@ -140,6 +150,9 @@ export default async function SettingsPage({
 
       {done && MESSAGES[done] && (
         <div className="mt-4 rounded-lg bg-emerald-50 px-4 py-2.5 text-sm text-emerald-700">{MESSAGES[done]}</div>
+      )}
+      {err && ERRORS[err] && (
+        <div className="mt-4 rounded-lg bg-rose-50 px-4 py-2.5 text-sm text-rose-600">{ERRORS[err]}</div>
       )}
 
       <SettingsTabs
