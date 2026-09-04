@@ -1,4 +1,4 @@
-import { Database, FileText, Trash2, SlidersHorizontal, Plus, Building2, Plug, Clock, AlertTriangle, Bell } from 'lucide-react';
+import { Database, FileText, Trash2, SlidersHorizontal, Plus, Building2, Plug, Clock, AlertTriangle, Bell, UserCircle } from 'lucide-react';
 import { prisma } from '@/lib/prisma';
 import { seedDemoData, backfillInvoices, clearDemoData, addOption, saveCompanySettings } from '@/app/actions';
 import { saveMyTimezone } from './actions';
@@ -58,6 +58,8 @@ export default async function SettingsPage({
   const session = await getSession();
   // Integrations, Database and Reset are Super-Admin-only — Admins don't see them.
   const isSuper = !!session?.roles?.includes('SUPER_ADMIN');
+  // Super + Admin see the org-wide settings; everyone else sees only their account.
+  const isElevated = !!session?.roles?.some((r) => r === 'SUPER_ADMIN' || r === 'ADMIN');
   // Drive storage-location status, shown inside the Google card (Super Admin only).
   const googleOn = integrations.some((i) => i.id === 'google' && i.status === 'connected');
   const dedicated = hasDedicatedRoot();
@@ -144,11 +146,63 @@ export default async function SettingsPage({
     ),
   };
 
+  const accountTab: SettingsTab = {
+    id: 'account',
+    label: 'Account',
+    icon: <UserCircle size={15} />,
+    content: (
+      <div className="space-y-4">
+        <AccountSettings currentUsername={me?.username ?? null} currentEmail={session?.email ?? ''} />
+        <form action={saveMyTimezone} className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="flex items-center gap-2">
+            <Clock size={18} className="text-brand" />
+            <h2 className="text-sm font-semibold">Your timezone</h2>
+          </div>
+          <p className="mt-1 max-w-xl text-sm text-slate-500">
+            Set where you work. Teammates in other timezones will see your local time as a live clock in
+            their header — and you&apos;ll see theirs.
+          </p>
+          <div className="mt-4 block max-w-sm">
+            <span className="mb-1 block text-xs font-medium text-slate-600">Timezone</span>
+            <TimezoneSelect name="timezone" defaultValue={me?.timezone ?? ''} />
+          </div>
+          <button className="mt-4 rounded-xl bg-brand px-4 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-brand-dark">
+            Save timezone
+          </button>
+        </form>
+      </div>
+    ),
+  };
+
+  const notificationsTab: SettingsTab = {
+    id: 'notifications',
+    label: 'Notifications',
+    icon: <Bell size={15} />,
+    content: (
+      <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="flex items-center gap-2">
+          <Bell size={18} className="text-brand" />
+          <h2 className="text-sm font-semibold">Phone &amp; push notifications</h2>
+        </div>
+        <p className="mb-4 mt-1 text-sm text-slate-500">
+          Get a push notification on this device when something needs you. Enable it on each device you want alerts on — including your phone.
+        </p>
+        <EnablePushButton />
+        <p className="mt-4 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-500">
+          On iPhone/iPad, first add Keel to your Home Screen (Share → Add to Home Screen), then open it from there and tap Enable — iOS only allows web push from an installed app.
+        </p>
+        <NotificationPrefs initial={notifyPrefs} />
+      </div>
+    ),
+  };
+
   return (
     <div className="max-w-4xl">
       <FadeIn>
         <h1 className="text-2xl font-bold tracking-tight">Settings</h1>
-        <p className="mt-1 text-sm text-slate-500">Integrations, company details, dropdown options, and demo data.</p>
+        <p className="mt-1 text-sm text-slate-500">
+          {isElevated ? 'Your account, company details, integrations, and data.' : 'Your account details and notifications.'}
+        </p>
       </FadeIn>
 
       {done && MESSAGES[done] && (
@@ -160,7 +214,11 @@ export default async function SettingsPage({
 
       <SettingsTabs
         tabs={[
-          {
+          accountTab,
+          notificationsTab,
+          ...(isElevated
+            ? [
+                {
             id: 'company',
             label: 'Company',
             icon: <Building2 size={15} />,
@@ -190,47 +248,6 @@ export default async function SettingsPage({
                 </div>
                 <button className="mt-4 rounded-xl bg-brand px-4 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-brand-dark">Save company details</button>
               </form>
-
-              <AccountSettings currentUsername={me?.username ?? null} currentEmail={session?.email ?? ''} />
-
-              <form action={saveMyTimezone} className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-                <div className="flex items-center gap-2">
-                  <Clock size={18} className="text-brand" />
-                  <h2 className="text-sm font-semibold">Your timezone</h2>
-                </div>
-                <p className="mt-1 max-w-xl text-sm text-slate-500">
-                  Set where you work. Teammates in other timezones will see your local time as a live clock in
-                  their header — and you&apos;ll see theirs.
-                </p>
-                <div className="mt-4 block max-w-sm">
-                  <span className="mb-1 block text-xs font-medium text-slate-600">Timezone</span>
-                  <TimezoneSelect name="timezone" defaultValue={me?.timezone ?? ''} />
-                </div>
-                <button className="mt-4 rounded-xl bg-brand px-4 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-brand-dark">
-                  Save timezone
-                </button>
-              </form>
-              </div>
-            ),
-          },
-          {
-            id: 'notifications',
-            label: 'Notifications',
-            icon: <Bell size={15} />,
-            content: (
-              <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-                <div className="flex items-center gap-2">
-                  <Bell size={18} className="text-brand" />
-                  <h2 className="text-sm font-semibold">Phone &amp; push notifications</h2>
-                </div>
-                <p className="mb-4 mt-1 text-sm text-slate-500">
-                  Get a push notification on this device when a new qualified lead comes in. Enable it on each device you want alerts on — including your phone.
-                </p>
-                <EnablePushButton />
-                <p className="mt-4 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-500">
-                  On iPhone/iPad, first add Keel to your Home Screen (Share → Add to Home Screen), then open it from there and tap Enable — iOS only allows web push from an installed app.
-                </p>
-                <NotificationPrefs initial={notifyPrefs} />
               </div>
             ),
           },
@@ -292,6 +309,8 @@ export default async function SettingsPage({
               </div>
             ),
           },
+              ]
+            : []),
           ...(isSuper ? [integrationsTab, databaseTab, resetTab] : []),
         ]}
       />

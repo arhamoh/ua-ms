@@ -106,11 +106,21 @@ export async function createTeamMember(formData: FormData) {
   const tempPassword = typedPassword && typedPassword.length >= 8 ? typedPassword : generateTempPassword();
   const passwordHash = await bcrypt.hash(tempPassword, 10);
 
-  // A unique login handle derived from the email, with a numeric suffix on clash.
-  const base = usernameFromEmail(email!);
-  let username = base;
-  for (let i = 2; await prisma.user.findUnique({ where: { username }, select: { id: true } }); i++) {
-    username = `${base}${i}`;
+  // Login handle: use the one the admin typed (must be unique), otherwise derive
+  // it from the email with a numeric suffix on clash.
+  const typedUsername = str(formData.get('username'));
+  let username: string;
+  if (typedUsername) {
+    username = typedUsername.toLowerCase().replace(/[^a-z0-9._-]/g, '');
+    if (!username) throw new Error('Username can only contain letters, numbers, dots, dashes and underscores.');
+    const clash = await prisma.user.findFirst({ where: { OR: [{ username }, { email: username }] }, select: { id: true } });
+    if (clash) throw new Error('That username is already taken.');
+  } else {
+    const base = usernameFromEmail(email!);
+    username = base;
+    for (let i = 2; await prisma.user.findUnique({ where: { username }, select: { id: true } }); i++) {
+      username = `${base}${i}`;
+    }
   }
 
   const member = await prisma.user.create({
@@ -167,6 +177,16 @@ export async function resendWelcome(userId: string): Promise<{ ok: boolean; temp
     emailed = (await sendEmail({ to: u.email, subject, html })).ok;
   }
   return { ok: true, tempPassword, emailed };
+}
+
+/** Admin sets a member's password directly (does NOT force a reset at login). */
+export async function adminSetPassword(userId: string, password: string): Promise<{ ok: boolean; error?: string }> {
+  await requireSuperAdmin();
+  if ((password ?? '').length < 8) return { ok: false, error: 'Password must be at least 8 characters.' };
+  const u = await prisma.user.findUnique({ where: { id: userId }, select: { id: true } });
+  if (!u) return { ok: false, error: 'User not found.' };
+  await prisma.user.update({ where: { id: userId }, data: { passwordHash: await bcrypt.hash(password, 10), mustChangePassword: false } });
+  return { ok: true };
 }
 
 // ─── Client + Project onboarding ─────────────────────────────────────────────

@@ -87,10 +87,16 @@ schedules with live local clocks across offices.
 ### Team, roles & permissions
 - Roles: **Super Admin, Admin, Manager, Project Manager, Developer, Designer,
   Sales** — governed by a single central permissions map.
-- Add a member and they get a username + temporary password and a **role-aware
-  welcome email**, with a **forced password reset on first login**.
-- Admins see Super Admins as "Admin" (indistinguishable); the most sensitive
-  tools (integrations, database, reset) are Super-Admin-only.
+- Add a member with a name, email, optional **username**, and optional temp
+  password; they get a **role-aware welcome email** (sent manually or by
+  default) and a **forced password reset on first login**.
+- **Admin password controls:** set a member's password directly (no forced
+  change), or re-send the welcome/temp password for anyone who hasn't logged in.
+- **Scoped Settings:** Super Admin & Admin see the org settings (company,
+  notifications, options); everyone else sees only their **own account**
+  (username, password, timezone) and notifications. Integrations, database and
+  reset stay Super-Admin-only.
+- Admins see Super Admins as "Admin" (indistinguishable).
 
 ### Communication
 - **Messages:** direct and group messaging with attachments and @mentions.

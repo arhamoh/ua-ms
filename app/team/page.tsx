@@ -64,6 +64,22 @@ export default async function TeamPage({
 
             <label className="mb-4 block">
               <span className="mb-1 block text-xs font-medium text-slate-600">
+                Username <span className="font-normal text-slate-400">(optional)</span>
+              </span>
+              <input
+                name="username"
+                type="text"
+                autoCapitalize="none"
+                autoCorrect="off"
+                autoComplete="off"
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand focus:outline-none"
+                placeholder="Leave blank to use their email"
+              />
+              <span className="mt-1 block text-[11px] text-slate-400">They can sign in with this or their email.</span>
+            </label>
+
+            <label className="mb-4 block">
+              <span className="mb-1 block text-xs font-medium text-slate-600">
                 Temporary password <span className="font-normal text-slate-400">(optional)</span>
               </span>
               <input
