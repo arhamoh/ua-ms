@@ -113,7 +113,7 @@ export async function createTeamMember(formData: FormData) {
     username = `${base}${i}`;
   }
 
-  await prisma.user.create({
+  const member = await prisma.user.create({
     data: { name, email, roles, username, passwordHash, mustChangePassword: true },
   });
 
@@ -126,6 +126,7 @@ export async function createTeamMember(formData: FormData) {
   // in plaintext, and email is off during development).
   if (admin) {
     stashCredentials(admin.id, {
+      userId: member.id,
       name: name!,
       username,
       tempPassword,
@@ -137,6 +138,35 @@ export async function createTeamMember(formData: FormData) {
   revalidatePath('/team');
   revalidatePath('/onboard');
   redirect('/team?created=1');
+}
+
+/** Manually email the welcome + instructions to a just-created member, using the
+ *  exact temp password shown to the admin (bypasses the auto-send default). */
+export async function sendWelcomeEmailNow(userId: string, tempPassword: string): Promise<{ ok: boolean; error?: string }> {
+  await requireSuperAdmin();
+  if (!emailConfigured()) return { ok: false, error: 'Connect Google to send email (Settings → Integrations).' };
+  const u = await prisma.user.findUnique({ where: { id: userId }, select: { name: true, email: true, username: true, roles: true } });
+  if (!u) return { ok: false, error: 'User not found.' };
+  const { subject, html } = buildWelcomeEmail({ name: u.name, username: u.username ?? u.email, tempPassword, roles: u.roles });
+  const res = await sendEmail({ to: u.email, subject, html });
+  return res.ok ? { ok: true } : { ok: false, error: res.error };
+}
+
+/** Re-send the welcome email to a member still on a temp password: resets their
+ *  temp password (so it's valid), emails it, and returns it to show the admin. */
+export async function resendWelcome(userId: string): Promise<{ ok: boolean; tempPassword?: string; emailed?: boolean; error?: string }> {
+  await requireSuperAdmin();
+  const u = await prisma.user.findUnique({ where: { id: userId }, select: { name: true, email: true, username: true, roles: true, mustChangePassword: true } });
+  if (!u) return { ok: false, error: 'User not found.' };
+  if (!u.mustChangePassword) return { ok: false, error: 'They’ve already set their own password — sending a temp one would lock them out.' };
+  const tempPassword = generateTempPassword();
+  await prisma.user.update({ where: { id: userId }, data: { passwordHash: await bcrypt.hash(tempPassword, 10), mustChangePassword: true } });
+  let emailed = false;
+  if (emailConfigured()) {
+    const { subject, html } = buildWelcomeEmail({ name: u.name, username: u.username ?? u.email, tempPassword, roles: u.roles });
+    emailed = (await sendEmail({ to: u.email, subject, html })).ok;
+  }
+  return { ok: true, tempPassword, emailed };
 }
 
 // ─── Client + Project onboarding ─────────────────────────────────────────────

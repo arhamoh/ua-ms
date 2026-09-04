@@ -8,6 +8,7 @@
 // except once, in the page the admin is redirected to).
 
 export interface StashedCredentials {
+  userId: string;
   name: string;
   username: string;
   tempPassword: string;

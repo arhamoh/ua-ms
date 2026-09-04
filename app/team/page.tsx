@@ -9,6 +9,7 @@ import TableTools from '@/components/TableTools';
 import RolesOverview from '@/components/RolesOverview';
 import TeamTabs from '@/components/TeamTabs';
 import NewMemberBanner from '@/components/NewMemberBanner';
+import ResendWelcomeButton from '@/components/ResendWelcomeButton';
 import { takeCredentials } from '@/lib/pending-credentials';
 
 export const dynamic = 'force-dynamic';
@@ -137,11 +138,14 @@ export default async function TeamPage({
                         </div>
                       </td>
                       <td className="px-4 py-3">
-                        <RowActions
-                          editHref={`/team/${m.id}/edit`}
-                          deleteAction={deleteUser.bind(null, m.id)}
-                          label="member"
-                        />
+                        <div className="flex items-center justify-end gap-2">
+                          {m.mustChangePassword && <ResendWelcomeButton userId={m.id} />}
+                          <RowActions
+                            editHref={`/team/${m.id}/edit`}
+                            deleteAction={deleteUser.bind(null, m.id)}
+                            label="member"
+                          />
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -167,6 +171,7 @@ export default async function TeamPage({
 
       {justCreated && (
         <NewMemberBanner
+          userId={justCreated.userId}
           name={justCreated.name}
           username={justCreated.username}
           tempPassword={justCreated.tempPassword}

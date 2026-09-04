@@ -1,17 +1,20 @@
 'use client';
 
-import { useState } from 'react';
-import { Check, Copy, KeyRound, X } from 'lucide-react';
+import { useState, useTransition } from 'react';
+import { Check, Copy, KeyRound, X, Mail, Loader2, AlertTriangle } from 'lucide-react';
+import { sendWelcomeEmailNow } from '@/app/actions';
 
 // One-time confirmation shown after adding a member: their sign-in details, so
-// the admin can pass them along while welcome emails are disabled.
+// the admin can pass them along and/or send the welcome email manually.
 export default function NewMemberBanner({
+  userId,
   name,
   username,
   tempPassword,
   loginUrl,
   emailed,
 }: {
+  userId: string;
   name: string;
   username: string;
   tempPassword: string;
@@ -19,7 +22,17 @@ export default function NewMemberBanner({
   emailed: boolean;
 }) {
   const [dismissed, setDismissed] = useState(false);
+  const [pending, start] = useTransition();
+  const [sent, setSent] = useState(emailed);
+  const [err, setErr] = useState('');
   if (dismissed) return null;
+
+  const sendEmailNow = () =>
+    start(async () => {
+      setErr('');
+      const r = await sendWelcomeEmailNow(userId, tempPassword);
+      if (r.ok) setSent(true); else setErr(r.error ?? 'Could not send.');
+    });
 
   const summary = `Keel sign-in for ${name}\nLogin: ${loginUrl}\nUsername: ${username}\nTemporary password: ${tempPassword}`;
 
@@ -41,9 +54,9 @@ export default function NewMemberBanner({
       </div>
 
       <p className="mt-1 text-xs text-emerald-800">
-        {emailed
+        {sent
           ? 'A welcome email with these details was sent to them. Here they are too, just in case:'
-          : 'Welcome emails are off, so share these sign-in details with them. They’ll be asked to set their own password on first login.'}
+          : 'Share these sign-in details, or send the welcome email now. They’ll set their own password on first login.'}
       </p>
 
       <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
@@ -52,8 +65,18 @@ export default function NewMemberBanner({
         <Field label="Temporary password" value={tempPassword} mono />
       </div>
 
-      <div className="mt-3">
+      <div className="mt-3 flex flex-wrap items-center gap-2">
         <CopyButton text={summary} label="Copy all details" />
+        <button
+          type="button"
+          onClick={sendEmailNow}
+          disabled={pending || sent}
+          className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+        >
+          {pending ? <Loader2 size={14} className="animate-spin" /> : sent ? <Check size={14} /> : <Mail size={14} />}
+          {sent ? 'Welcome email sent' : 'Send welcome email'}
+        </button>
+        {err && <span className="inline-flex items-center gap-1 text-xs text-rose-600"><AlertTriangle size={13} /> {err}</span>}
       </div>
     </div>
   );
