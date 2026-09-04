@@ -108,8 +108,23 @@ model User {
   meetingsToApprove Meeting[]          @relation("MeetingApprover")
   meetingAttendances MeetingAttendee[] @relation("MeetingAttendees")
   driveComments     DriveFileComment[] @relation("DriveComments")
+  passwordResets    PasswordResetToken[] @relation("PasswordResets")
 
   @@index([email])
+}
+
+// One-time password-reset links (emailed). The raw token is never stored — only
+// its SHA-256 hash — and each token expires and can be used once.
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation("PasswordResets", fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
 }
 
 // Resolvable comment threads (Figma-style) attachable to any entity

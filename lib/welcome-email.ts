@@ -13,12 +13,16 @@ export function welcomeEmailsEnabled(): boolean {
 }
 
 /** Where members sign in. Set APP_URL in production; falls back to Railway's domain. */
-export function appLoginUrl(): string {
+export function appBaseUrl(): string {
   const base =
     process.env.APP_URL ||
     (process.env.RAILWAY_PUBLIC_DOMAIN ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` : '') ||
     'https://your-keel-app.example.com';
-  return `${base.replace(/\/$/, '')}/login`;
+  return base.replace(/\/$/, '');
+}
+
+export function appLoginUrl(): string {
+  return `${appBaseUrl()}/login`;
 }
 
 /** A readable temporary password, e.g. "keel-7fq3-92kt". Easy to type once. */

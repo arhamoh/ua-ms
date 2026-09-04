@@ -71,7 +71,7 @@ export default function NewMemberBanner({
           type="button"
           onClick={sendEmailNow}
           disabled={pending || sent}
-          className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+          className="inline-flex items-center gap-1.5 rounded-lg bg-brand px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-dark disabled:opacity-50"
         >
           {pending ? <Loader2 size={14} className="animate-spin" /> : sent ? <Check size={14} /> : <Mail size={14} />}
           {sent ? 'Welcome email sent' : 'Send welcome email'}

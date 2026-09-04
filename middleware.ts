@@ -9,7 +9,7 @@ const SESSION_COOKIE = 'ua_session';
 
 // Routes reachable without a session. The lead-gen cron endpoint guards itself
 // with CRON_SECRET (Bearer), so it must bypass the cookie-session check.
-const PUBLIC = ['/login', '/forgot-password', '/api/leads/cron'];
+const PUBLIC = ['/login', '/forgot-password', '/reset-password', '/api/leads/cron'];
 
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;

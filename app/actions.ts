@@ -43,10 +43,10 @@ import {
   generateTempPassword,
   usernameFromEmail,
   appLoginUrl,
-  sendWelcomeEmail,
   buildWelcomeEmail,
 } from '@/lib/welcome-email';
 import { stashCredentials } from '@/lib/pending-credentials';
+import { createResetToken, resetLink, resetEmailHtml } from '@/lib/reset';
 import {
   driveConfigured,
   uploadToDrive,
@@ -99,11 +99,8 @@ export async function createTeamMember(formData: FormData) {
     throw new Error('Name and email are required.');
   }
 
-  // Give the member usable credentials so they can actually sign in. The admin
-  // may set the temporary password themselves; otherwise we generate one. Either
-  // way they're forced to change it on first login (mustChangePassword).
-  const typedPassword = str(formData.get('tempPassword'));
-  const tempPassword = typedPassword && typedPassword.length >= 8 ? typedPassword : generateTempPassword();
+  // Always generate a temporary password and force a reset on first login.
+  const tempPassword = generateTempPassword();
   const passwordHash = await bcrypt.hash(tempPassword, 10);
 
   // Login handle: use the one the admin typed (must be unique), otherwise derive
@@ -127,13 +124,18 @@ export async function createTeamMember(formData: FormData) {
     data: { name, email, roles, username, passwordHash, mustChangePassword: true },
   });
 
-  // Welcome email — a no-op unless WELCOME_EMAILS_ENABLED=true (off in dev).
-  const emailRes = await sendWelcomeEmail(email!, { name: name!, username, tempPassword, roles }).catch(
-    () => ({ sent: false as const }),
-  );
+  // Always email the welcome + temp password (their username is the login).
+  let emailed = false;
+  if (emailConfigured()) {
+    try {
+      const { subject, html } = buildWelcomeEmail({ name: name!, username, tempPassword, roles });
+      emailed = (await sendEmail({ to: email!, subject, html })).ok;
+    } catch {
+      /* fall through — creds are still shown to the admin below */
+    }
+  }
 
-  // Show the credentials back to the admin once (the temp password isn't stored
-  // in plaintext, and email is off during development).
+  // Show the credentials to the admin once as a backup (temp password isn't stored).
   if (admin) {
     stashCredentials(admin.id, {
       userId: member.id,
@@ -141,7 +143,7 @@ export async function createTeamMember(formData: FormData) {
       username,
       tempPassword,
       loginUrl: appLoginUrl(),
-      emailed: emailRes.sent,
+      emailed,
     });
   }
 
@@ -177,6 +179,47 @@ export async function resendWelcome(userId: string): Promise<{ ok: boolean; temp
     emailed = (await sendEmail({ to: u.email, subject, html })).ok;
   }
   return { ok: true, tempPassword, emailed };
+}
+
+/** Super Admin: view the platform as another user (impersonation). */
+export async function impersonate(userId: string): Promise<{ ok: boolean; error?: string }> {
+  const me = await getSession();
+  if (!me || !isSuperStrict(me.roles)) return { ok: false, error: 'Not authorized.' };
+  if (me.impersonatorId) return { ok: false, error: 'Already impersonating — exit first.' };
+  const target = await prisma.user.findUnique({ where: { id: userId }, select: { id: true, name: true, email: true, roles: true } });
+  if (!target) return { ok: false, error: 'User not found.' };
+  await createSession({
+    id: target.id,
+    name: target.name,
+    email: target.email,
+    roles: target.roles,
+    mustChangePassword: false, // viewing, not logging in as them
+    impersonatorId: me.id,
+    impersonatorName: me.name,
+  });
+  redirect('/');
+}
+
+/** Exit impersonation and return to the Super Admin's own session. */
+export async function stopImpersonating(): Promise<void> {
+  const me = await getSession();
+  if (!me?.impersonatorId) redirect('/');
+  const admin = await prisma.user.findUnique({ where: { id: me!.impersonatorId! }, select: { id: true, name: true, email: true, roles: true } });
+  if (admin) {
+    await createSession({ id: admin.id, name: admin.name, email: admin.email, roles: admin.roles });
+  }
+  redirect('/');
+}
+
+/** Admin sends the member a password-reset link by email (self-service reset). */
+export async function sendPasswordReset(userId: string): Promise<{ ok: boolean; error?: string }> {
+  await requireSuperAdmin();
+  if (!emailConfigured()) return { ok: false, error: 'Connect Google to send email (Settings → Integrations).' };
+  const u = await prisma.user.findUnique({ where: { id: userId }, select: { name: true, email: true } });
+  if (!u) return { ok: false, error: 'User not found.' };
+  const token = await createResetToken(userId);
+  const res = await sendEmail({ to: u.email, subject: 'Reset your Keel password', html: resetEmailHtml(u.name, resetLink(token)) });
+  return res.ok ? { ok: true } : { ok: false, error: res.error };
 }
 
 /** Admin sets a member's password directly (does NOT force a reset at login). */

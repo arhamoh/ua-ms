@@ -16,6 +16,9 @@ export type SessionUser = {
   email: string;
   roles: string[];
   mustChangePassword?: boolean;
+  // Set while a Super Admin is impersonating this user (view-as).
+  impersonatorId?: string;
+  impersonatorName?: string;
 };
 
 export async function createSession(user: SessionUser) {
@@ -24,6 +27,8 @@ export async function createSession(user: SessionUser) {
     email: user.email,
     roles: user.roles,
     mcp: !!user.mustChangePassword,
+    impId: user.impersonatorId ?? undefined,
+    impName: user.impersonatorName ?? undefined,
   })
     .setProtectedHeader({ alg: 'HS256' })
     .setSubject(user.id)
@@ -62,6 +67,8 @@ export async function getSession(): Promise<SessionUser | null> {
       email: (payload.email as string) ?? '',
       roles: (payload.roles as string[]) ?? [],
       mustChangePassword: !!payload.mcp,
+      impersonatorId: (payload.impId as string) || undefined,
+      impersonatorName: (payload.impName as string) || undefined,
     };
   } catch {
     return null;

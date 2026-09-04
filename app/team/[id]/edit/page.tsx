@@ -5,7 +5,7 @@ import { prisma } from '@/lib/prisma';
 import { updateUser } from '@/app/actions';
 import { ROLES, ROLE_LABELS } from '@/lib/enums';
 import AnimatedButton from '@/components/AnimatedButton';
-import AdminSetPassword from '@/components/AdminSetPassword';
+import MemberPasswordActions from '@/components/MemberPasswordActions';
 
 export const dynamic = 'force-dynamic';
 
@@ -86,7 +86,7 @@ export default async function EditTeamMemberPage({ params }: { params: Promise<{
         </div>
       </form>
 
-      <AdminSetPassword userId={member.id} />
+      <MemberPasswordActions userId={member.id} />
     </div>
   );
 }

@@ -10,6 +10,7 @@ import RolesOverview from '@/components/RolesOverview';
 import TeamTabs from '@/components/TeamTabs';
 import NewMemberBanner from '@/components/NewMemberBanner';
 import ResendWelcomeButton from '@/components/ResendWelcomeButton';
+import ImpersonateButton from '@/components/ImpersonateButton';
 import { takeCredentials } from '@/lib/pending-credentials';
 
 export const dynamic = 'force-dynamic';
@@ -78,22 +79,9 @@ export default async function TeamPage({
               <span className="mt-1 block text-[11px] text-slate-400">They can sign in with this or their email.</span>
             </label>
 
-            <label className="mb-4 block">
-              <span className="mb-1 block text-xs font-medium text-slate-600">
-                Temporary password <span className="font-normal text-slate-400">(optional)</span>
-              </span>
-              <input
-                name="tempPassword"
-                type="text"
-                minLength={8}
-                autoComplete="off"
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand focus:outline-none"
-                placeholder="Leave blank to auto-generate"
-              />
-              <span className="mt-1 block text-[11px] text-slate-400">
-                They’ll be asked to set their own password the first time they sign in.
-              </span>
-            </label>
+            <p className="mb-4 rounded-lg bg-slate-50 px-3 py-2 text-[11px] text-slate-500">
+              A temporary password is emailed to them automatically — they’ll set their own the first time they sign in.
+            </p>
 
             <span className="mb-1 block text-xs font-medium text-slate-600">Roles</span>
             <div className="mb-5 space-y-2">
@@ -155,6 +143,7 @@ export default async function TeamPage({
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center justify-end gap-2">
+                          {viewerIsSuper && m.id !== session?.id && <ImpersonateButton userId={m.id} />}
                           {m.mustChangePassword && <ResendWelcomeButton userId={m.id} />}
                           <RowActions
                             editHref={`/team/${m.id}/edit`}

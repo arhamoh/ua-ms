@@ -29,6 +29,7 @@ import {
   Mail,
   CalendarClock,
   HardDrive,
+  Eye,
   PanelLeftClose,
   PanelLeftOpen,
   type LucideIcon,
@@ -43,6 +44,7 @@ import HeaderClock from '@/components/HeaderClock';
 import MigrationButton from '@/components/MigrationButton';
 import TeamClocks from '@/components/TeamClocks';
 import { logout } from '@/app/login/actions';
+import { stopImpersonating } from '@/app/actions';
 import { canManageAgencyHours } from '@/lib/enums';
 import type { SessionUser } from '@/lib/auth';
 
@@ -337,6 +339,14 @@ export default function AppShell({
 
       {/* Main column */}
       <div className={`transition-[padding] duration-200 print:pl-0 ${collapsed ? 'lg:pl-16' : 'lg:pl-60'}`}>
+        {user.impersonatorId && (
+          <div className="flex flex-wrap items-center justify-center gap-2 bg-amber-500 px-4 py-1.5 text-center text-xs font-medium text-white print:hidden">
+            <Eye size={13} /> Viewing as <strong>{user.name}</strong> (impersonated by {user.impersonatorName})
+            <form action={stopImpersonating}>
+              <button type="submit" className="rounded-md bg-white/20 px-2 py-0.5 text-[11px] font-semibold hover:bg-white/30">Exit</button>
+            </form>
+          </div>
+        )}
         <header className="sticky top-0 z-20 flex h-16 items-center gap-3 border-b border-slate-200 bg-white/80 px-4 backdrop-blur sm:px-6 print:hidden">
           <button
             onClick={() => setOpen(true)}
