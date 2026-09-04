@@ -6,6 +6,7 @@ export const NOTIFY_CATEGORIES = [
   { id: 'messages', label: 'Messages', desc: 'New direct messages' },
   { id: 'mentions', label: 'Mentions', desc: 'When someone @mentions you' },
   { id: 'tasks', label: 'Tasks & approvals', desc: 'Task approvals and assignments' },
+  { id: 'meetings', label: 'Meetings', desc: 'Meeting requests, approvals and reminders' },
   { id: 'team', label: 'Team', desc: 'Shared logins, leave requests' },
 ] as const;
 
@@ -17,6 +18,11 @@ const TYPE_TO_CATEGORY: Record<string, NotifyCategory> = {
   message: 'messages',
   mention: 'mentions',
   task_approval: 'tasks',
+  meeting_request: 'meetings',
+  meeting_approved: 'meetings',
+  meeting_declined: 'meetings',
+  meeting_proposed: 'meetings',
+  meeting_cancelled: 'meetings',
   login_shared: 'team',
   leave: 'team',
 };

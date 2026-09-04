@@ -24,11 +24,21 @@ export async function verifyEmailConnection(): Promise<{ ok: boolean; message: s
   }
 }
 
-async function sendViaResend(to: string, subject: string, html: string) {
+export interface EmailAttachment {
+  filename: string;
+  content: string; // base64-encoded
+  contentType?: string;
+}
+
+async function sendViaResend(to: string, subject: string, html: string, attachments?: EmailAttachment[]) {
+  const body: Record<string, unknown> = { from: process.env.INVOICE_FROM_EMAIL, to, subject, html };
+  if (attachments?.length) {
+    body.attachments = attachments.map((a) => ({ filename: a.filename, content: a.content }));
+  }
   const res = await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ from: process.env.INVOICE_FROM_EMAIL, to, subject, html }),
+    body: JSON.stringify(body),
   });
   if (!res.ok) {
     const t = await res.text();
@@ -40,16 +50,18 @@ export async function sendEmail({
   to,
   subject,
   html,
+  attachments,
 }: {
   to: string;
   subject: string;
   html: string;
+  attachments?: EmailAttachment[];
 }): Promise<{ ok: boolean; error?: string }> {
   try {
     if (!resendConfigured()) {
       return { ok: false, error: 'Email not configured (set RESEND_API_KEY + INVOICE_FROM_EMAIL).' };
     }
-    await sendViaResend(to, subject, html);
+    await sendViaResend(to, subject, html, attachments);
     return { ok: true };
   } catch (e: any) {
     return { ok: false, error: e?.message ?? 'Email send failed' };

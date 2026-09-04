@@ -104,6 +104,9 @@ model User {
   statements        Statement[]        @relation("UploadedStatements")
   letters           Letter[]           @relation("LettersCreated")
   pendingImports    PendingImport[]    @relation("PendingImportsCreated")
+  meetingsRequested Meeting[]          @relation("MeetingRequester")
+  meetingsToApprove Meeting[]          @relation("MeetingApprover")
+  meetingAttendances MeetingAttendee[] @relation("MeetingAttendees")
 
   @@index([email])
 }
@@ -1054,4 +1057,63 @@ model AppSecret {
   value     String // AES-256-GCM ciphertext (v1:iv:tag:ct)
   updatedAt DateTime @updatedAt
   createdAt DateTime @default(now())
+}
+
+// ── Meetings ─────────────────────────────────────────────────────────────────
+// Internal meeting scheduling with an approval flow. A requester asks to meet an
+// approver (optionally proposing a time, or asking for their availability); the
+// approver confirms/declines. On approval it's booked, optionally synced to
+// Google Calendar with a Meet link, and everyone involved is notified.
+enum MeetingStatus {
+  REQUESTED
+  APPROVED
+  DECLINED
+  CANCELLED
+}
+
+model Meeting {
+  id          String        @id @default(cuid())
+  title       String
+  description String?
+  clientName  String? // potential client to discuss
+  status      MeetingStatus @default(REQUESTED)
+
+  requesterId String
+  requester   User   @relation("MeetingRequester", fields: [requesterId], references: [id], onDelete: Cascade)
+  approverId  String
+  approver    User   @relation("MeetingApprover", fields: [approverId], references: [id], onDelete: Cascade)
+
+  // Proposed / confirmed time. Null start = "ask for the approver's availability".
+  startAt     DateTime?
+  endAt       DateTime?
+  durationMin Int       @default(30)
+
+  proposedByApprover Boolean @default(false) // approver counter-proposed a time
+  declineReason      String?
+
+  withMeet       Boolean @default(true)
+  meetLink       String?
+  googleEventId  String?
+  googleHtmlLink String?
+
+  attendees MeetingAttendee[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([approverId, status])
+  @@index([requesterId])
+  @@index([startAt])
+}
+
+model MeetingAttendee {
+  id        String  @id @default(cuid())
+  meetingId String
+  meeting   Meeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  userId    String? // internal attendee
+  user      User?   @relation("MeetingAttendees", fields: [userId], references: [id], onDelete: Cascade)
+  email     String? // external attendee (client)
+
+  @@index([meetingId])
+  @@index([userId])
 }

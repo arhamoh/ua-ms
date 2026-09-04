@@ -11,6 +11,7 @@ import InlineSearch from '@/components/InlineSearch';
 import IncomeExpenseChart from '@/components/charts/IncomeExpenseChart';
 import DonutChart from '@/components/charts/DonutChart';
 import DashboardSignals from '@/components/DashboardSignals';
+import DashboardMeetings from '@/components/DashboardMeetings';
 
 export const dynamic = 'force-dynamic';
 
@@ -282,6 +283,10 @@ export default async function DashboardPage() {
             )}
           </div>
         </FadeIn>
+      </section>
+
+      <section className="mt-6">
+        <DashboardMeetings />
       </section>
 
       {/* Recent projects + project types */}
