@@ -43,7 +43,7 @@ export async function middleware(req: NextRequest) {
       if (!ok) {
         return new NextResponse('Private preview — password required.', {
           status: 401,
-          headers: { 'WWW-Authenticate': 'Basic realm="Keel — private preview", charset="UTF-8"' },
+          headers: { 'WWW-Authenticate': 'Basic realm="Keel Private Preview"' },
         });
       }
     }
