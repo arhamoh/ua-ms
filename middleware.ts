@@ -21,7 +21,18 @@ export async function middleware(req: NextRequest) {
   const token = req.cookies.get(SESSION_COOKIE)?.value;
   if (token) {
     try {
-      await jwtVerify(token, SECRET);
+      const { payload } = await jwtVerify(token, SECRET);
+      // Members created with a temporary password must set their own before
+      // they can use anything else — pin them to /change-password until they do.
+      const mustChange = !!(payload as { mcp?: boolean }).mcp;
+      const onChangePage =
+        pathname === '/change-password' || pathname.startsWith('/change-password/');
+      if (mustChange && !onChangePage && !pathname.startsWith('/api/')) {
+        const url = req.nextUrl.clone();
+        url.pathname = '/change-password';
+        url.search = '';
+        return NextResponse.redirect(url);
+      }
       return NextResponse.next();
     } catch {
       // fall through to redirect

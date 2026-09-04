@@ -21,8 +21,14 @@ export async function login(_prev: LoginState, formData: FormData): Promise<Logi
     return { error: 'Invalid login or password.' };
   }
 
-  await createSession({ id: user.id, name: user.name, email: user.email, roles: user.roles });
-  redirect('/');
+  await createSession({
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    roles: user.roles,
+    mustChangePassword: user.mustChangePassword,
+  });
+  redirect(user.mustChangePassword ? '/change-password' : '/');
 }
 
 export async function logout() {

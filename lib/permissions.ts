@@ -71,7 +71,7 @@ export const AREAS: Area[] = [
   { key: 'logins_view', label: 'Shared logins — view', group: 'More', roles: 'all' },
   { key: 'logins_manage', label: 'Shared logins — manage', group: 'More', roles: PM_UP },
   { key: 'settings', label: 'Settings (personal)', group: 'More', roles: 'all' },
-  { key: 'settings_admin', label: 'Settings — integrations, database, reset', group: 'More', roles: ELEVATED },
+  { key: 'settings_admin', label: 'Settings — integrations, database, reset', group: 'More', roles: SUPER },
 ];
 
 /** Does this role have access to an area? */

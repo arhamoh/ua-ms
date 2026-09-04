@@ -284,9 +284,14 @@ export default function AppShell({
   }, [pathname]);
 
   // Unauthenticated routes (login, forgot-password) render bare, no chrome.
-  if (!user) {
+  // First-login users forced to set a password also get the bare layout — the
+  // middleware pins them to /change-password until they do.
+  if (!user || user.mustChangePassword) {
     return <>{children}</>;
   }
+
+  // Migration is a database tool — Super Admin only (Admins don't see it).
+  const isSuperAdmin = !!user.roles?.includes('SUPER_ADMIN');
 
   return (
     <>
@@ -347,7 +352,7 @@ export default function AppShell({
 
           <div className="ml-auto flex items-center gap-2 sm:gap-3">
             <HeaderClock initial={attendance ?? { open: false, checkInAt: null }} />
-            {user?.roles?.some((r) => r === 'SUPER_ADMIN' || r === 'ADMIN') && <MigrationButton variant="header" />}
+            {isSuperAdmin && <MigrationButton variant="header" />}
             <button
               onClick={hardRefresh}
               className="grid h-9 w-9 place-items-center rounded-xl border border-slate-200 text-slate-500 transition hover:bg-slate-50 hover:text-brand active:rotate-180"

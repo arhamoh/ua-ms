@@ -15,10 +15,16 @@ export type SessionUser = {
   name: string;
   email: string;
   roles: string[];
+  mustChangePassword?: boolean;
 };
 
 export async function createSession(user: SessionUser) {
-  const token = await new SignJWT({ name: user.name, email: user.email, roles: user.roles })
+  const token = await new SignJWT({
+    name: user.name,
+    email: user.email,
+    roles: user.roles,
+    mcp: !!user.mustChangePassword,
+  })
     .setProtectedHeader({ alg: 'HS256' })
     .setSubject(user.id)
     .setIssuedAt()
@@ -55,6 +61,7 @@ export async function getSession(): Promise<SessionUser | null> {
       name: (payload.name as string) ?? '',
       email: (payload.email as string) ?? '',
       roles: (payload.roles as string[]) ?? [],
+      mustChangePassword: !!payload.mcp,
     };
   } catch {
     return null;

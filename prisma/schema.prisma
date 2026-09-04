@@ -74,6 +74,7 @@ model User {
   email        String   @unique
   username     String?  @unique // optional login handle; sign in with this or email
   passwordHash String?
+  mustChangePassword Boolean @default(false) // true after admin creates them with a temp password; forces a reset on first login
   roles        Role[]   @default([])
   timezone     String?  // IANA tz of where this person works, e.g. "Asia/Karachi"
   notifyPrefs  Json?    // per-category push toggles, e.g. { leads: true, messages: false }

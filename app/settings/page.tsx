@@ -9,6 +9,7 @@ import { getCompany } from '@/lib/company';
 import { getSession } from '@/lib/auth';
 import FadeIn from '@/components/FadeIn';
 import IntegrationsPanel from '@/components/IntegrationsPanel';
+import EmailTestPanel from '@/components/EmailTestPanel';
 import EnablePushButton from '@/components/EnablePushButton';
 import NotificationPrefs from '@/components/NotificationPrefs';
 import AccountSettings from '@/components/AccountSettings';
@@ -45,7 +46,9 @@ export default async function SettingsPage({
   const company = await getCompany();
   const integrations = await getIntegrations();
   const session = await getSession();
-  const isSuperAdmin = !!session?.roles?.some((r) => r === 'SUPER_ADMIN' || r === 'ADMIN');
+  // Integrations, Database and Reset are Super-Admin-only — Admins don't see them.
+  const isSuper = !!session?.roles?.includes('SUPER_ADMIN');
+  const emailReady = integrations.some((i) => i.id === 'email' && i.status === 'connected');
   const me = session ? await prisma.user.findUnique({ where: { id: session.id }, select: { timezone: true, notifyPrefs: true, username: true } }) : null;
   const notifyPrefs = normalizePrefs(me?.notifyPrefs);
 
@@ -106,6 +109,26 @@ export default async function SettingsPage({
     label: 'Reset data',
     icon: <AlertTriangle size={15} />,
     content: <ResetDataPanel />,
+  };
+
+  const integrationsTab: SettingsTab = {
+    id: 'integrations',
+    label: 'Integrations',
+    icon: <Plug size={15} />,
+    content: (
+      <div>
+        <div className="mb-3 flex items-center gap-2">
+          <Plug size={18} className="text-brand" />
+          <h2 className="text-sm font-semibold">Integrations &amp; connections</h2>
+          <span className="text-xs text-slate-400">What’s connected, and whether the keys work</span>
+        </div>
+        <IntegrationsPanel integrations={integrations} />
+        <p className="mt-2 text-xs text-slate-400">
+          Set keys right here, or in Railway → Variables. Secret values are never shown — only whether each one is set.
+        </p>
+        <EmailTestPanel defaultTo={session?.email ?? ''} emailReady={emailReady} />
+      </div>
+    ),
   };
 
   return (
@@ -253,25 +276,7 @@ export default async function SettingsPage({
               </div>
             ),
           },
-          {
-            id: 'integrations',
-            label: 'Integrations',
-            icon: <Plug size={15} />,
-            content: (
-              <div>
-                <div className="mb-3 flex items-center gap-2">
-                  <Plug size={18} className="text-brand" />
-                  <h2 className="text-sm font-semibold">Integrations &amp; connections</h2>
-                  <span className="text-xs text-slate-400">What’s connected, and whether the keys work</span>
-                </div>
-                <IntegrationsPanel integrations={integrations} />
-                <p className="mt-2 text-xs text-slate-400">
-                  Set keys right here, or in Railway → Variables. Secret values are never shown — only whether each one is set.
-                </p>
-              </div>
-            ),
-          },
-          ...(isSuperAdmin ? [databaseTab, resetTab] : []),
+          ...(isSuper ? [integrationsTab, databaseTab, resetTab] : []),
         ]}
       />
     </div>

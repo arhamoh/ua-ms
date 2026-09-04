@@ -8,13 +8,22 @@ import AnimatedButton from '@/components/AnimatedButton';
 import TableTools from '@/components/TableTools';
 import RolesOverview from '@/components/RolesOverview';
 import TeamTabs from '@/components/TeamTabs';
+import NewMemberBanner from '@/components/NewMemberBanner';
+import { takeCredentials } from '@/lib/pending-credentials';
 
 export const dynamic = 'force-dynamic';
 
-export default async function TeamPage() {
+export default async function TeamPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ created?: string }>;
+}) {
   const session = await getSession();
   const viewerRoles = session?.roles ?? [];
   const viewerIsSuper = isSuperStrict(viewerRoles);
+  // One-time credentials for a member the admin just added (email is off in dev).
+  const sp = await searchParams;
+  const justCreated = sp?.created === '1' && session ? takeCredentials(session.id) : null;
   const members = await prisma.user.findMany({ orderBy: { createdAt: 'asc' } });
   const roleCounts: Record<string, number> = {};
   for (const m of members) for (const r of m.roles) roleCounts[r] = (roleCounts[r] ?? 0) + 1;
@@ -50,6 +59,23 @@ export default async function TeamPage() {
                 className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand focus:outline-none"
                 placeholder="jane@agency.com"
               />
+            </label>
+
+            <label className="mb-4 block">
+              <span className="mb-1 block text-xs font-medium text-slate-600">
+                Temporary password <span className="font-normal text-slate-400">(optional)</span>
+              </span>
+              <input
+                name="tempPassword"
+                type="text"
+                minLength={8}
+                autoComplete="off"
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand focus:outline-none"
+                placeholder="Leave blank to auto-generate"
+              />
+              <span className="mt-1 block text-[11px] text-slate-400">
+                They’ll be asked to set their own password the first time they sign in.
+              </span>
             </label>
 
             <span className="mb-1 block text-xs font-medium text-slate-600">Roles</span>
@@ -138,6 +164,16 @@ export default async function TeamPage() {
       <p className="mt-1 text-sm text-slate-500">
         Add team members and their roles. A person can hold multiple roles.
       </p>
+
+      {justCreated && (
+        <NewMemberBanner
+          name={justCreated.name}
+          username={justCreated.username}
+          tempPassword={justCreated.tempPassword}
+          loginUrl={justCreated.loginUrl}
+          emailed={justCreated.emailed}
+        />
+      )}
 
       <TeamTabs members={membersSection} roles={rolesSection} />
     </div>

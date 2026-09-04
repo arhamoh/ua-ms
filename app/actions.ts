@@ -25,7 +25,8 @@ import {
   PROJECT_STATUSES,
 } from '@/lib/enums';
 import { getRatesToCad, toCad } from '@/lib/fx';
-import { sendEmail, verifyEmailConnection } from '@/lib/email';
+import { sendEmail, verifyEmailConnection, emailConfigured } from '@/lib/email';
+import { isSuperStrict } from '@/lib/permissions';
 import { invoiceHtml, receiptHtml } from '@/lib/documents';
 import { getCompany, computeTax } from '@/lib/company';
 import { backOutExpenseTax, backOutTax, collectedFromPayment } from '@/lib/tax';
@@ -37,7 +38,15 @@ import { waveConfigured, getWaveBusinesses, getWaveInvoices, mapWaveStatus, test
 import { testTwitterApi } from '@/lib/leadgen/sources/xListener';
 import { DEFAULT_OPTIONS } from '@/lib/options';
 import type { ImportLine } from '@/lib/statement-parse';
-import { getSession } from '@/lib/auth';
+import { getSession, createSession } from '@/lib/auth';
+import {
+  generateTempPassword,
+  usernameFromEmail,
+  appLoginUrl,
+  sendWelcomeEmail,
+  buildWelcomeEmail,
+} from '@/lib/welcome-email';
+import { stashCredentials } from '@/lib/pending-credentials';
 import { driveConfigured, uploadToDrive, testDriveConnection } from '@/lib/drive';
 import { testOpenRouter } from '@/lib/integrations';
 import { setSecret, clearSecret, isManagedSecret } from '@/lib/secrets';
@@ -61,6 +70,7 @@ function normCat(v: string | null | undefined): string {
 // ─── Team members ────────────────────────────────────────────────────────────
 
 export async function createTeamMember(formData: FormData) {
+  const admin = await getSession();
   const name = str(formData.get('name'));
   const email = str(formData.get('email'));
   const roles = formData
@@ -72,13 +82,44 @@ export async function createTeamMember(formData: FormData) {
     throw new Error('Name and email are required.');
   }
 
+  // Give the member usable credentials so they can actually sign in. The admin
+  // may set the temporary password themselves; otherwise we generate one. Either
+  // way they're forced to change it on first login (mustChangePassword).
+  const typedPassword = str(formData.get('tempPassword'));
+  const tempPassword = typedPassword && typedPassword.length >= 8 ? typedPassword : generateTempPassword();
+  const passwordHash = await bcrypt.hash(tempPassword, 10);
+
+  // A unique login handle derived from the email, with a numeric suffix on clash.
+  const base = usernameFromEmail(email!);
+  let username = base;
+  for (let i = 2; await prisma.user.findUnique({ where: { username }, select: { id: true } }); i++) {
+    username = `${base}${i}`;
+  }
+
   await prisma.user.create({
-    data: { name, email, roles },
+    data: { name, email, roles, username, passwordHash, mustChangePassword: true },
   });
+
+  // Welcome email — a no-op unless WELCOME_EMAILS_ENABLED=true (off in dev).
+  const emailRes = await sendWelcomeEmail(email!, { name: name!, username, tempPassword, roles }).catch(
+    () => ({ sent: false as const }),
+  );
+
+  // Show the credentials back to the admin once (the temp password isn't stored
+  // in plaintext, and email is off during development).
+  if (admin) {
+    stashCredentials(admin.id, {
+      name: name!,
+      username,
+      tempPassword,
+      loginUrl: appLoginUrl(),
+      emailed: emailRes.sent,
+    });
+  }
 
   revalidatePath('/team');
   revalidatePath('/onboard');
-  redirect('/team');
+  redirect('/team?created=1');
 }
 
 // ─── Client + Project onboarding ─────────────────────────────────────────────
@@ -870,6 +911,7 @@ export async function deleteFileAsset(formData: FormData) {
 
 // Create an invoice for any project that doesn't have one yet.
 export async function backfillInvoices() {
+  await requireSuperStrict();
   const projects = await prisma.project.findMany({ where: { invoices: { none: {} } } });
   for (const p of projects) {
     await prisma.invoice.create({
@@ -887,6 +929,7 @@ export async function backfillInvoices() {
 }
 
 export async function clearDemoData() {
+  await requireSuperStrict();
   // Remove demo records AND the original Acme seed. Deleting demo clients cascades
   // their projects/tasks/invoices/payments; deleting demo users cascades their
   // memberships/salaries/payments/commissions (Task.assignee is set null).
@@ -902,6 +945,7 @@ export async function clearDemoData() {
 }
 
 export async function seedDemoData() {
+  await requireSuperStrict();
   const rates = await getRatesToCad();
   const cadOf = (a: number, c: string) => toCad(a, c, rates);
   const admin = await prisma.user.findFirst({ where: { roles: { has: 'SUPER_ADMIN' as any } } });
@@ -1179,7 +1223,7 @@ export async function deleteOptionById(id: string) {
 // network probe for the integration the user clicked; returns ok + a message.
 export async function testIntegration(id: string): Promise<{ ok: boolean; message: string }> {
   const s = await getSession();
-  if (!s) return { ok: false, message: 'Not authorized.' };
+  if (!s || !isSuperStrict(s.roles)) return { ok: false, message: 'Not authorized.' };
   switch (id) {
     case 'drive':
       return testDriveConnection();
@@ -1194,6 +1238,26 @@ export async function testIntegration(id: string): Promise<{ ok: boolean; messag
     default:
       return { ok: false, message: 'Nothing to test for this integration.' };
   }
+}
+
+/** Send a sample welcome email to check the email setup works. Explicit test —
+ *  bypasses WELCOME_EMAILS_ENABLED, but still needs SMTP/Resend configured. */
+export async function sendTestEmail(to: string): Promise<{ ok: boolean; message: string }> {
+  const s = await getSession();
+  if (!s || !isSuperStrict(s.roles)) return { ok: false, message: 'Not authorized.' };
+  if (!emailConfigured()) return { ok: false, message: 'Configure SMTP or Resend first (Integrations above).' };
+  const target = (to || s.email || '').trim();
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(target)) return { ok: false, message: 'Enter a valid email address.' };
+  const { subject, html } = buildWelcomeEmail({
+    name: s.name || 'there',
+    username: 'sample.user',
+    tempPassword: 'keel-1a2b-3c4d',
+    roles: s.roles,
+  });
+  const res = await sendEmail({ to: target, subject: `[Test] ${subject}`, html });
+  return res.ok
+    ? { ok: true, message: `Test email sent to ${target}.` }
+    : { ok: false, message: res.error ?? 'Send failed.' };
 }
 
 /** Save the current user's notification category toggles (which alerts push). */
@@ -1224,13 +1288,25 @@ export async function changeUsername(newValue: string): Promise<{ ok: boolean; m
   return { ok: true, message: 'Username updated — sign in with it or your email.' };
 }
 
-/** Set a new password for the signed-in user (no current password required). */
+/** Set a new password for the signed-in user (no current password required).
+ *  Also clears the first-login "must change password" flag and refreshes the
+ *  session so the forced-reset gate lifts immediately. */
 export async function changePassword(newPassword: string): Promise<{ ok: boolean; message: string }> {
   const user = await getSession();
   if (!user) return { ok: false, message: 'Not signed in.' };
   if ((newPassword ?? '').length < 8) return { ok: false, message: 'New password must be at least 8 characters.' };
   const hash = await bcrypt.hash(newPassword, 10);
-  await prisma.user.update({ where: { id: user.id }, data: { passwordHash: hash } });
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { passwordHash: hash, mustChangePassword: false },
+  });
+  await createSession({
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    roles: user.roles,
+    mustChangePassword: false,
+  });
   return { ok: true, message: 'Password updated.' };
 }
 
@@ -1275,7 +1351,7 @@ Return ONLY a JSON object: {"queries":["...","..."]}.`;
 
 /** Save an integration credential from the dashboard (encrypted at rest). */
 export async function saveIntegrationSecret(name: string, value: string): Promise<{ ok: boolean; message: string }> {
-  await requireSuperAdmin();
+  await requireSuperStrict();
   if (!isManagedSecret(name)) return { ok: false, message: 'That key can’t be set from here.' };
   try {
     await setSecret(name, value);
@@ -1288,7 +1364,7 @@ export async function saveIntegrationSecret(name: string, value: string): Promis
 
 /** Remove a dashboard-saved credential; it falls back to the deployment env if set there. */
 export async function clearIntegrationSecret(name: string): Promise<{ ok: boolean; message: string }> {
-  await requireSuperAdmin();
+  await requireSuperStrict();
   if (!isManagedSecret(name)) return { ok: false, message: 'That key can’t be cleared from here.' };
   await clearSecret(name);
   revalidatePath('/settings');
@@ -2000,7 +2076,7 @@ export async function revertStatementsToPending(ids: string[]): Promise<{ ok: bo
 export async function resetData(scopes: string[]): Promise<{ ok: boolean; message: string }> {
   const RESET_SCOPES = ['finance', 'invoices', 'statements', 'filings', 'loans', 'commissions', 'salaryPayments', 'time', 'leads', 'projects', 'clients'];
   const session = await getSession();
-  if (!session?.roles?.some((r) => r === 'SUPER_ADMIN' || r === 'ADMIN')) return { ok: false, message: 'Not authorized — super admins only.' };
+  if (!session?.roles?.includes('SUPER_ADMIN')) return { ok: false, message: 'Not authorized — super admins only.' };
   const set = new Set((scopes ?? []).filter((s) => RESET_SCOPES.includes(s)));
   if (set.size === 0) return { ok: false, message: 'Nothing selected.' };
 
@@ -2530,6 +2606,14 @@ export async function deleteStatement(id: string) {
 async function requireSuperAdmin() {
   const s = await getSession();
   if (!s || !s.roles.some((r) => r === 'SUPER_ADMIN' || r === 'ADMIN')) throw new Error('Not authorized.');
+  return s;
+}
+
+// Strictly Super Admin — for the most sensitive tools (integrations, database,
+// reset) that Admins must not reach, even by calling the action directly.
+async function requireSuperStrict() {
+  const s = await getSession();
+  if (!s || !s.roles.includes('SUPER_ADMIN')) throw new Error('Not authorized.');
   return s;
 }
 
@@ -3190,7 +3274,7 @@ export async function setConversationRead(conversationId: string, read: boolean)
 // already-committed migrations — never resets or generates. Super-admin only.
 export async function runMigrations(): Promise<{ ok: boolean; output: string }> {
   const s = await getSession();
-  if (!s?.roles?.some((r) => r === 'SUPER_ADMIN' || r === 'ADMIN')) return { ok: false, output: 'Not authorized — super admin only.' };
+  if (!s?.roles?.includes('SUPER_ADMIN')) return { ok: false, output: 'Not authorized — super admin only.' };
   try {
     const { execFile } = await import('child_process');
     const { promisify } = await import('util');
