@@ -32,6 +32,44 @@ async function ctx(): Promise<Ctx> {
 
 const esc = (name: string) => name.replace(/'/g, "\\'");
 
+export interface DriveEntry {
+  id: string;
+  name: string;
+  mimeType: string;
+  isFolder: boolean;
+  size: number | null;
+  modifiedTime: string | null;
+  webViewLink: string | null;
+}
+
+/** List files/folders inside a folder (default: the account's root / shared-drive root). */
+export async function listDriveFiles(folderId?: string): Promise<DriveEntry[]> {
+  const c = await ctx();
+  const parent = folderId || c.rootParent;
+  const params: any = {
+    q: `'${parent}' in parents and trashed=false`,
+    fields: 'files(id,name,mimeType,size,modifiedTime,webViewLink)',
+    orderBy: 'folder,name',
+    pageSize: 200,
+  };
+  if (c.shared) {
+    params.corpora = 'drive';
+    params.driveId = c.driveId;
+    params.includeItemsFromAllDrives = true;
+    params.supportsAllDrives = true;
+  }
+  const res = await c.drive.files.list(params);
+  return (res.data.files ?? []).map((f: any) => ({
+    id: f.id,
+    name: f.name ?? '(untitled)',
+    mimeType: f.mimeType ?? '',
+    isFolder: f.mimeType === 'application/vnd.google-apps.folder',
+    size: f.size ? Number(f.size) : null,
+    modifiedTime: f.modifiedTime ?? null,
+    webViewLink: f.webViewLink ?? null,
+  }));
+}
+
 export async function testDriveConnection(): Promise<{ ok: boolean; message: string }> {
   if (!driveConfigured()) return { ok: false, message: 'Not configured.' };
   try {

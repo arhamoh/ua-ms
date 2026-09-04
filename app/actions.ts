@@ -47,7 +47,7 @@ import {
   buildWelcomeEmail,
 } from '@/lib/welcome-email';
 import { stashCredentials } from '@/lib/pending-credentials';
-import { driveConfigured, uploadToDrive, testDriveConnection } from '@/lib/drive';
+import { driveConfigured, uploadToDrive, testDriveConnection, listDriveFiles, type DriveEntry } from '@/lib/drive';
 import { testGoogleConnection, resetGoogleTokenCache } from '@/lib/google';
 import { testOpenRouter } from '@/lib/integrations';
 import { setSecret, clearSecret, isManagedSecret, getSecret } from '@/lib/secrets';
@@ -1374,6 +1374,18 @@ export async function revealSecret(name: string): Promise<{ ok: boolean; value?:
   const value = await getSecret(name);
   if (!value) return { ok: false, message: 'Not set.' };
   return { ok: true, value };
+}
+
+/** Browse Google Drive files/folders (Super Admin only) — for verifying the
+ *  connection and navigating the connected account's Drive. */
+export async function browseDrive(folderId?: string): Promise<{ ok: boolean; files?: DriveEntry[]; error?: string }> {
+  await requireSuperStrict();
+  if (!driveConfigured()) return { ok: false, error: 'Google Drive isn’t connected.' };
+  try {
+    return { ok: true, files: await listDriveFiles(folderId) };
+  } catch (e: any) {
+    return { ok: false, error: e?.message?.slice(0, 200) ?? 'Could not read Drive.' };
+  }
 }
 
 /** Disconnect the linked Google account (clears the stored tokens). */

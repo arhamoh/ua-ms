@@ -10,6 +10,8 @@ import { getSession } from '@/lib/auth';
 import FadeIn from '@/components/FadeIn';
 import IntegrationsPanel from '@/components/IntegrationsPanel';
 import EmailTestPanel from '@/components/EmailTestPanel';
+import DriveBrowser from '@/components/DriveBrowser';
+import { driveConfigured } from '@/lib/drive';
 import EnablePushButton from '@/components/EnablePushButton';
 import NotificationPrefs from '@/components/NotificationPrefs';
 import AccountSettings from '@/components/AccountSettings';
@@ -137,6 +139,7 @@ export default async function SettingsPage({
           Set keys right here, or in Railway → Variables. Secret values are never shown — only whether each one is set.
         </p>
         <EmailTestPanel defaultTo={session?.email ?? ''} emailReady={emailReady} />
+        {driveConfigured() && <DriveBrowser />}
       </div>
     ),
   };
