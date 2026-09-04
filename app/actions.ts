@@ -1244,11 +1244,11 @@ export async function testIntegration(id: string): Promise<{ ok: boolean; messag
 }
 
 /** Send a sample welcome email to check the email setup works. Explicit test —
- *  bypasses WELCOME_EMAILS_ENABLED, but still needs SMTP/Resend configured. */
+ *  bypasses WELCOME_EMAILS_ENABLED, but still needs Resend configured. */
 export async function sendTestEmail(to: string): Promise<{ ok: boolean; message: string }> {
   const s = await getSession();
   if (!s || !isSuperStrict(s.roles)) return { ok: false, message: 'Not authorized.' };
-  if (!emailConfigured()) return { ok: false, message: 'Configure SMTP or Resend first (Integrations above).' };
+  if (!emailConfigured()) return { ok: false, message: 'Configure Resend first (Integrations above).' };
   const target = (to || s.email || '').trim();
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(target)) return { ok: false, message: 'Enter a valid email address.' };
   const { subject, html } = buildWelcomeEmail({

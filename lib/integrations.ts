@@ -34,7 +34,6 @@ export async function getIntegrations(): Promise<IntegrationStatus[]> {
     dbOk = false;
   }
 
-  const smtp = isSet(e.SMTP_HOST) && isSet(e.SMTP_USER) && isSet(e.SMTP_PASS);
   const resend = isSet(e.RESEND_API_KEY) && isSet(e.INVOICE_FROM_EMAIL);
   const authSet = isSet(e.AUTH_SECRET);
   const orSet = isSet(e.OPENROUTER_API_KEY);
@@ -77,27 +76,21 @@ export async function getIntegrations(): Promise<IntegrationStatus[]> {
       ],
       testable: calendar,
     },
-    // ── Email (Resend / SMTP) ───────────────────────────────────────────────
+    // ── Email (Resend) ──────────────────────────────────────────────────────
     {
       id: 'email',
       group: 'Email',
-      name: 'Email (Resend / SMTP)',
-      description: 'Sends invoices, receipts and welcome emails via Resend (or an SMTP app password).',
-      status: smtp || resend ? 'connected' : 'off',
+      name: 'Email (Resend)',
+      description: 'Sends invoices, receipts and welcome emails via Resend.',
+      status: resend ? 'connected' : 'off',
       summary: resend
         ? 'Using Resend.'
-        : smtp
-          ? 'Using SMTP.'
-          : 'Not configured — set a Resend API key + from-address to send email.',
+        : 'Not configured — set a Resend API key + from-address to send email.',
       vars: [
-        { name: 'SMTP_HOST', set: isSet(e.SMTP_HOST) },
-        { name: 'SMTP_USER', set: isSet(e.SMTP_USER) },
-        { name: 'SMTP_PASS', set: isSet(e.SMTP_PASS) },
-        { name: 'SMTP_FROM', set: isSet(e.SMTP_FROM) },
-        { name: 'RESEND_API_KEY', set: isSet(e.RESEND_API_KEY) },
-        { name: 'INVOICE_FROM_EMAIL', set: isSet(e.INVOICE_FROM_EMAIL) },
+        { name: 'RESEND_API_KEY', set: isSet(e.RESEND_API_KEY), required: true },
+        { name: 'INVOICE_FROM_EMAIL', set: isSet(e.INVOICE_FROM_EMAIL), required: true },
       ],
-      testable: smtp || resend,
+      testable: resend,
     },
     // ── AI ─────────────────────────────────────────────────────────────────
     {

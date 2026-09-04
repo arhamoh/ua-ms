@@ -1,59 +1,27 @@
-// Email sending. Supports SMTP (e.g. Gmail) OR Resend — whichever is configured.
-// SMTP takes precedence if SMTP_HOST is set.
-
-import nodemailer from 'nodemailer';
-
-function smtpConfigured() {
-  return Boolean(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS);
-}
+// Email sending via Resend.
 
 function resendConfigured() {
   return Boolean(process.env.RESEND_API_KEY && process.env.INVOICE_FROM_EMAIL);
 }
 
 export function emailConfigured() {
-  return resendConfigured() || smtpConfigured();
+  return resendConfigured();
 }
 
-// Live connectivity check for the Settings integrations panel. Verifies SMTP
-// auth, or that the Resend API key is accepted — without sending an email.
+// Live connectivity check for the Settings integrations panel — confirms the
+// Resend API key is accepted, without sending an email.
 export async function verifyEmailConnection(): Promise<{ ok: boolean; message: string }> {
   try {
-    if (resendConfigured()) {
-      const res = await fetch('https://api.resend.com/domains', {
-        headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}` },
-      });
-      return res.ok
-        ? { ok: true, message: 'Resend API key accepted.' }
-        : { ok: false, message: `Resend responded ${res.status}.` };
-    }
-    if (smtpConfigured()) {
-      const port = Number(process.env.SMTP_PORT ?? 465);
-      const transport = nodemailer.createTransport({
-        host: process.env.SMTP_HOST,
-        port,
-        secure: port === 465,
-        auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
-      });
-      await transport.verify();
-      return { ok: true, message: `SMTP (${process.env.SMTP_HOST}) authenticated.` };
-    }
-    return { ok: false, message: 'Not configured.' };
+    if (!resendConfigured()) return { ok: false, message: 'Not configured.' };
+    const res = await fetch('https://api.resend.com/domains', {
+      headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}` },
+    });
+    return res.ok
+      ? { ok: true, message: 'Resend API key accepted.' }
+      : { ok: false, message: `Resend responded ${res.status}.` };
   } catch (err: any) {
     return { ok: false, message: err?.message?.slice(0, 200) ?? 'Connection failed.' };
   }
-}
-
-async function sendViaSmtp(to: string, subject: string, html: string) {
-  const port = Number(process.env.SMTP_PORT ?? 465);
-  const transport = nodemailer.createTransport({
-    host: process.env.SMTP_HOST,
-    port,
-    secure: port === 465,
-    auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
-  });
-  const from = process.env.SMTP_FROM || process.env.INVOICE_FROM_EMAIL || process.env.SMTP_USER!;
-  await transport.sendMail({ from, to, subject, html });
 }
 
 async function sendViaResend(to: string, subject: string, html: string) {
@@ -78,15 +46,11 @@ export async function sendEmail({
   html: string;
 }): Promise<{ ok: boolean; error?: string }> {
   try {
-    if (resendConfigured()) {
-      await sendViaResend(to, subject, html);
-      return { ok: true };
+    if (!resendConfigured()) {
+      return { ok: false, error: 'Email not configured (set RESEND_API_KEY + INVOICE_FROM_EMAIL).' };
     }
-    if (smtpConfigured()) {
-      await sendViaSmtp(to, subject, html);
-      return { ok: true };
-    }
-    return { ok: false, error: 'Email not configured (set RESEND_API_KEY + INVOICE_FROM_EMAIL, or SMTP_*).' };
+    await sendViaResend(to, subject, html);
+    return { ok: true };
   } catch (e: any) {
     return { ok: false, error: e?.message ?? 'Email send failed' };
   }
