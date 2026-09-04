@@ -153,7 +153,9 @@ export async function uploadToDrive(opts: {
   buffer: Buffer;
 }): Promise<{ fileId: string; webViewLink: string | null }> {
   const c = await ctx();
-  const projectFolder = await ensureFolder(c, `${opts.clientName} - ${opts.projectName}`, c.rootParent);
+  // <root>/<Client>/<Project>/<Category>/<file>
+  const clientFolder = await ensureFolder(c, opts.clientName, c.rootParent);
+  const projectFolder = await ensureFolder(c, opts.projectName, clientFolder);
   const catFolder = await ensureFolder(c, opts.categoryLabel, projectFolder);
   const createParams: any = {
     requestBody: { name: opts.fileName, parents: [catFolder] },
@@ -163,4 +165,75 @@ export async function uploadToDrive(opts: {
   if (c.shared) createParams.supportsAllDrives = true;
   const created = await c.drive.files.create(createParams);
   return { fileId: created.data.id as string, webViewLink: created.data.webViewLink ?? null };
+}
+
+// Standard sub-folders each project type gets. Numbered so they sort naturally.
+export const FOLDER_TEMPLATES: Record<string, string[]> = {
+  DESIGN: [
+    '00 Admin — Contracts & Invoices',
+    '01 Brief & Requirements',
+    '02 Research & Moodboards',
+    '03 Brand Assets',
+    '04 Drafts & WIP',
+    '05 Final Designs',
+    '06 Source Files',
+  ],
+  DEVELOPMENT: [
+    '00 Admin — Contracts & Invoices',
+    '01 Requirements & Specs',
+    '02 Design Handoff',
+    '03 Source & Repos',
+    '04 Documentation',
+    '05 QA & Testing',
+    '06 Credentials & Access',
+    '07 Deliverables',
+  ],
+  SOFTWARE: [
+    '00 Admin — Contracts & Invoices',
+    '01 Requirements & Specs',
+    '02 Architecture & Design',
+    '03 Source & Repos',
+    '04 Documentation',
+    '05 QA & Testing',
+    '06 Credentials & Access',
+    '07 Deliverables',
+  ],
+};
+const DEFAULT_FOLDERS = ['00 Admin — Contracts & Invoices', 'Deliverables', 'Assets'];
+export const foldersFor = (type: string) => FOLDER_TEMPLATES[type] ?? DEFAULT_FOLDERS;
+
+export const folderLink = (id: string) => `https://drive.google.com/drive/folders/${id}`;
+
+/** Ensure <root>/<Client>/<Project>/<standard sub-folders> exist. Idempotent. */
+export async function provisionProjectFolders(opts: {
+  clientName: string;
+  projectName: string;
+  projectType: string;
+}): Promise<{ clientFolderId: string; projectFolderId: string }> {
+  const c = await ctx();
+  const clientFolderId = await ensureFolder(c, opts.clientName, c.rootParent);
+  const projectFolderId = await ensureFolder(c, opts.projectName, clientFolderId);
+  for (const sub of foldersFor(opts.projectType)) {
+    await ensureFolder(c, sub, projectFolderId);
+  }
+  return { clientFolderId, projectFolderId };
+}
+
+/** Ensure just the client's top-level folder exists. */
+export async function ensureClientFolder(clientName: string): Promise<string> {
+  const c = await ctx();
+  return ensureFolder(c, clientName, c.rootParent);
+}
+
+/** Grant a person read access to a file so they can open it directly. */
+export async function shareFile(fileId: string, email: string, role: 'reader' | 'writer' = 'reader'): Promise<void> {
+  const c = await ctx();
+  const params: any = {
+    fileId,
+    requestBody: { role, type: 'user', emailAddress: email },
+    sendNotificationEmail: false, // Keel sends its own notification
+    fields: 'id',
+  };
+  if (c.shared) params.supportsAllDrives = true;
+  await c.drive.permissions.create(params);
 }

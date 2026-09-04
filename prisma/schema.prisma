@@ -262,6 +262,7 @@ model Client {
   // Lead attribution for sales commission
   leadType      String?
   taxRegion     String?   // 'QC' | 'CA' | 'US' — drives invoice tax
+  driveFolderId String?   // this client's Google Drive folder
   salespersonId String?
   salesperson   User?     @relation("SalesLeads", fields: [salespersonId], references: [id], onDelete: SetNull)
   createdAt    DateTime      @default(now())
@@ -295,6 +296,7 @@ model Project {
   deadline        DateTime?
   deadlineEventId   String? // Google Calendar event mirroring the deadline (if synced)
   deadlineSyncedFor DateTime? // the deadline value last synced, to detect changes
+  driveFolderId     String? // this project's Google Drive folder
   priority        Priority      @default(MEDIUM)
 
   // Assets & links (v1 = links only)

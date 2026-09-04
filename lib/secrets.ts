@@ -23,8 +23,7 @@ export const MANAGED_SECRETS = [
   'APOLLO_API_KEY',
   'WAVE_FULL_ACCESS_TOKEN',
   'WAVE_BUSINESS_ID',
-  'RESEND_API_KEY',
-  'INVOICE_FROM_EMAIL',
+  'INVOICE_FROM_EMAIL', // optional "From" override for Gmail sends
   // Unified "Connect Google" (OAuth) — powers Gmail, Calendar, Meet and Drive.
   'GOOGLE_OAUTH_CLIENT_ID',
   'GOOGLE_OAUTH_CLIENT_SECRET',

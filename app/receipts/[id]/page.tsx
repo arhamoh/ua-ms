@@ -54,7 +54,7 @@ export default async function ReceiptPage({
           </form>
         ) : (
           <span className="rounded-xl border border-dashed border-slate-300 px-3 py-2 text-xs text-slate-400">
-            Add RESEND_API_KEY to enable emailing
+            Connect Google to enable emailing
           </span>
         )}
       </div>

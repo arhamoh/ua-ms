@@ -47,7 +47,17 @@ import {
   buildWelcomeEmail,
 } from '@/lib/welcome-email';
 import { stashCredentials } from '@/lib/pending-credentials';
-import { driveConfigured, uploadToDrive, testDriveConnection, listDriveFiles, type DriveEntry } from '@/lib/drive';
+import {
+  driveConfigured,
+  uploadToDrive,
+  testDriveConnection,
+  listDriveFiles,
+  provisionProjectFolders,
+  ensureClientFolder,
+  shareFile,
+  folderLink,
+  type DriveEntry,
+} from '@/lib/drive';
 import { testGoogleConnection, resetGoogleTokenCache } from '@/lib/google';
 import { testOpenRouter } from '@/lib/integrations';
 import { setSecret, clearSecret, isManagedSecret, getSecret } from '@/lib/secrets';
@@ -1244,11 +1254,11 @@ export async function testIntegration(id: string): Promise<{ ok: boolean; messag
 }
 
 /** Send a sample welcome email to check the email setup works. Explicit test —
- *  bypasses WELCOME_EMAILS_ENABLED, but still needs Resend configured. */
+ *  bypasses WELCOME_EMAILS_ENABLED, but still needs Google connected. */
 export async function sendTestEmail(to: string): Promise<{ ok: boolean; message: string }> {
   const s = await getSession();
   if (!s || !isSuperStrict(s.roles)) return { ok: false, message: 'Not authorized.' };
-  if (!emailConfigured()) return { ok: false, message: 'Configure Resend first (Integrations above).' };
+  if (!emailConfigured()) return { ok: false, message: 'Connect Google first (Integrations above).' };
   const target = (to || s.email || '').trim();
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(target)) return { ok: false, message: 'Enter a valid email address.' };
   const { subject, html } = buildWelcomeEmail({
@@ -1376,16 +1386,102 @@ export async function revealSecret(name: string): Promise<{ ok: boolean; value?:
   return { ok: true, value };
 }
 
-/** Browse Google Drive files/folders (Super Admin only) — for verifying the
- *  connection and navigating the connected account's Drive. */
+/** Browse Google Drive files/folders — navigate the connected account's Drive. */
 export async function browseDrive(folderId?: string): Promise<{ ok: boolean; files?: DriveEntry[]; error?: string }> {
-  await requireSuperStrict();
+  const me = await getSession();
+  if (!me) return { ok: false, error: 'Not signed in.' };
   if (!driveConfigured()) return { ok: false, error: 'Google Drive isn’t connected.' };
   try {
     return { ok: true, files: await listDriveFiles(folderId) };
   } catch (e: any) {
     return { ok: false, error: e?.message?.slice(0, 200) ?? 'Could not read Drive.' };
   }
+}
+
+function escHtml(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+/** Create the Google Drive folder tree for every client and project that
+ *  doesn't have one yet: <Client>/<Project>/<standard sub-folders>. */
+export async function provisionAllDriveFolders(): Promise<{ ok: boolean; clients: number; projects: number; error?: string }> {
+  await requireSuperStrict();
+  if (!driveConfigured()) return { ok: false, clients: 0, projects: 0, error: 'Google Drive isn’t connected.' };
+  let clients = 0;
+  let projects = 0;
+  try {
+    const projectRows = await prisma.project.findMany({ include: { client: { select: { id: true, name: true } } } });
+    for (const p of projectRows) {
+      try {
+        const { clientFolderId, projectFolderId } = await provisionProjectFolders({
+          clientName: p.client.name,
+          projectName: p.name,
+          projectType: p.type,
+        });
+        await prisma.client.update({ where: { id: p.client.id }, data: { driveFolderId: clientFolderId } });
+        await prisma.project.update({ where: { id: p.id }, data: { driveFolderId: projectFolderId } });
+        projects++;
+      } catch {
+        /* skip this project */
+      }
+    }
+    // Clients with no projects still get their top-level folder.
+    const lonely = await prisma.client.findMany({ where: { driveFolderId: null }, select: { id: true, name: true } });
+    for (const cl of lonely) {
+      try {
+        const id = await ensureClientFolder(cl.name);
+        await prisma.client.update({ where: { id: cl.id }, data: { driveFolderId: id } });
+      } catch {
+        /* skip */
+      }
+    }
+    clients = await prisma.client.count({ where: { driveFolderId: { not: null } } });
+    return { ok: true, clients, projects };
+  } catch (e: any) {
+    return { ok: false, clients, projects, error: e?.message?.slice(0, 200) ?? 'Failed.' };
+  }
+}
+
+/** Tag a teammate on a Drive file: grant them read access and notify them with a
+ *  direct link (in-app + push + email). */
+export async function tagFileToUser(
+  fileId: string,
+  fileName: string,
+  webViewLink: string | null,
+  userId: string,
+  note?: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const me = await getSession();
+  if (!me) return { ok: false, error: 'Not signed in.' };
+  const target = await prisma.user.findUnique({ where: { id: userId }, select: { id: true, name: true, email: true } });
+  if (!target) return { ok: false, error: 'Person not found.' };
+
+  // Give them access so the link opens directly (best-effort).
+  try {
+    if (target.email) await shareFile(fileId, target.email);
+  } catch {
+    /* they may already have access, or it's an external file — still notify */
+  }
+
+  const href = webViewLink || folderLink(fileId);
+  await notifyUsers([target.id], {
+    type: 'file_tag',
+    title: `${me.name} tagged you on a file`,
+    body: `${fileName}${note?.trim() ? ` — ${note.trim()}` : ''}`,
+    href,
+  });
+  if (target.email) {
+    await sendEmail({
+      to: target.email,
+      subject: `${me.name} shared a file with you: ${fileName}`,
+      html: `<div style="font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:#334155;">
+        <p><strong>${escHtml(me.name)}</strong> tagged you on a file in Keel.</p>
+        <p style="margin:12px 0;padding:12px 14px;background:#f8fafc;border-radius:10px;"><strong>${escHtml(fileName)}</strong>${note?.trim() ? `<br/><span style="color:#64748b;">${escHtml(note.trim())}</span>` : ''}</p>
+        <p><a href="${escHtml(href)}" style="display:inline-block;background:#0f5132;color:#fff;text-decoration:none;padding:9px 16px;border-radius:9px;">Open the file</a></p>
+      </div>`,
+    });
+  }
+  return { ok: true };
 }
 
 /** Disconnect the linked Google account (clears the stored tokens). */

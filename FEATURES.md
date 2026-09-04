@@ -45,6 +45,14 @@ clients; won deals flow straight into projects.
   the calendar as all-day events.
 - Super Admins / Admins see the whole team's calendar and pending requests.
 
+### Drive (files)
+A **Google Drive browser** built in (Delivery → Drive): navigate folders, open
+files, and **one-click provision** a tidy folder tree for every client and
+project — `Client / Project / standard sub-folders`, with sub-folders tailored
+to the project type (design vs development/software). **Tag a teammate** on any
+file: they get read access plus a notification (in-app + push + email) with a
+direct link. Uploaded project files land in the connected Google Drive.
+
 ### Time tracking & Agency hours
 Per-person time entries with approvals and reports; timezone-aware agency
 schedules with live local clocks across offices.
@@ -89,7 +97,7 @@ schedules with live local clocks across offices.
 ### Settings & integrations
 Company details, customizable dropdown options, database migrations and data
 reset — plus one-click, dashboard-managed integrations (no redeploys):
-**Google (Drive, Calendar, Meet, Gmail), Email, OpenRouter AI, Apollo,
+**Google (Gmail, Calendar, Meet, Drive — one connection), OpenRouter AI, Apollo,
 X/twitterapi.io, Wave accounting, automation/cron, push.** Secrets are stored
 **encrypted**; every key is settable from the UI with a reveal toggle.
 

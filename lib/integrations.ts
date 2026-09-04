@@ -33,7 +33,6 @@ export async function getIntegrations(): Promise<IntegrationStatus[]> {
     dbOk = false;
   }
 
-  const resend = isSet(e.RESEND_API_KEY) && isSet(e.INVOICE_FROM_EMAIL);
   const authSet = isSet(e.AUTH_SECRET);
   const orSet = isSet(e.OPENROUTER_API_KEY);
   const waveSet = isSet(e.WAVE_FULL_ACCESS_TOKEN);
@@ -62,24 +61,6 @@ export async function getIntegrations(): Promise<IntegrationStatus[]> {
         { name: 'GOOGLE_OAUTH_CLIENT_SECRET', set: isSet(e.GOOGLE_OAUTH_CLIENT_SECRET), required: true },
       ],
       testable: googleLinked,
-    },
-    // ── Email (Resend fallback) ─────────────────────────────────────────────
-    {
-      id: 'email',
-      group: 'Email',
-      name: 'Email — Resend (fallback)',
-      description: 'Used to send email only when Google above isn’t connected.',
-      status: googleLinked ? 'connected' : resend ? 'connected' : 'off',
-      summary: googleLinked
-        ? 'Google is connected — email is sent through Gmail; Resend isn’t used.'
-        : resend
-          ? 'Using Resend.'
-          : 'Optional — connect Google above, or set a Resend key to send email.',
-      vars: [
-        { name: 'RESEND_API_KEY', set: isSet(e.RESEND_API_KEY) },
-        { name: 'INVOICE_FROM_EMAIL', set: isSet(e.INVOICE_FROM_EMAIL) },
-      ],
-      testable: resend && !googleLinked,
     },
     // ── AI ─────────────────────────────────────────────────────────────────
     {

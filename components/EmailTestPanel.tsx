@@ -5,7 +5,7 @@ import { Send, Loader2, CheckCircle2, AlertTriangle, Mail } from 'lucide-react';
 import { sendTestEmail } from '@/app/actions';
 
 // A quick way to confirm the email setup works: sends a sample welcome email to
-// yourself (or any address) using the live Resend config.
+// yourself (or any address) using the live Gmail connection.
 export default function EmailTestPanel({ defaultTo, emailReady }: { defaultTo: string; emailReady: boolean }) {
   const [to, setTo] = useState(defaultTo);
   const [pending, start] = useTransition();
@@ -25,7 +25,7 @@ export default function EmailTestPanel({ defaultTo, emailReady }: { defaultTo: s
       </div>
       <p className="mt-1 text-xs text-slate-500">
         Sends a sample welcome email so you can see exactly what new members receive.
-        {!emailReady && ' Connect Google (or configure Resend) above first.'}
+        {!emailReady && ' Connect Google above first.'}
       </p>
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <input
