@@ -5,6 +5,7 @@ import { saveMyTimezone } from './actions';
 import TimezoneSelect from '@/components/TimezoneSelect';
 import { ensureOptionsSeeded, ensureOptionDefaults, OPTION_KINDS } from '@/lib/options';
 import { getIntegrations } from '@/lib/integrations';
+import { hasDedicatedRoot, driveRootId, driveEntryName, folderLink } from '@/lib/drive';
 import { getCompany } from '@/lib/company';
 import { getSession } from '@/lib/auth';
 import FadeIn from '@/components/FadeIn';
@@ -57,6 +58,12 @@ export default async function SettingsPage({
   const session = await getSession();
   // Integrations, Database and Reset are Super-Admin-only — Admins don't see them.
   const isSuper = !!session?.roles?.includes('SUPER_ADMIN');
+  // Drive storage-location status, shown inside the Google card (Super Admin only).
+  const googleOn = integrations.some((i) => i.id === 'google' && i.status === 'connected');
+  const dedicated = hasDedicatedRoot();
+  const driveRoot = isSuper && googleOn
+    ? { dedicated, rootName: dedicated ? await driveEntryName(driveRootId()) : null, rootLink: dedicated ? folderLink(driveRootId()) : null }
+    : null;
   const me = session ? await prisma.user.findUnique({ where: { id: session.id }, select: { timezone: true, notifyPrefs: true, username: true } }) : null;
   const notifyPrefs = normalizePrefs(me?.notifyPrefs);
 
@@ -130,7 +137,7 @@ export default async function SettingsPage({
           <h2 className="text-sm font-semibold">Integrations &amp; connections</h2>
           <span className="text-xs text-slate-400">What’s connected, and whether the keys work</span>
         </div>
-        <IntegrationsPanel integrations={integrations} />
+        <IntegrationsPanel integrations={integrations} driveRoot={driveRoot} />
         <p className="mt-2 text-xs text-slate-400">
           Set keys right here, or in Railway → Variables. Secret values are never shown — only whether each one is set.
         </p>      </div>

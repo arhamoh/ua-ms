@@ -2,9 +2,8 @@ import Link from 'next/link';
 import { HardDrive, Plug } from 'lucide-react';
 import { prisma } from '@/lib/prisma';
 import { getSession } from '@/lib/auth';
-import { driveConfigured, hasDedicatedRoot, driveRootId, driveEntryName, folderLink } from '@/lib/drive';
+import { driveConfigured, hasDedicatedRoot, driveRootId, driveEntryName } from '@/lib/drive';
 import DriveBrowser from '@/components/DriveBrowser';
-import DriveRootSetup from '@/components/DriveRootSetup';
 
 export const dynamic = 'force-dynamic';
 
@@ -35,10 +34,7 @@ export default async function DrivePage() {
           </Link>
         </div>
       ) : (
-        <div className="mt-6 space-y-4">
-          {canProvision && (
-            <DriveRootSetup dedicated={dedicated} rootName={rootName} rootLink={dedicated ? folderLink(driveRootId()) : null} />
-          )}
+        <div className="mt-6">
           <DriveBrowser people={people} canProvision={canProvision} rootLabel={privileged ? (dedicated ? (rootName ?? 'Keel') : 'My Drive') : 'My Projects'} />
         </div>
       )}

@@ -5,6 +5,9 @@ import { CheckCircle2, XCircle, AlertTriangle, Loader2, Plug, Save, Trash2, Eye,
 import { useRouter } from 'next/navigation';
 import { testIntegration, saveIntegrationSecret, clearIntegrationSecret, revealSecret, disconnectGoogle, sendTestEmail } from '@/app/actions';
 import type { IntegrationStatus, EnvVarStatus } from '@/lib/integrations';
+import DriveRootSetup from '@/components/DriveRootSetup';
+
+export type DriveRootInfo = { dedicated: boolean; rootName: string | null; rootLink: string | null };
 
 const STATUS: Record<IntegrationStatus['status'], { dot: string; label: string; cls: string }> = {
   connected: { dot: 'bg-emerald-500', label: 'Connected', cls: 'border-emerald-200 bg-emerald-50 text-emerald-700' },
@@ -15,7 +18,7 @@ const STATUS: Record<IntegrationStatus['status'], { dot: string; label: string; 
 // Groups rendered as a single combined card (one border, sub-sections inside).
 const MERGED_GROUPS = new Set(['Google']);
 
-export default function IntegrationsPanel({ integrations }: { integrations: IntegrationStatus[] }) {
+export default function IntegrationsPanel({ integrations, driveRoot }: { integrations: IntegrationStatus[]; driveRoot?: DriveRootInfo | null }) {
   // Collapse into consecutive same-group runs.
   const groups: { group: string; items: IntegrationStatus[] }[] = [];
   for (const it of integrations) {
@@ -33,7 +36,7 @@ export default function IntegrationsPanel({ integrations }: { integrations: Inte
             <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
               {g.items.map((it, i) => (
                 <div key={it.id} className={i > 0 ? 'border-t border-slate-100 pt-4' : ''}>
-                  <IntegrationBody it={it} />
+                  <IntegrationBody it={it} driveRoot={driveRoot} />
                 </div>
               ))}
             </div>
@@ -41,7 +44,7 @@ export default function IntegrationsPanel({ integrations }: { integrations: Inte
             <div className="space-y-3">
               {g.items.map((it) => (
                 <div key={it.id} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                  <IntegrationBody it={it} />
+                  <IntegrationBody it={it} driveRoot={driveRoot} />
                 </div>
               ))}
             </div>
@@ -54,7 +57,7 @@ export default function IntegrationsPanel({ integrations }: { integrations: Inte
 
 // The inner content of one integration — no outer border, so it works both as
 // its own card and as a section inside a merged card.
-function IntegrationBody({ it }: { it: IntegrationStatus }) {
+function IntegrationBody({ it, driveRoot }: { it: IntegrationStatus; driveRoot?: DriveRootInfo | null }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null);
@@ -111,6 +114,11 @@ function IntegrationBody({ it }: { it: IntegrationStatus }) {
 
       {/* Unified Google connect / disconnect. */}
       {it.id === 'google' && <GoogleConnect it={it} onChange={() => router.refresh()} />}
+      {it.id === 'google' && it.status === 'connected' && driveRoot && (
+        <div className="mt-3 border-t border-slate-100 pt-3">
+          <DriveRootSetup dedicated={driveRoot.dedicated} rootName={driveRoot.rootName} rootLink={driveRoot.rootLink} />
+        </div>
+      )}
 
       {it.testable && (
         <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3">
