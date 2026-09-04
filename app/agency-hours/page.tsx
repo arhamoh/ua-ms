@@ -66,7 +66,7 @@ function ScheduleFields({ agency, clients }: { agency?: Agency; clients: { id: s
 export default async function AgencyHoursPage() {
   const user = await getSession();
   if (!user) redirect('/login');
-  if (!canManageAgencyHours(user.roles)) redirect('/');
+  if (!canManageAgencyHours(user.roles)) redirect('/dashboard');
 
   const [agencies, clients] = await Promise.all([
     prisma.agencySchedule.findMany({ orderBy: { name: 'asc' } }),

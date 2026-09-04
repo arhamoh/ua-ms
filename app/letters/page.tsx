@@ -15,7 +15,7 @@ function fmt(d: Date | null) {
 export default async function LettersPage() {
   const user = await getSession();
   if (!user) redirect('/login');
-  if (!user.roles.includes('SUPER_ADMIN')) redirect('/');
+  if (!user.roles.includes('SUPER_ADMIN')) redirect('/dashboard');
 
   const letters = await prisma.letter.findMany({
     orderBy: { createdAt: 'desc' },

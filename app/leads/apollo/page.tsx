@@ -10,7 +10,7 @@ export const dynamic = 'force-dynamic';
 export default async function ApolloLeadsPage() {
   const user = await getSession();
   if (!user) redirect('/login');
-  if (!user.roles.some((r) => r === 'SUPER_ADMIN' || r === 'ADMIN')) redirect('/');
+  if (!user.roles.some((r) => r === 'SUPER_ADMIN' || r === 'ADMIN')) redirect('/dashboard');
 
   const [total, withEmail, byStatusRaw, bySegmentRaw, leadsRaw] = await Promise.all([
     prisma.lead.count(),

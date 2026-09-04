@@ -15,7 +15,7 @@ const iso = (d: Date | null) => (d ? new Date(d).toISOString().slice(0, 10) : nu
 export default async function LetterBoardPage({ params }: { params: Promise<{ id: string }> }) {
   const user = await getSession();
   if (!user) redirect('/login');
-  if (!user.roles.includes('SUPER_ADMIN')) redirect('/');
+  if (!user.roles.includes('SUPER_ADMIN')) redirect('/dashboard');
 
   const { id } = await params;
   const [letter, statementRows] = await Promise.all([

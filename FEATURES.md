@@ -120,6 +120,14 @@ X/twitterapi.io, Wave accounting, automation/cron, push.** Secrets are stored
 
 ---
 
+### Marketing site (public landing)
+The root URL (`/`) is a public marketing landing page — feature overview, a
+"cancel the stack" cost comparison, industry testimonials, and seat-graded
+pricing tiers — with **Sign in / Get started** buttons that go to `/login`.
+Signed-in visitors are sent straight to their **dashboard** (`/dashboard`). The
+page is authored as a self-contained HTML file (`lib/landing.html`) so it can be
+edited without touching the app shell.
+
 ## Platform qualities
 - **White-label ready** — a single **"Connect Google"** button links one Google
   Workspace account that powers email (Gmail), Calendar, Meet and Drive file

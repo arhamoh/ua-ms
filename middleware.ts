@@ -14,6 +14,13 @@ const PUBLIC = ['/login', '/forgot-password', '/reset-password', '/api/leads/cro
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
+  // The root URL is the public marketing landing page. The page itself sends
+  // signed-in visitors on to /dashboard, so let everyone reach it. Exact match
+  // only — every other route stays protected.
+  if (pathname === '/') {
+    return NextResponse.next();
+  }
+
   if (PUBLIC.some((p) => pathname === p || pathname.startsWith(`${p}/`))) {
     return NextResponse.next();
   }

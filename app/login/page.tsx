@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic';
 export default async function LoginPage({ searchParams }: { searchParams: Promise<{ reset?: string }> }) {
   // Already signed in → go home.
   const session = await getSession();
-  if (session) redirect('/');
+  if (session) redirect('/dashboard');
   const { reset } = await searchParams;
 
   return (

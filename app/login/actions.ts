@@ -28,7 +28,7 @@ export async function login(_prev: LoginState, formData: FormData): Promise<Logi
     roles: user.roles,
     mustChangePassword: user.mustChangePassword,
   });
-  redirect(user.mustChangePassword ? '/change-password' : '/');
+  redirect(user.mustChangePassword ? '/change-password' : '/dashboard');
 }
 
 export async function logout() {

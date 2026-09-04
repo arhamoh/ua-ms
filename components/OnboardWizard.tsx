@@ -16,7 +16,7 @@ export type WizardStep = { id: string; label: string; content: ReactNode };
 export default function OnboardWizard({
   steps,
   submitLabel = 'Submit',
-  cancelHref = '/',
+  cancelHref = '/dashboard',
 }: {
   steps: WizardStep[];
   submitLabel?: string;

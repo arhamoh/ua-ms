@@ -9,7 +9,7 @@ export default async function ChangePasswordPage() {
   const session = await getSession();
   if (!session) redirect('/login');
   // Already changed it? Nothing forced — send them home.
-  if (!session.mustChangePassword) redirect('/');
+  if (!session.mustChangePassword) redirect('/dashboard');
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4">

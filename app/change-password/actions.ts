@@ -20,5 +20,5 @@ export async function submitNewPassword(
   const res = await changePassword(password);
   if (!res.ok) return { error: res.message };
 
-  redirect('/');
+  redirect('/dashboard');
 }

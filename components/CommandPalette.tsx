@@ -32,7 +32,7 @@ type Item = {
 };
 
 const PAGES: Item[] = [
-  { id: 'p-dash', label: 'Dashboard', href: '/', group: 'Pages', icon: LayoutDashboard },
+  { id: 'p-dash', label: 'Dashboard', href: '/dashboard', group: 'Pages', icon: LayoutDashboard },
   { id: 'p-clients', label: 'Clients', href: '/clients', group: 'Pages', icon: Briefcase },
   { id: 'p-projects', label: 'Projects', href: '/projects', group: 'Pages', icon: FolderKanban },
   { id: 'p-commissions', label: 'Commissions', href: '/commissions', group: 'Pages', icon: Coins },

@@ -202,18 +202,18 @@ export async function impersonate(userId: string): Promise<{ ok: boolean; error?
     impersonatorId: me.id,
     impersonatorName: me.name,
   });
-  redirect('/');
+  redirect('/dashboard');
 }
 
 /** Exit impersonation and return to the Super Admin's own session. */
 export async function stopImpersonating(): Promise<void> {
   const me = await getSession();
-  if (!me?.impersonatorId) redirect('/');
+  if (!me?.impersonatorId) redirect('/dashboard');
   const admin = await prisma.user.findUnique({ where: { id: me!.impersonatorId! }, select: { id: true, name: true, email: true, roles: true } });
   if (admin) {
     await createSession({ id: admin.id, name: admin.name, email: admin.email, roles: admin.roles });
   }
-  redirect('/');
+  redirect('/dashboard');
 }
 
 /** Admin sends the member a password-reset link by email (self-service reset). */

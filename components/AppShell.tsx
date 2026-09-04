@@ -71,7 +71,7 @@ type NavItem = { href: string; label: string; icon: LucideIcon; adminOnly?: bool
 type NavSection = { title?: string; items: NavItem[] };
 
 const navSections: NavSection[] = [
-  { items: [{ href: '/', label: 'Dashboard', icon: LayoutDashboard }] },
+  { items: [{ href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard }] },
   {
     title: 'Delivery',
     items: [
@@ -137,7 +137,7 @@ function NavContent({
   return (
     <>
       <div className={`flex h-16 items-center justify-center border-b border-slate-100 ${collapsed ? 'px-2' : 'px-4'}`}>
-        <Link href="/" aria-label="Dashboard" className="transition hover:opacity-80">
+        <Link href="/dashboard" aria-label="Dashboard" className="transition hover:opacity-80">
           {collapsed ? <Logo variant="mark" className="h-8 w-8" /> : <Logo className="text-3xl" />}
         </Link>
       </div>
@@ -357,7 +357,7 @@ export default function AppShell({
           </button>
 
           {/* Logo on mobile — tap to go back to the dashboard (sidebar is a drawer) */}
-          <Link href="/" aria-label="Dashboard" className="lg:hidden">
+          <Link href="/dashboard" aria-label="Dashboard" className="lg:hidden">
             <Logo className="text-2xl" />
           </Link>
 

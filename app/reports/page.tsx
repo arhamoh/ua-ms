@@ -32,7 +32,7 @@ export default async function ReportsPage({
     return (
       <div className="rounded-2xl border border-amber-200 bg-amber-50 p-8 text-center text-sm text-amber-800">
         Only admins and managers can view team reports.{' '}
-        <Link href="/" className="font-medium underline">Back to dashboard</Link>.
+        <Link href="/dashboard" className="font-medium underline">Back to dashboard</Link>.
       </div>
     );
   }

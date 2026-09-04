@@ -19,7 +19,7 @@ function XLogo({ className = '' }: { className?: string }) {
 export default async function LeadsHubPage() {
   const user = await getSession();
   if (!user) redirect('/login');
-  if (!user.roles.some((r) => r === 'SUPER_ADMIN' || r === 'ADMIN')) redirect('/');
+  if (!user.roles.some((r) => r === 'SUPER_ADMIN' || r === 'ADMIN')) redirect('/dashboard');
 
   const [leadTotal, leadContacted, leadWon, tweetTotal, tweetNew] = await Promise.all([
     prisma.lead.count(),

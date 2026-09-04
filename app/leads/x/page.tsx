@@ -9,7 +9,7 @@ export const dynamic = 'force-dynamic';
 export default async function XLeadsPage() {
   const user = await getSession();
   if (!user) redirect('/login');
-  if (!user.roles.some((r) => r === 'SUPER_ADMIN' || r === 'ADMIN')) redirect('/');
+  if (!user.roles.some((r) => r === 'SUPER_ADMIN' || r === 'ADMIN')) redirect('/dashboard');
 
   const [tweetRaw, keywordRaw, lastTweet] = await Promise.all([
     prisma.tweetLead.findMany({

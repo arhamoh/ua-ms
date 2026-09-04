@@ -151,7 +151,7 @@ export default async function OnboardPage() {
       )}
 
       <form action={onboardClient}>
-        <OnboardWizard steps={steps} submitLabel="Onboard client" cancelHref="/" />
+        <OnboardWizard steps={steps} submitLabel="Onboard client" cancelHref="/dashboard" />
       </form>
     </div>
   );
