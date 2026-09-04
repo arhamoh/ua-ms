@@ -33,7 +33,14 @@ export function googleConnectedEmail(): string | null {
 }
 
 export function redirectUri(origin: string): string {
-  return `${origin.replace(/\/$/, '')}/api/integrations/google/callback`;
+  let base = origin;
+  // Behind a TLS-terminating proxy (e.g. Railway) the origin can come back as
+  // http:// — but Google matches the registered https URI exactly, so coerce it
+  // (localhost stays http for local dev).
+  if (base.startsWith('http://') && !/localhost|127\.0\.0\.1/.test(base)) {
+    base = `https://${base.slice('http://'.length)}`;
+  }
+  return `${base.replace(/\/$/, '')}/api/integrations/google/callback`;
 }
 
 export function buildAuthUrl(origin: string, state: string): string {

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { CheckCircle2, XCircle, AlertTriangle, Loader2, Plug, Save, Trash2, Eye, EyeOff, LogIn, Unlink } from 'lucide-react';
+import { CheckCircle2, XCircle, AlertTriangle, Loader2, Plug, Save, Trash2, Eye, EyeOff, LogIn, Unlink, Copy, Check } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { testIntegration, saveIntegrationSecret, clearIntegrationSecret, revealSecret, disconnectGoogle } from '@/app/actions';
 import type { IntegrationStatus, EnvVarStatus } from '@/lib/integrations';
@@ -134,8 +134,16 @@ function IntegrationBody({ it }: { it: IntegrationStatus }) {
 
 function GoogleConnect({ it, onChange }: { it: IntegrationStatus; onChange: () => void }) {
   const [pending, start] = useTransition();
+  const [copied, setCopied] = useState(false);
   const clientReady = it.vars.filter((v) => v.required).every((v) => v.set);
   const connected = it.status === 'connected';
+
+  // The exact redirect URI this app will send — must be registered verbatim in
+  // the Google Cloud OAuth client. Built from the real browser origin (https).
+  const redirectUri =
+    typeof window !== 'undefined'
+      ? `${window.location.origin.replace(/^http:\/\/(?!localhost|127\.)/, 'https://')}/api/integrations/google/callback`
+      : '';
 
   const disconnect = () =>
     start(async () => {
@@ -143,8 +151,34 @@ function GoogleConnect({ it, onChange }: { it: IntegrationStatus; onChange: () =
       onChange();
     });
 
+  const copyUri = async () => {
+    try {
+      await navigator.clipboard.writeText(redirectUri);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    } catch {
+      /* clipboard blocked */
+    }
+  };
+
   return (
-    <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3">
+    <div className="mt-3 border-t border-slate-100 pt-3">
+      {!connected && redirectUri && (
+        <div className="mb-3 rounded-lg bg-slate-50 p-2.5">
+          <div className="text-[11px] font-medium text-slate-600">
+            Add this exact <span className="font-mono">Authorized redirect URI</span> in your Google Cloud OAuth client:
+          </div>
+          <div className="mt-1 flex items-center gap-1.5">
+            <code className="min-w-0 flex-1 truncate rounded border border-slate-200 bg-white px-2 py-1 text-[11px] text-slate-700" title={redirectUri}>
+              {redirectUri}
+            </code>
+            <button onClick={copyUri} className="inline-flex shrink-0 items-center gap-1 rounded-md border border-slate-300 px-2 py-1 text-[11px] font-medium text-slate-600 hover:bg-slate-100">
+              {copied ? <Check size={12} /> : <Copy size={12} />} {copied ? 'Copied' : 'Copy'}
+            </button>
+          </div>
+        </div>
+      )}
+      <div className="flex flex-wrap items-center gap-2">
       {connected ? (
         <button
           onClick={disconnect}
@@ -163,6 +197,7 @@ function GoogleConnect({ it, onChange }: { it: IntegrationStatus; onChange: () =
       ) : (
         <p className="text-xs text-slate-400">Save the client ID &amp; secret above, then reload to connect.</p>
       )}
+      </div>
     </div>
   );
 }
