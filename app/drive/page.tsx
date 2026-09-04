@@ -2,8 +2,9 @@ import Link from 'next/link';
 import { HardDrive, Plug } from 'lucide-react';
 import { prisma } from '@/lib/prisma';
 import { getSession } from '@/lib/auth';
-import { driveConfigured } from '@/lib/drive';
+import { driveConfigured, hasDedicatedRoot, driveRootId, driveEntryName, folderLink } from '@/lib/drive';
 import DriveBrowser from '@/components/DriveBrowser';
+import DriveRootSetup from '@/components/DriveRootSetup';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,6 +15,10 @@ export default async function DrivePage() {
   const privileged = me.roles?.some((r) => ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'PROJECT_MANAGER'].includes(r));
   const connected = driveConfigured();
   const people = connected ? await prisma.user.findMany({ orderBy: { name: 'asc' }, select: { id: true, name: true } }) : [];
+
+  // Storage-location status (Super Admin only).
+  const dedicated = hasDedicatedRoot();
+  const rootName = connected && canProvision && dedicated ? await driveEntryName(driveRootId()) : null;
 
   return (
     <div>
@@ -30,8 +35,11 @@ export default async function DrivePage() {
           </Link>
         </div>
       ) : (
-        <div className="mt-6">
-          <DriveBrowser people={people} canProvision={canProvision} rootLabel={privileged ? 'My Drive' : 'My Projects'} />
+        <div className="mt-6 space-y-4">
+          {canProvision && (
+            <DriveRootSetup dedicated={dedicated} rootName={rootName} rootLink={dedicated ? folderLink(driveRootId()) : null} />
+          )}
+          <DriveBrowser people={people} canProvision={canProvision} rootLabel={privileged ? (dedicated ? (rootName ?? 'Keel') : 'My Drive') : 'My Projects'} />
         </div>
       )}
     </div>

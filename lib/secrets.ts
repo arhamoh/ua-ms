@@ -31,6 +31,8 @@ export const MANAGED_SECRETS = [
   'GOOGLE_CONNECTED_EMAIL',
   'GOOGLE_CALENDAR_ID',
   'GOOGLE_CALENDAR_TZ',
+  'GOOGLE_DRIVE_ROOT_ID', // dedicated Keel folder / Shared Drive so files don't mix with personal
+
   // Legacy service-account fallback for Drive.
   'GOOGLE_SERVICE_ACCOUNT_JSON',
   'GOOGLE_SHARED_DRIVE_ID',

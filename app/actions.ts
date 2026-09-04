@@ -60,6 +60,8 @@ import {
   uploadFileToFolder,
   renameDriveEntry as renameDriveEntryLib,
   trashDriveEntry,
+  createKeelRootFolder,
+  moveEntry,
   type DriveEntry,
 } from '@/lib/drive';
 import { testGoogleConnection, resetGoogleTokenCache } from '@/lib/google';
@@ -1567,6 +1569,34 @@ export async function provisionAllDriveFolders(): Promise<{ ok: boolean; clients
   } catch (e: any) {
     return { ok: false, clients, projects, error: e?.message?.slice(0, 200) ?? 'Failed.' };
   }
+}
+
+/** Create a dedicated "Keel" folder in My Drive and use it as the root so Keel's
+ *  files never mix with personal files. Moves any existing client folders into it. */
+export async function createKeelDriveRoot(): Promise<{ ok: boolean; folderId?: string; error?: string }> {
+  await requireSuperStrict();
+  if (!driveConfigured()) return { ok: false, error: 'Google Drive isn’t connected.' };
+  try {
+    const folderId = await createKeelRootFolder('Keel');
+    await setSecret('GOOGLE_DRIVE_ROOT_ID', folderId);
+    // Migrate any already-provisioned client folders under the new root.
+    const clients = await prisma.client.findMany({ where: { driveFolderId: { not: null } }, select: { driveFolderId: true } });
+    for (const cl of clients) {
+      try { await moveEntry(cl.driveFolderId!, folderId, 'root'); } catch { /* skip */ }
+    }
+    return { ok: true, folderId };
+  } catch (e: any) {
+    return { ok: false, error: e?.message?.slice(0, 200) ?? 'Could not create the folder.' };
+  }
+}
+
+/** Point Keel at an existing folder or Shared Drive (paste its ID). */
+export async function setDriveRoot(id: string): Promise<{ ok: boolean; error?: string }> {
+  await requireSuperStrict();
+  const clean = (id ?? '').trim();
+  if (!clean) return { ok: false, error: 'Enter a folder or Shared Drive ID.' };
+  await setSecret('GOOGLE_DRIVE_ROOT_ID', clean);
+  return { ok: true };
 }
 
 /** Provision the Drive folder tree for a single project (elevated). */

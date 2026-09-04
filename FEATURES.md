@@ -56,7 +56,11 @@ A **Google Drive workspace** built in (Delivery → Drive):
 - **Comment** on a file with **@mentions** that notify the mentioned teammate.
 - **Project-scoped access:** Super Admin / Admin / Manager / PM see the whole
   Drive; developers, designers and others see **only the folders of projects
-  they're assigned to**. Uploaded project files land in the connected Drive.
+  they're assigned to**.
+- **Dedicated storage:** point Keel at its own "Keel" folder or a Shared Drive so
+  its files never mix with the connected account's personal files.
+- Each **project page → Files** shows that project's Drive folder inline with an
+  "Open in Drive" shortcut.
 
 ### Time tracking & Agency hours
 Per-person time entries with approvals and reports; timezone-aware agency
