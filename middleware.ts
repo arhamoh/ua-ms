@@ -14,10 +14,39 @@ const PUBLIC = ['/login', '/forgot-password', '/reset-password', '/api/leads/cro
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
-  // The root URL is the public marketing landing page. The page itself sends
-  // signed-in visitors on to /dashboard, so let everyone reach it. Exact match
-  // only — every other route stays protected.
+  // The root URL is the marketing landing page. While the site is in private
+  // preview it sits behind a simple password gate (HTTP Basic Auth). Signed-in
+  // team members skip the gate — the page redirects them on to /dashboard.
+  // Exact match only; every other route stays protected by the session check.
   if (pathname === '/') {
+    const sess = req.cookies.get(SESSION_COOKIE)?.value;
+    if (sess) {
+      try {
+        await jwtVerify(sess, SECRET);
+        return NextResponse.next();
+      } catch {
+        // not a valid session → fall through to the preview gate
+      }
+    }
+    const gate = process.env.LANDING_PASSWORD ?? 'keel-preview';
+    if (gate) {
+      const header = req.headers.get('authorization') ?? '';
+      let ok = false;
+      if (header.startsWith('Basic ')) {
+        try {
+          const decoded = atob(header.slice(6));
+          ok = decoded.slice(decoded.indexOf(':') + 1) === gate;
+        } catch {
+          ok = false;
+        }
+      }
+      if (!ok) {
+        return new NextResponse('Private preview — password required.', {
+          status: 401,
+          headers: { 'WWW-Authenticate': 'Basic realm="Keel — private preview", charset="UTF-8"' },
+        });
+      }
+    }
     return NextResponse.next();
   }
 
