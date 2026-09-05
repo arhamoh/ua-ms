@@ -8,8 +8,10 @@ const nextConfig = {
   // ...and force-trace its .wasm into the standalone output so it exists at runtime.
   outputFileTracingIncludes: {
     '/api/letters/[id]/package': ['./node_modules/@neslinesli93/qpdf-wasm/dist/qpdf.wasm'],
-    // The landing page (app/page.tsx) reads this HTML at request time.
+    // The landing pages read these HTML files at request time.
     '/': ['./lib/landing.html'],
+    '/home2': ['./lib/landing2.html'],
+    '/home3': ['./lib/landing3.html'],
   },
   experimental: {
     // Statement uploads (multiple PDFs/CSVs) post through a Server Action, whose
