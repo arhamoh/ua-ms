@@ -1,17 +1,17 @@
 // Minimal service worker: network-first, falls back to cache when offline.
 // API responses are never cached (always live data). Also handles Web Push.
-const CACHE = 'keel-v3';
+const CACHE = 'keel-v4';
 
 // Show a notification when a push arrives (works even when the app is closed).
 self.addEventListener('push', (event) => {
-  let data = { title: 'Keel', body: '', url: '/' };
+  let data = { title: 'Keel', body: '', url: '/dashboard' };
   try { data = { ...data, ...(event.data ? event.data.json() : {}) }; } catch {}
   event.waitUntil(
     self.registration.showNotification(data.title || 'Keel', {
       body: data.body || '',
       icon: '/icon-192.png',
       badge: '/icon-192.png',
-      data: { url: data.url || '/' },
+      data: { url: data.url || '/dashboard' },
       tag: data.tag || undefined,
     }),
   );
@@ -20,7 +20,7 @@ self.addEventListener('push', (event) => {
 // Focus (or open) the app on the target URL when a notification is tapped.
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const url = (event.notification.data && event.notification.data.url) || '/';
+  const url = (event.notification.data && event.notification.data.url) || '/dashboard';
   event.waitUntil(
     (async () => {
       const all = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });

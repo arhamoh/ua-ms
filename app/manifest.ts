@@ -5,7 +5,12 @@ export default function manifest(): MetadataRoute.Manifest {
     name: 'Keel',
     short_name: 'Keel',
     description: 'The operating system your agency runs on.',
-    start_url: '/',
+    // The installed app is the workspace, not the marketing site: launch into
+    // the dashboard (unauthenticated users get redirected to /login). Scope stays
+    // at the app root so every in-app route opens inside the installed window.
+    id: '/dashboard',
+    start_url: '/dashboard',
+    scope: '/',
     display: 'standalone',
     background_color: '#F6F4EF',
     theme_color: '#0F5B57',
