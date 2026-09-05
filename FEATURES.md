@@ -127,8 +127,9 @@ pricing tiers — with **Sign in / Get started** buttons that go to `/login`.
 Signed-in visitors are sent straight to their **dashboard** (`/dashboard`). The
 page is authored as a self-contained HTML file (`lib/landing.html`) so it can be
 edited without touching the app shell. Two alternate design directions are kept
-alongside for comparison — a centered/editorial layout at `/home2` and a
-motion-forward layout (animated integrations graphic) at `/home3`.
+alongside for comparison — a centered/editorial layout at `/home2`, a
+motion-forward layout (animated integrations graphic) at `/home3`, and the
+original dark-green hero direction at `/home4`.
 
 ## Platform qualities
 - **White-label ready** — a single **"Connect Google"** button links one Google

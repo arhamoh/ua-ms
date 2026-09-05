@@ -17,7 +17,12 @@ export async function middleware(req: NextRequest) {
   // Public marketing pages: the root landing plus two design variations. The
   // root page redirects signed-in visitors to /dashboard; the variations render
   // for everyone so they can be compared side by side. Exact match only.
-  if (pathname === '/' || pathname === '/home2' || pathname === '/home3') {
+  if (
+    pathname === '/' ||
+    pathname === '/home2' ||
+    pathname === '/home3' ||
+    pathname === '/home4'
+  ) {
     return NextResponse.next();
   }
 

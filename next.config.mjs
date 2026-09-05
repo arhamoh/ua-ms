@@ -12,6 +12,7 @@ const nextConfig = {
     '/': ['./lib/landing.html'],
     '/home2': ['./lib/landing2.html'],
     '/home3': ['./lib/landing3.html'],
+    '/home4': ['./lib/landing4.html'],
   },
   experimental: {
     // Statement uploads (multiple PDFs/CSVs) post through a Server Action, whose
